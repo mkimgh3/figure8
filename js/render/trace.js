@@ -18,9 +18,10 @@ export function createTrace(scene) {
   const dc = document.createElement('canvas'); dc.width = 64; dc.height = 128;
   { const g = dc.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 64, 128); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = 9;      // soft edge = smooth line
     g.beginPath(); g.arc(32, 34, 19, Math.PI, 0); g.lineTo(51, 94); g.arc(32, 94, 19, 0, Math.PI); g.closePath(); g.fill(); g.fill(); }
-  const uScale = { value: 1 };
+  const uScale = { value: 1 }, uPunch = { value: 1 }, uWide = { value: 1 };
   const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, alphaMap: new THREE.CanvasTexture(dc), transparent: true, alphaTest: 0.02, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });      // lies on the ice: the skater passes in front of it
-  mat.onBeforeCompile = (sh) => { sh.uniforms.uScale = uScale; sh.vertexShader = 'uniform float uScale;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed.xz *= uScale;'); };
+  mat.onBeforeCompile = (sh) => { sh.uniforms.uScale = uScale; sh.uniforms.uWide = uWide; sh.vertexShader = 'uniform float uScale;\nuniform float uWide;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed.x *= uWide;\n  transformed.xz *= uScale;');
+    sh.uniforms.uPunch = uPunch; sh.fragmentShader = 'uniform float uPunch;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb = pow(diffuseColor.rgb, vec3(uPunch));'); };
   const geo = new THREE.PlaneGeometry(T.width, T.length); geo.rotateX(-Math.PI / 2);
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color();
   let blocks = [], prints = [], palette = 0, speedFrac = 0;
@@ -59,7 +60,9 @@ export function createTrace(scene) {
   const sharpen = (e) => { const a = e > 0.6 ? 0.5 : 0.02; if (mat.alphaTest !== a) { mat.alphaTest = a; mat.needsUpdate = true; } };      // two settings only: changing it rebuilds the shader
   // brighter than white at night, so the glow picks the line up
   const glow = (k) => { mat.color.setScalar(k); };
-  return { place, follow, sharpen, glow, rosette, clear, colorAt, bounds, uScale, get count() { return prints.length / F; },
+  // deeper, more saturated colours on bright ice, where the pastel line would fade into it (1 leaves them as they are)
+  const punch = (k, wide) => { uPunch.value = k; uWide.value = wide || 1; };
+  return { place, follow, sharpen, glow, punch, rosette, clear, colorAt, bounds, uScale, get count() { return prints.length / F; },
     set speed(f) { speedFrac = f; },
     get palette() { return palette; }, set palette(i) { palette = ((i % PALETTES.length) + PALETTES.length) % PALETTES.length; },
     serialise() { const src = prints.length > T.saveMax * F ? prints.slice(prints.length - T.saveMax * F) : prints; return src.map((v, i) => (i % F === 3 ? v : Math.round(v * 100) / 100)); },

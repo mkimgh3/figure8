@@ -111,6 +111,11 @@ const { open } = require('./smoke.cjs');
   tu = await p.evaluate(() => document.getElementById('tstep').textContent); ok('the first spin step tells you to rest then circle', /rest.*then circle/i.test(tu), tu);
   await ev('pointerup', 2, 300, 560); await ev('pointerup', 1, 104, 520); await sleep(400);
   await p.tap('#tutspin'); await sleep(150); ok('tapping the active category ends tutorial mode', await p.evaluate(() => !document.getElementById('tutbtn').hidden && document.getElementById('tsel').hidden && !window.__game.tutorial.on));
+  // the published version file must name the build that is running, or Home Screen copies would keep reloading
+  await p.tap('#menu'); await sleep(200); const bn = await p.evaluate(() => document.getElementById('buildname').textContent), vf = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'version.json'), 'utf8'));
+  ok('the menu shows the build, and version.json names the same one (run npm run stamp)', bn.includes('Build ' + vf.build) && vf.files.includes('js/main.js'), { menu: bn, file: vf.build });
+  await p.tap('#update'); await sleep(600); const up = await p.evaluate(() => document.getElementById('buildname').textContent); ok('Update says it is up to date when nothing newer is published', /up to date/.test(up), up);
+  await p.tap('#close'); await sleep(150);
   ok('no errors during the run', errs.length === 0, errs);
   console.log(failed ? `\n${failed} FAILED` : '\nall passed'); await b.close(); process.exit(failed ? 1 : 0);
 })();

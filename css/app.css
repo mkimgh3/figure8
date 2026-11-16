@@ -219,11 +219,11 @@ body.paused #topc, body.paused #hint, body.paused #vig { display: none; }
 .ui-minimal .cards .up b { color: #148a4a; } .ui-minimal .cards .dn b { color: #c63b3b; }
 .ui-minimal #pop .cards { grid-template-columns: repeat(4, 56px); }
 .ui-minimal #pop .cards b { font-size: 20px; }
-.ui-minimal #speedo { position: fixed; top: calc(var(--st) + 48px); right: var(--sr); width: auto; padding: 0; text-align: right; text-shadow: 0 1px 8px rgba(255,255,255,.8); }
+.ui-minimal #speedo { width: auto; padding: 0; text-align: center; text-shadow: 0 1px 8px rgba(255,255,255,.8); }
 .ui-minimal #speedo svg { display: none; }
 .ui-minimal #kmh { margin: 0; font-size: 44px; font-weight: 200; letter-spacing: -.03em; }
 .ui-minimal #kmh small { font-size: 9px; letter-spacing: .25em; }
-.ui-minimal #spbar { display: block; width: 70px; height: 2px; margin: 4px 0 0 auto; background: var(--line); }
+.ui-minimal #spbar { display: block; width: 70px; height: 2px; margin: 4px auto 0; background: var(--line); }
 .ui-minimal #btns { flex-direction: row; gap: 2px; }
 .ui-minimal #btns button { width: 40px; min-height: 40px; color: var(--ink); opacity: .8; }
 .ui-minimal .pill { text-decoration: underline; text-underline-offset: 4px; font-weight: 600; min-height: 30px; }
@@ -259,15 +259,14 @@ body.paused.ui-arcade #speedo, body.paused.ui-broadcast #speedo, body.paused.ui-
   .ui-broadcast #tut { top: calc(var(--st) + 120px); } .ui-broadcast #tsel { top: calc(var(--st) + 158px); } .ui-broadcast #tpanel { top: calc(var(--st) + 194px); }
   .ui-broadcast #pop { bottom: var(--sb); }
   .ui-glass #speedo { width: 80px; height: 80px; } .ui-glass #speedo svg { width: 64px; height: 36px; } .ui-glass #kmh { font-size: 21px; margin-top: -22px; }
-  .ui-minimal #speedo { top: calc(var(--st) + 44px); }
 }
 /* keep the styles' own pieces apart */
 .ui-broadcast #tut { position: fixed; right: var(--sr); top: calc(var(--st) + 102px); }
 .ui-broadcast #tsel { position: fixed; right: var(--sr); top: calc(var(--st) + 142px); }
 .ui-broadcast #tpanel { position: fixed; right: var(--sr); top: calc(var(--st) + 180px); width: 230px; }
-.ui-minimal #score { width: 128px; }
-.ui-minimal #pop, .ui-arcade #pop { margin-top: 104px; }
+.ui-minimal #score { width: 128px; overflow: visible; }
+.ui-arcade #pop { margin-top: 104px; }
 @media (orientation: landscape) and (max-height: 520px) {
   .ui-broadcast #tut, .ui-broadcast #tsel, .ui-broadcast #tpanel { left: auto; right: var(--sr); }
-  .ui-minimal #pop, .ui-arcade #pop { margin-top: 40px; }
+  .ui-arcade #pop { margin-top: 40px; }
 }

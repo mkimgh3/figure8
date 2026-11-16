@@ -18,8 +18,9 @@ import { createTutorial } from './ui/tutorial.js';
 import { createLog } from './log.js';
 import { createScoring } from './scoring.js';
 import * as save from './save.js';
+import { createUpdater } from './update.js';
 
-const BUILD = 'v3-look9';
+const BUILD = 'v3-look10';
 let world;
 try { world = createScene(document.getElementById('c')); } catch (e) { document.getElementById('err').style.display = 'flex'; throw e; }
 const saved = save.load();
@@ -49,7 +50,7 @@ let dirty = false;
 const showScore = () => hud.score(score.state);
 const tutorial = createTutorial();
 let placeIx = 0, lookIx = 0;
-const setLook = (i) => { lookIx = ((i % CFG.looks.length) + CFG.looks.length) % CFG.looks.length; world.setLook(CFG.looks[lookIx]); trace.glow(CFG.looks[lookIx].lineGlow || 1); avatars.forEach((a) => a && a.night(CFG.looks[lookIx].night ? 1 : 0)); hud.text('timename', CFG.looks[lookIx].name); };
+const setLook = (i) => { lookIx = ((i % CFG.looks.length) + CFG.looks.length) % CFG.looks.length; world.setLook(CFG.looks[lookIx]); trace.glow(CFG.looks[lookIx].lineGlow || 1); trace.punch(CFG.looks[lookIx].linePunch || 1, CFG.looks[lookIx].lineWide || 1); avatars.forEach((a) => a && a.night(CFG.looks[lookIx].night ? 1 : 0)); hud.text('timename', CFG.looks[lookIx].name); };
 const showGfx = () => hud.text('gfxname', world.qualityName);
 const setPlace = (i) => { placeIx = ((i % CFG.places.length) + CFG.places.length) % CFG.places.length; const p = CFG.places[placeIx]; world.setPlace(p); forest.set(p.trees); hud.text('placename', p.name); };
 
@@ -79,13 +80,20 @@ const input = createInput(document.getElementById('c'), game, tricks, taps, worl
 if (saved) { trace.palette = saved.pv === 2 ? saved.pal | 0 : 0; trace.restore(saved.prints); S.x = +saved.x || 0; S.z = +saved.z || 0; S.skated = +saved.skated || 0; models.setChar(saved.ch | 0); world.snapTo(S.x, S.z); }
 setPlace(saved ? saved.pl | 0 : 0); setLook(saved ? saved.tm | 0 : 0);
 if (saved && saved.gq && saved.gq !== 'Auto' && CFG.quality[saved.gq]) world.setQuality(saved.gq, false); showGfx();
-const persist = () => { if (!dirty) return; dirty = false; save.store({ x: S.x, z: S.z, skated: S.skated, pal: trace.palette, pv: 2, ch: models.index, pl: placeIx, tm: lookIx, ui: uiIx, gq: world.auto ? 'Auto' : world.qualityName, sc: score.serialise(), prints: trace.serialise() }); };
+const persist = () => { if (!dirty) return; dirty = false; save.store({ x: S.x, z: S.z, skated: S.skated, pal: trace.palette, pv: 2, ch: models.index, pl: placeIx, tm: lookIx, ui: uiIx, uv: 2, gq: world.auto ? 'Auto' : world.qualityName, sc: score.serialise(), prints: trace.serialise() }); };
 setInterval(persist, 20000);       // saving a big drawing costs a frame or two, so it is done rarely and whenever the game pauses
  window.addEventListener('pagehide', persist); document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 
 // buttons
 const countText = () => { const c = log.counts(); return c.minutes + ' min played · ' + c.strokes + ' touches · ' + c.jumps + ' jumps recorded. Stays on this device until you send or copy it.'; };
-const showMenu = () => { hud.text('logcount', countText()); hud.text('logstatus', ''); hud.text('charname', models.rig.name); hud.swatch(PALETTES[trace.palette].css, PALETTES[trace.palette].name); hud.sheet(true); };
+// the build that is running, and bringing a Home Screen copy up to date: checked at launch, on coming back to the game, and from the menu
+let updNote = '';
+const showBuild = () => hud.text('buildname', 'Build ' + BUILD + (updNote ? ' · ' + updNote : ''));
+const updater = createUpdater(BUILD, (s) => { updNote = s; showBuild(); }, () => { dirty = true; persist(); });
+hud.on('update', () => updater.check(true));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updater.check(false); });
+updater.check(false);
+const showMenu = () => { showBuild(); hud.text('logcount', countText()); hud.text('logstatus', ''); hud.text('charname', models.rig.name); hud.swatch(PALETTES[trace.palette].css, PALETTES[trace.palette].name); hud.sheet(true); };
 hud.on('zoom', setZoom); hud.on('score', setZoom); hud.on('menu', showMenu); hud.on('close', () => { hud.sheet(false); last = performance.now(); });
 hud.on('movesbtn', () => hud.page('moves')); hud.on('back', () => hud.page('home'));
 // a tap outside the menu card closes the menu
@@ -94,7 +102,7 @@ hud.on('char', () => { models.setChar(models.index + 1); showAvatar(); hud.text(
 hud.on('timebtn', () => { setLook(lookIx + 1); dirty = true; });
 // Screen: the look and layout of everything drawn over the ice
 const UI_STYLES = ['Classic', 'Broadcast', 'Glass', 'Minimal', 'Arcade'];
-let uiIx = saved && UI_STYLES[saved.ui] ? saved.ui : 0;
+let uiIx = saved && saved.uv === 2 && UI_STYLES[saved.ui] ? saved.ui : 3;       // Minimal is the standard screen; a style chosen since then is kept
 const setUi = (i) => { uiIx = (i + UI_STYLES.length) % UI_STYLES.length; UI_STYLES.forEach((n, k) => document.body.classList.toggle('ui-' + n.toLowerCase(), k === uiIx)); hud.text('uiname', UI_STYLES[uiIx]); };
 setUi(uiIx);
 hud.on('uibtn', () => { setUi(uiIx + 1); dirty = true; });
