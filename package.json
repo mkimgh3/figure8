@@ -1,0 +1,13 @@
+{
+  "name": "ice-doodle-2",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "serve": "npx --yes http-server -c-1 -p 8080 .",
+    "test": "node test/recognizer.test.js && node test/duo.test.js && node test/run.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0",
+    "three": "0.170.0"
+  }
+}

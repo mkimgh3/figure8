@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ice Doodle">
+<meta name="theme-color" content="#dbe9f6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<title>Ice Doodle 2</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vig"></div>
+<button id="score" type="button" aria-label="Score. Opens the scoreboard and pauses"><span id="total">0</span><small id="sub">Best jump</small><span id="bjname"></span><span id="bjcards"></span><i id="cbar"></i></button>
+<div id="btns">
+  <button id="zoom" type="button">Zoom out</button>
+  <button id="menu" type="button">Menu</button>
+</div>
+<div id="joy"><div id="knob"></div></div>
+<div id="pad"></div>
+<div id="topc">
+  <div id="speedo"><svg viewBox="0 0 132 74" width="132" height="74"><path d="M12 68 A54 54 0 0 1 120 68" fill="none" stroke="rgba(22,38,63,.16)" stroke-width="9" stroke-linecap="round"/><path id="arc" d="M12 68 A54 54 0 0 1 120 68" fill="none" stroke="#2b7fff" stroke-width="9" stroke-linecap="round" stroke-dasharray="170" stroke-dashoffset="170"/></svg><div id="kmh"><span id="kmhn">0</span><small>KM/H</small></div><i id="spbar"><b id="spfill"></b></i></div>
+  <div id="tut">
+    <button id="tutbtn" class="pill" type="button">Tutorial</button>
+    <button id="tutjump" class="pill" type="button" aria-pressed="false" hidden>Jumps</button>
+    <button id="tutspin" class="pill" type="button" aria-pressed="false" hidden>Spins &amp; steps</button>
+  </div>
+  <div id="tsel" hidden><button id="tprev" type="button" aria-label="Previous skill">‹</button><span id="tname"></span><button id="tnext" type="button" aria-label="Next skill">›</button></div>
+  <div id="tpanel" hidden aria-live="polite"><div id="tdots"></div><div id="tstep"></div></div>
+  <div id="rhythm"><span id="rlabel">Rhythm</span><div id="rtrack"><i id="rfill"></i></div></div>
+  <div id="pop"></div>
+</div>
+<div class="hud" id="hint"></div>
+<div id="board"><div id="bhead"><b id="btotal">0.0</b><span id="bsum"></span></div><div id="bbest"></div><div id="blist"></div><p id="bfoot">Paused. Drag to move around, pinch to zoom. Zoom in to skate on.</p></div>
+<div id="sheet"><div id="card">
+  <section id="pg-home">
+    <div class="top"><h2>Menu</h2><button id="close" class="x" type="button" aria-label="Close menu">×</button></div>
+    <div class="grid">
+      <button id="char" type="button">Skater: <span id="charname">Tesa</span></button>
+      <button id="pal" type="button"><span id="swatch"></span><span id="palname"></span></button>
+      <button id="place" type="button">Place: <span id="placename">Open lake</span></button>
+      <button id="timebtn" type="button">Time: <span id="timename">Day</span></button>
+      <button id="gfxbtn" type="button">Graphics: <span id="gfxname">Auto</span></button>
+      <button id="uibtn" type="button">Screen: <span id="uiname">Classic</span></button>
+      <button id="movesbtn" type="button">Moves ›</button>
+      <button id="fresh" type="button">Fresh ice</button>
+      <button id="rescore" type="button">Reset score</button>
+    </div>
+    <button id="send" class="primary" type="button">Send log to Claude</button>
+    <p class="logline"><span id="logcount"></span> <button id="copy" class="link" type="button">Copy</button> <button id="clearlog" class="link" type="button">New log</button></p>
+    <p id="logstatus" role="status"></p>
+  </section>
+  <section id="pg-moves" hidden>
+    <div class="top"><button id="back" class="x" type="button" aria-label="Back to menu">‹</button><h2>Moves</h2></div>
+    <dl id="moves">
+    <dt>Jump</dt><dd>Quick double tap. Keep the second tap down and circle to rotate.</dd>
+    <dt>Which jump</dt><dd>Forward and counter-clockwise: Axel family. Forward and clockwise: inside Axel. Backward and counter-clockwise: toe loop. Backward and clockwise: Salchow. Straight out of a clean backward landing: loop.</dd>
+    <dt>Toe pick</dt><dd>Flick down. For three seconds your next jump uses the toe pick: skating backward, counter-clockwise is a Flip and clockwise a Lutz. It goes a little higher.</dd>
+    <dt>Combination</dt><dd>Double tap again within two seconds of landing. The jumps score as one element.</dd>
+    <dt>Spin</dt><dd>Rest the finger until the ring turns solid, then circle. Left thumb down for sit, up for camel; it also lets the spin travel.</dd>
+    <dt>Twizzles</dt><dd>Circle straight away. She turns as far as your finger does and keeps her speed.</dd>
+    <dt>Three-turn</dt><dd>Flick left. Swaps forward and backward skating, which changes the jump.</dd>
+    <dt>Split leap</dt><dd>Flick right.</dd>
+    <dt>Spiral</dt><dd>Circle both thumbs the same way, then hold.</dd>
+    <dt>Hydroblade</dt><dd>Circle the thumbs opposite ways, then hold.</dd>
+    <dt>Step sequence</dt><dd>Flick up to make it ready, then scribble side to side. An even rhythm scores more. Each stroke is one step, to the side you stroke: short strokes are toe steps, medium are mohawks, long are serpentines.</dd>
+    <dt>Swing rolls</dt><dd>Flick up, then scribble up and down. Longer strokes make wider lobes, quicker strokes make them come faster.</dd>
+    <dt>Spread eagle</dt><dd>Spread both thumbs apart and hold. Steer it with the left thumb.</dd>
+    <dt>Both thumbs</dt><dd>Flicks and scribbles drawn with both thumbs together do the same as with one.</dd>
+    <dt>Bonus</dt><dd>Jump out of curves and figures, link different moves within 3 seconds, and avoid repeating the same one.</dd>
+  </dl>
+  </section>
+</div></div>
+<div id="err">This needs WebGL, and it could not start in this browser.</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
