@@ -1,6 +1,6 @@
 // The frozen lake. One large plane with a standard (physically based) material, extended in its shader with:
 //   depth    clear ice with no bottom: deep blue, darkest where you look straight into it, soft light far down that shifts
-//            with the view, and cracks hanging at three depths
+//            with the view, and cracks standing in it as thin pale sheets
 //   clouds   soft cloud shadows drifting across the ice
 //   aurora   at night, bands of coloured light reflected in the ice
 // The ice writes no depth, so the skater's mirror image (drawn just below the surface) shows through it as a reflection.
@@ -35,11 +35,22 @@ export function createIce(renderer) {
   });
   rough.anisotropy = aniso;
   // the layer under the surface. red: pale fractures. blue: crack shadows. (No bubbles or dark patches: from above they read as sprinkles and haze)
-  const deep = canvasTex(512, (g) => { const rnd = rng(23); let i, x, y, r, a;
-    g.fillStyle = '#000'; g.fillRect(0, 0, 512, 512); g.globalCompositeOperation = 'lighter';
-    for (i = 0; i < 9; i++) { x = rnd() * 512; y = rnd() * 512; a = rnd() * 6.28; const path = [[x, y]];
-      for (let k = 0; k < 10; k++) { a += (rnd() - 0.5) * 1.2; x += Math.cos(a) * (12 + rnd() * 22); y += Math.sin(a) * (12 + rnd() * 22); path.push([x, y]); if (rnd() < 0.25) { const b = a + (rnd() < 0.5 ? 1 : -1) * (0.6 + rnd()); path.push([x + Math.cos(b) * 18, y + Math.sin(b) * 18], [x, y]); } }
-      tile(512, (ox, oy) => { for (const [col, w] of [['rgba(0,0,170,1)', 3.5], ['rgba(170,0,0,1)', 1.0]]) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); path.forEach((q, k) => (k ? g.lineTo(q[0] + ox, q[1] + oy) : g.moveTo(q[0] + ox, q[1] + oy))); g.stroke(); } }); }
+  // Lake ice fractures the way glass does: a few long, nearly straight cracks with the odd kink, shorter ones branching off them
+  // at a wide angle, and hairlines. Each is brighter in some stretches than others and fades out at its ends.
+  // red: the fine line where a crack meets the surface. green: the same crack drawn soft and wide, for the fracture sheet below it.
+  const deep = canvasTex(1024, (g) => { const rnd = rng(23), runs = [];
+    g.fillStyle = '#000'; g.fillRect(0, 0, 1024, 1024); g.globalCompositeOperation = 'lighter'; g.lineCap = 'butt'; g.lineJoin = 'round';
+    const crack = (x, y, a, len, w, al, level) => { const n = Math.max(3, Math.round(len / 22)); let run = [[x, y]], ra = 0.45 + rnd() * 0.55;
+      for (let k = 1; k <= n; k++) { a += (rnd() - 0.5) * 0.14 + (rnd() < 0.1 ? (rnd() - 0.5) * 0.8 : 0); const d = len / n * (0.7 + rnd() * 0.6); x += Math.cos(a) * d; y += Math.sin(a) * d; run.push([x, y]);
+        const fade = Math.min(1, Math.min(k, n - k) / (n * 0.22) + 0.12);
+        if (rnd() < 0.3 || k === n) { runs.push({ pts: run, w, al: al * ra * fade, soft: level < 2 }); run = [[x, y]]; ra = 0.45 + rnd() * 0.55; }
+        if (level < 2 && rnd() < (level ? 0.1 : 0.16)) crack(x, y, a + (rnd() < 0.5 ? 1 : -1) * (0.9 + rnd() * 0.7), len * (0.2 + rnd() * 0.3), w * 0.75, al * 0.7, level + 1); } };
+    let i; for (i = 0; i < 5; i++) crack(rnd() * 1024, rnd() * 1024, rnd() * 6.28, 520 + rnd() * 420, 1.1, 1, 0);
+    for (i = 0; i < 9; i++) crack(rnd() * 1024, rnd() * 1024, rnd() * 6.28, 150 + rnd() * 220, 0.85, 0.6, 1);
+    for (i = 0; i < 26; i++) crack(rnd() * 1024, rnd() * 1024, rnd() * 6.28, 40 + rnd() * 80, 0.6, 0.32, 2);
+    const stroke = (q, ox, oy, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); q.pts.forEach((v, k) => (k ? g.lineTo(v[0] + ox, v[1] + oy) : g.moveTo(v[0] + ox, v[1] + oy))); g.stroke(); };
+    tile(1024, (ox, oy) => { for (const q of runs) { stroke(q, ox, oy, 'rgba(255,0,0,' + q.al.toFixed(3) + ')', q.w);
+      if (q.soft) { stroke(q, ox, oy, 'rgba(0,255,0,' + (q.al * 0.22).toFixed(3) + ')', 9); stroke(q, ox, oy, 'rgba(0,255,0,' + (q.al * 0.3).toFixed(3) + ')', 4); } } });
   });
   deep.anisotropy = aniso;
 
@@ -68,11 +79,14 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
   vec3 body = mix(diffuseColor.rgb * uDepthTint * 1.25, uDepthTint * uDepthTint * 0.5, 0.55 + 0.4 * look);
   float l1 = fbm((vWPos.xz - par * 1.0) * 0.05), l2 = fbm((vWPos.xz - par * 3.0) * 0.03 + 4.3);
   body *= 1.0 + (l1 - 0.5) * 0.3 + (l2 - 0.5) * 0.7;
-  // cracks hang at three depths; each deeper sheet is larger, dimmer and bluer, and slides further as the view moves
-  vec3 c1 = texture2D(uDeep, (vWPos.xz - par * 0.3) / 9.0).rgb;
-  float c2 = texture2D(uDeep, (vWPos.xz - par * 1.2) / 13.0 + 0.37).r, c3 = texture2D(uDeep, (vWPos.xz - par * 2.6) / 19.0 + 0.71).r;
-  body *= 1.0 - c1.b * 0.12;
-  body += vec3(0.86, 0.94, 1.0) * c1.r * 0.15 + mix(vec3(0.8, 0.9, 1.0), uDepthTint, 0.45) * c2 * 0.085 + mix(vec3(0.8, 0.9, 1.0), uDepthTint, 0.7) * c3 * 0.06;
+  // a crack is a thin sheet standing in the ice: a fine line where it meets the surface, and below it a pale veil that
+  // fades with depth and leans away as the view moves. A second, larger set lies far down, dim and blue.
+  vec2 cuv = vWPos.xz / 12.0, cp = par / 12.0;
+  float line = texture2D(uDeep, cuv).r;
+  float veil = texture2D(uDeep, cuv - cp * 0.07).g * 0.9 + texture2D(uDeep, cuv - cp * 0.16).g * 0.65 + texture2D(uDeep, cuv - cp * 0.27).g * 0.42 + texture2D(uDeep, cuv - cp * 0.4).g * 0.22;
+  float far = texture2D(uDeep, (vWPos.xz - par * 1.8) / 19.0 + 0.37).g;
+  float patchy = 0.55 + 0.9 * l1;                                                // cracks catch the light unevenly
+  body += vec3(0.88, 0.95, 1.0) * line * 0.085 * patchy + mix(vec3(0.82, 0.92, 1.0), uDepthTint, 0.3) * veil * 0.075 * patchy + mix(vec3(0.8, 0.9, 1.0), uDepthTint, 0.7) * far * 0.07;
   diffuseColor.rgb = mix(diffuseColor.rgb, body, (0.87 + 0.08 * look) * near);
   float cl = smoothstep(0.42, 0.75, fbm(vWPos.xz * 0.018 + uTime * uWind * 0.02));
   diffuseColor.rgb *= 1.0 - cl * uCloud; }`)
