@@ -16,10 +16,20 @@ const LANDINGS = [
 ];
 const mirror = (o) => ({ aLz: -o.aRz, aRz: -o.aLz, aLx: o.aRx, aRx: o.aLx, aLe: o.aRe, aRe: o.aLe });
 const LAND_HOLD = 1.5, LAND_EASE = 0.7;                                                                      // seconds held, then eased back to skating
+// Carving arms: when she curves, her arms flow through these, from holding herself to a broad open reach.
+const HUG = { aLz: 0.3, aRz: -0.3, aLx: -0.85, aRx: -0.85, aLe: -1.85, aRe: -1.85 };                         // arms folded across her chest
+const SOFT = { aLz: -0.5, aRz: 0.5, aLx: 0.3, aRx: 0.3, aLe: -0.75, aRe: -0.75 };                            // low and rounded at her sides
+const FLOWS = [HUG, SOFT, LANDINGS[5], { aLz: 0.3, aLx: -0.85, aLe: -1.85, aRz: 1.5, aRx: 0.1, aRe: -0.15 }, WIDE, LANDINGS[1], LANDINGS[4], LANDINGS[3], LANDINGS[2]];
+const ARMS = ['aLz', 'aRz', 'aLx', 'aRx', 'aLe', 'aRe'];
+const CARVE = { from: 3.5, full: 9, ease: 1.6, change: [1.6, 2.4], hold: [0.6, 2.2] };      // from/full: sideways pull (m/s2) where the arms begin to flow and where they fully do; ease: how gently they come in and out (1/s); change, hold: seconds to move to the next gesture and to rest in it
 
 export function createPoser(model) {
   const pose = { roll: 0, lean: 0.1, bodyY: HIP, side: 0, fL: 1, fR: 1, aLx: 0, aRx: 0, aLz: -0.8, aRz: 0.8, aLe: -0.3, aRe: -0.3, lLx: 0, lRx: 0, lLz: 0, lRz: 0, lLk: 0.05, lRk: 0.05 };
   let lastLandT = 99, arms = WIDE, pick = 0;
+  // carving arms: `flow` is where the arms are now, easing from `flowA` to `flowB`; carve is how much of it shows, 0..1
+  const flow = Object.assign({}, SOFT); let flowA = SOFT, flowB = SOFT, flowT = 1, flowLen = 1, flowRest = 0, flowIx = 1, carve = 0;
+  const nextFlow = () => { flowA = Object.assign({}, flow); flowIx = (flowIx + 1 + Math.floor(Math.random() * (FLOWS.length - 1))) % FLOWS.length; flowB = Math.random() < 0.5 ? FLOWS[flowIx] : mirror(FLOWS[flowIx]);
+    flowT = 0; flowLen = CARVE.change[0] + Math.random() * (CARVE.change[1] - CARVE.change[0]); flowRest = CARVE.hold[0] + Math.random() * (CARVE.hold[1] - CARVE.hold[0]); };
   return function update(game, dt, now) {
     const S = game.S, sp = game.speed(), m = S.move, g = clamp(sp / 7, 0, 1);
     const hustle = Math.max((S.boostT > 0 && !m && S.grounded && S.mag > 0.1) ? Math.min(1, S.boostT / 0.6) : 0, S.grounded && !m ? S.push * 0.75 : 0);      // sprinting after a fall, or simply pushing for speed
@@ -37,6 +47,13 @@ export function createPoser(model) {
     if (hustle > 0) set({ aLx: 0.95 * sw * hustle - 0.2, aRx: -0.95 * sw * hustle - 0.2, aLe: -1.25, aRe: -1.25, aLz: -0.35, aRz: 0.35, bodyY: HIP - 0.1 * hustle,      // sprinting: low, driving arms, long pushes
       lLx: -0.5 - ln + pL * 0.9, lRx: -0.5 - ln + pR * 0.9, lLk: 0.9 * (1 - pL * 0.8) + 0.05, lRk: 0.9 * (1 - pR * 0.8) + 0.05, lLz: -pL * 0.5 - 0.03, lRz: pR * 0.5 + 0.03 });
     if (g > 0.6 && !hustle) set({ lean: ln + 0.22 * (g - 0.6) * 2.5, bodyY: HIP - 0.03 * g - 0.05 * (g - 0.6) * 2.5, aLx: T.aLx + 0.5 * (g - 0.6) * 2.5, aRx: T.aRx + 0.5 * (g - 0.6) * 2.5 });      // at full speed she gets low and the arms sweep back
+    // curving, her arms leave the still skating pose and drift from one gesture to the next, never snapping
+    { const pull = Math.abs(S.turn) * sp, want = S.grounded && !m ? clamp((pull - CARVE.from) / (CARVE.full - CARVE.from), 0, 1) * (1 - hustle) : 0, was = carve;
+      carve += (want - carve) * (1 - Math.exp(-CARVE.ease * dt));
+      if (was < 0.02 && want > 0 && flowT >= flowLen) nextFlow();                                            // a fresh gesture each time she starts to curve
+      if (carve > 0.02) { flowT += dt; if (flowT > flowLen + flowRest) nextFlow(); }
+      const u = clamp(flowT / flowLen, 0, 1), e = u * u * u * (u * (u * 6 - 15) + 10), w = carve * carve * (3 - 2 * carve);
+      for (const k of ARMS) { flow[k] = flowA[k] + (flowB[k] - flowA[k]) * e; T[k] += (flow[k] - T[k]) * w; } }
     let rate = 13;
     if (!S.grounded) { set(TUCK); set({ lean: 0, bodyY: HIP, fL: 0, fR: 0, lLx: -0.06, lRx: 0.04, lLz: 0.07, lRz: -0.07, lLk: 0.05, lRk: 0.05 }); rate = 22; }
     else if (m && m.pose) { const r = m.pose(T, { set, TUCK, WIDE, HIP }); if (r) rate = r; }

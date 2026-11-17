@@ -20,7 +20,7 @@ import { createScoring } from './scoring.js';
 import * as save from './save.js';
 import { createUpdater } from './update.js';
 
-const BUILD = 'v3-look11';
+const BUILD = 'v3-look12';
 let world;
 try { world = createScene(document.getElementById('c')); } catch (e) { document.getElementById('err').style.display = 'flex'; throw e; }
 const saved = save.load();
