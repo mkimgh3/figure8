@@ -15,7 +15,10 @@ export const CFG = {
   rotate: { minRadiusPx: 26, pivotLag: 0.3, minSegPx: 5, bufferCap: 2.5, bufferMs: 500 },
   // A spin needs a deliberate start: rest the finger for holdMs, then circle. A circle drawn straight away does nothing,
   // because that is exactly what an in-air rotation looks like (playtest 1: 26 spins, most unintended).
-  spin: { holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 1.8 },
+  // The rubber band between finger and skater: follow (1/s) is how closely her body keeps up with the finger, pickup (0..1) how quickly
+  // her spin takes on the finger's speed, coast (1/s) how fast it fades when the finger stops but stays down. After the finger lifts
+  // it eases out at easeOut (1/s) until it is slower than endVel (rad/s), or for endMax seconds at most.
+  spin: { holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 1.8, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
   // Two-finger moves: both thumbs moving together.
   shape: { flickPx: 50, reversalPx: 22, idleMs: 110, eightTurn: 4.2 },      // flicks, scribbles and drawn shapes
   duo: { minSpeed: 110, engageMs: 70, parallelCos: 0.5, spreadPx: 80, spreadEachPx: 25, calmTurn: 3.3, settleMs: 150, freezeMs: 350 },
@@ -23,6 +26,10 @@ export const CFG = {
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
   stop: { swipePxPerS: 900, cos: -0.8, minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
   twirl: { startTurn: 3.1 },
+  // Choreography: both thumbs kept moving (each faster than moveSpeed px/s) for startMs without lifting. Thumb speed between calmPx and
+  // sharpPx (px/s), and how unlike the two thumbs' motions are, slide the dancing from calm and broad to sharp and street. It ends when
+  // a thumb lifts or both have been still for idleEnd seconds, and scores once it has lasted minScore seconds.
+  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, cruise: 5 },
   steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn
@@ -41,7 +48,7 @@ export const CFG = {
     spin: [2.0, 3], spinPosition: 1.25, spinCombination: 1.6,      // per revolution
     twizzles: [2.0, 2],                                            // per turn
     steps: [3.9, 5],                                               // per step; x0.6 with one kind of step, full value with three
-    swing: [1.5, 3], spiral: [1.6, 2], eagle: [1.6, 2], hydro: [2.0, 2],      // per second
+    swing: [1.5, 3], spiral: [1.6, 2], eagle: [1.6, 2], hydro: [2.0, 2], dance: [3.0, 6],      // per second
     turn: 0.3, leap: 0.6, stop: 0.8,                               // stop: from full speed; less from slower
     entry: [[4.5, 1.5], [1.6, 1.25]],                              // a jump out of curves and figures (radians turned in the seconds before take-off) beats one from a straight run-up
     repeat: [1, 0.7, 0.5],                                         // the same element again straight away is worth less

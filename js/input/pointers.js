@@ -9,7 +9,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
   const R = CFG.steer.stickRadius, T = CFG.tap;
   const steer = { id: null, ox: 0, oy: 0, cx: 0, cy: 0, x: 0, y: 0, t: 0, moved: false, frozen: false, hx: 0, hy: 0 };
   const pinch = { on: false, id2: null, d0: 1, zf0: 1, cx0: 0, cy0: 0, px0: 0, pz0: 0, x2: 0, y2: 0 };
-  const keys = {}; let trickId = null, auto = null, duo = null, left = null;
+  const keys = {}; let trickId = null, auto = null, duo = null, left = null, dragT = 0, lastF = 0;
+  const dancing = () => !!game.S.move && game.S.move.id === 'dance';
   const recentre = () => { duo = null; left = null; steer.frozen = false; if (steer.id === null) return; steer.ox = steer.cx; steer.oy = steer.cy; steer.x = steer.y = 0; hud.stick(true, steer.ox, steer.oy, 0, 0); };
   game.recentreSteer = recentre;
   // after a two-thumb move the stick carries on from where it was held, wherever the thumb ended up
@@ -31,7 +32,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     if (pinch.id2 !== null) return;
     const dbl = !view.zoomed && game.S.grounded && taps.isDouble(now);
     if (!view.zoomed && trickId === null && (dbl || steer.id !== null || !game.S.grounded)) {
-      if (dbl) taps.clear(); trickId = e.pointerId; tricks.down(e.clientX, e.clientY, now, dbl); hud.pad(true, e.clientX, e.clientY, false);
+      if (dbl) taps.clear(); trickId = e.pointerId; dragT = 0; tricks.down(e.clientX, e.clientY, now, dbl); hud.pad(true, e.clientX, e.clientY, false);
       if (steer.id !== null && tricks.canDuo()) { left = new Stroke(steer.cx, steer.cy, now, CFG.rotate); duo = new Duo(CFG.duo, CFG.shape); steer.hx = steer.x; steer.hy = steer.y; }
     } else if (steer.id === null) {
       Object.assign(steer, { id: e.pointerId, ox: e.clientX, oy: e.clientY, cx: e.clientX, cy: e.clientY, x: 0, y: 0, t: now, moved: false, frozen: false }); if (!view.zoomed) hud.stick(true, e.clientX, e.clientY, 0, 0);
@@ -57,7 +58,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     const now = performance.now();
     if (e.pointerId === pinch.id2) { pinch.id2 = null; if (pinch.on) { pinchEnd(); recentre(); } return; }
     if (pinch.on && e.pointerId === steer.id) { pinchEnd(); steer.id = null; steer.x = steer.y = 0; return; }
-    if (e.pointerId === steer.id) { if (!steer.moved && now - steer.t <= T.maxMs && !view.zoomed) taps.tap(now); steer.id = null; steer.x = steer.y = 0; steer.frozen = false; duo = null; left = null; hud.stick(false); }
+    if (e.pointerId === steer.id) { if (dancing()) game.S.move.release(); if (!steer.moved && now - steer.t <= T.maxMs && !view.zoomed) taps.tap(now); steer.id = null; steer.x = steer.y = 0; steer.frozen = false; duo = null; left = null; hud.stick(false); }
     if (e.pointerId === trickId) { let extra = null;
       if (duo) { if (tricks.canDuo()) duoEvent(duo.end()); const lp = left.points, k = Math.ceil(lp.length / 45); extra = { duo: duo.summary(), left: lp.filter((_, i) => i % k === 0).flat() }; }
       tricks.up(now, extra); trickId = null; duo = null; left = null; unfreeze(); hud.pad(false); }
@@ -72,10 +73,16 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
   return {
     keys, setAuto(a) { auto = a; },
-    frame(now) { if (trickId === null) return; if (duo && tricks.canDuo()) duoEvent(duo.settle(now));
+    frame(now) { const fdt = Math.min(100, now - (lastF || now)); lastF = now; if (trickId === null) return; if (duo && tricks.canDuo()) duoEvent(duo.settle(now));
+      // both thumbs dragging: after a moment of it she starts to dance on the course she was holding, and their motion keeps feeding the dance
+      if (left && tricks.stroke) { const a = left, b = tricks.stroke, sa = a.speedAt(now), sb = b.speedAt(now), D = CFG.dance;
+        if (dancing()) game.S.move.feed(sa, sb, sa > 1 && sb > 1 ? (a.vx * b.vx + a.vy * b.vy) / (sa * sb) : 0, fdt / 1000);
+        else if (tricks.canDance()) { dragT = sa > D.moveSpeed && sb > D.moveSpeed ? dragT + fdt : Math.max(0, dragT - fdt * 2);
+          if (dragT >= D.startMs && tricks.dance()) { dragT = 0; steer.frozen = true; steer.frozenAt = now; steer.x = steer.hx; steer.y = steer.hy; hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R); } }
+        else dragT = 0; }
       // steering is live again, from where it was, once the left thumb settles, or after a short grace even if it never
       // goes still (a thumb on glass always jitters, and the spiral or hydroblade is held with the right thumb down)
-      if (steer.frozen && left && (now - left.t > CFG.duo.settleMs || now - steer.frozenAt > CFG.duo.freezeMs)) unfreeze();
+      if (steer.frozen && left && !dancing() && (now - left.t > CFG.duo.settleMs || now - steer.frozenAt > CFG.duo.freezeMs)) unfreeze();
       const was = tricks.armed; tricks.frame(now, !!duo && duo.active && !duo.decided); if (tricks.armed !== was) hud.padArmed(true); },
     read() { if (auto) return auto;
       return { x: steer.x + ((keys.KeyD || keys.ArrowRight) ? 1 : 0) - ((keys.KeyA || keys.ArrowLeft) ? 1 : 0), y: steer.y + ((keys.KeyS || keys.ArrowDown) ? 1 : 0) - ((keys.KeyW || keys.ArrowUp) ? 1 : 0) }; },

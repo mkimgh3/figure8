@@ -10,12 +10,14 @@ export function createSpin(S, api, seed) {
     update(dt, steer) {
       // she glides into the spin and settles; the steering thumb lets the spin travel slowly
       const m = Math.hypot(steer.x, steer.y); st.stick = m; if (m > 0.2) { const k = 1 - Math.exp(-2.5 * dt); S.vx += (steer.x * CFG.spin.travel - S.vx) * k; S.vz += (steer.y * CFG.spin.travel - S.vz) * k; } else { const f = Math.exp(-CFG.spin.decay * dt); S.vx *= f; S.vz *= f; }
-      if (st.imp !== 0) { st.vel += (st.imp * CFG.spin.gain / dt - st.vel) * 0.5; st.goal += st.imp * CFG.spin.gain; st.imp = 0; st.idle = 0; }
-      else { st.idle += dt; if (st.idle > 0.07) { st.goal += st.vel * dt; st.vel *= Math.exp(-(st.held ? 0.5 : 1.5) * dt); } }
-      st.vel = clamp(st.vel, -32, 32); st.angle += (st.goal - st.angle) * (1 - Math.exp(-20 * dt));
+      // the finger and her body are joined by a rubber band: she lags a little behind the finger, and carries on turning after it stops
+      const K = CFG.spin;
+      if (st.imp !== 0) { st.vel += (st.imp * K.gain / dt - st.vel) * K.pickup; st.goal += st.imp * K.gain; st.imp = 0; st.idle = 0; }
+      else { st.idle += dt; if (st.idle > 0.07) { st.goal += st.vel * dt; st.vel *= Math.exp(-(st.held ? K.coast : K.easeOut) * dt); } }
+      st.vel = clamp(st.vel, -32, 32); st.angle += (st.goal - st.angle) * (1 - Math.exp(-K.follow * dt));
       st.pos = steer.y > 0.5 ? 'Sit' : steer.y < -0.5 ? 'Camel' : 'Upright'; st.kinds[st.pos] = 1;
       api.emit('spinning', { position: st.pos, revs: Math.abs(st.angle) / TAU });
-      if (!st.held) { st.rel += dt; if (Math.abs(st.vel) < 4 || st.rel > 1.1) return false; }
+      if (!st.held) { st.rel += dt; if (Math.abs(st.vel) < CFG.spin.endVel || st.rel > CFG.spin.endMax) return false; }
       return true;
     },
     end() {
@@ -28,7 +30,7 @@ export function createSpin(S, api, seed) {
       const P = CFG.points, mult = kinds.length > 1 ? P.spinCombination : (st.pos !== 'Upright' ? P.spinPosition : 1);
       api.emit('element', { kind: 'spin', name: kinds.length > 1 ? 'Combination spin' : st.pos + ' spin', detail: revs.toFixed(1) + ' revolutions' + (kinds.length > 1 ? ', ' + kinds.join(' + ').toLowerCase() : ''), base: dimin(P.spin[0] * mult, revs, P.spin[1]), counted: revs >= 1 });
     },
-    blade(out, yaw) { const r = (st.pos === 'Sit' ? 0.2 : st.pos === 'Camel' ? 0.3 : 0.12) * (st.held ? 1 : 1 + st.rel * 1.5); /* the loops open out as she exits */ out.x += Math.sin(yaw) * r; out.z += Math.cos(yaw) * r; },
+    blade(out, yaw) { const r = (st.pos === 'Sit' ? 0.2 : st.pos === 'Camel' ? 0.3 : 0.12) * (st.held ? 1 : 1 + Math.min(st.rel, 1.6) * 1.1); /* the loops open out as she exits */ out.x += Math.sin(yaw) * r; out.z += Math.cos(yaw) * r; },
     spinRate: () => Math.abs(st.vel),
     // Arms and free leg follow the speed, as on real ice: spread wide when the spin is slow, pulled in tight when it is fast.
     pose(T, kit) {

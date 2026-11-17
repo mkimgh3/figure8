@@ -13,6 +13,7 @@
 //   sharp swipe against her travel -> hockey stop, whichever way she is going (it takes the place of the flick that points that way)
 // Both thumbs together: swipe up is a spiral and swipe down a hydroblade (both last while the thumbs stay down), spreading the
 // thumbs apart is a spread eagle, and sideways flicks and scribbles do the same as with one finger.
+// Both thumbs kept moving with none of the above read from them: choreography (moves/dance.js), for as long as they stay down.
 // A single touch never jumps.
 import { CFG } from '../config.js';
 import { Stroke, Shape } from './recognizer.js';
@@ -21,6 +22,7 @@ import { createSpiral, createEagle, createHydro, createSwing } from '../moves/he
 import { createTwirl } from '../moves/twirl.js';
 import { createTurn, createLeap, createStop } from '../moves/quick.js';
 import { createSteps } from '../moves/steps.js';
+import { createDance } from '../moves/dance.js';
 
 export function createTricks(game, taps, log) {
   let stroke = null, shape = null, mode = null, outcome = '', fired = false, armed = false, stepsUntil = 0, toeUntil = 0;
@@ -56,6 +58,9 @@ export function createTricks(game, taps, log) {
     rhythm(now) { return stepping() ? [2, S.move.state.stab] : now < toeUntil ? [3, 0] : now < stepsUntil ? [1, 0] : [0, 0]; },
     get active() { return stroke !== null; }, get stroke() { return stroke; }, get armed() { return armed; },
     canDuo: () => (mode === 'pending' || mode === 'twirl') && !armed,
+    // both thumbs have kept moving with nothing else read from them: she starts to improvise
+    canDance: () => mode === 'pending' && !fired && !armed && S.grounded && !(S.move && S.move.id === 'fall'),
+    dance() { if (!game.startMove(createDance(S, game))) return false; mode = 'dance'; fired = true; outcome = 'dance'; return true; },
     down(x, y, t, isDoubleTap) {
       stroke = new Stroke(x, y, t, CFG.rotate); shape = new Shape(CFG.shape); outcome = ''; fired = false; armed = false;
       if (isDoubleTap && game.jump(t < toeUntil)) { mode = 'air'; outcome = t < toeUntil && S.back ? 'toe-jump' : 'jump'; toeUntil = 0; }
@@ -86,7 +91,7 @@ export function createTricks(game, taps, log) {
         else { if (!armed) perform(shape.end(), shape); if (!fired) outcome = armed ? 'armed-no-circle' : 'none'; }
         if (fired && S.move && S.move.release) S.move.release();
       }
-      if ((mode === 'spin' || mode === 'twirl') && S.move && S.move.id === mode) S.move.release();
+      if ((mode === 'spin' || mode === 'twirl' || mode === 'dance') && S.move && S.move.id === mode) S.move.release();
       log.stroke('trick', outcome, stroke, Object.assign({ armed }, extra || {})); stroke = null; shape = null; mode = null; armed = false;
     },
   };

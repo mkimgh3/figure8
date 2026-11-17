@@ -64,6 +64,16 @@ const { open } = require('./smoke.cjs');
     seen = await play(R(line(300, 560, 300 - w[0] * 110, 560 - w[1] * 110, 3)));
     const hs = await p.evaluate(() => new Promise((res) => { const g = window.__game; let low = 99; const iv = setInterval(() => { low = Math.min(low, Math.hypot(g.S.vx, g.S.vz)); const e = g.score.state.list[0]; if (!g.S.move) { clearInterval(iv); res({ name: e && e.name, pts: e && e.pts, low: +low.toFixed(2) }); } }, 30); setTimeout(() => { clearInterval(iv); res({ timeout: true, low }); }, 8000); }));
     ok('a sharp swipe against her travel is a hockey stop: she halts and it scores', seen.includes('stop') && hs.name === 'Hockey stop' && hs.pts > 0 && hs.low < 0.3, { seen, w, hs }); await ev('pointermove', 1, 160, 640); await sleep(2500); }
+  // choreography: both thumbs kept moving without lifting; slow matching strokes are calm, quick scattered ones sharp
+  { await calm(); const wave = (x, y, ax, ay, n, per, ph) => Array.from({ length: n + 1 }, (_, i) => [x + Math.sin(i / per * 6.2832 + ph) * ax, y + Math.cos(i / per * 6.2832 * 0.5 + ph) * ay]);
+    seen = await play([{ id: 1, pts: wave(160, 640, 40, 10, 200, 150, 0) }, { id: 2, pts: wave(300, 620, 40, 10, 200, 150, 0), down: true, up: false }]);
+    const calmMood = await p.evaluate(() => { const m = window.__game.S.move; return m && m.id === 'dance' ? +m.state.mood.toFixed(2) : null; });
+    ok('both thumbs kept moving slowly together start calm choreography', seen.includes('dance') && calmMood !== null && calmMood < 0.4, { seen, calmMood });
+    await play([{ id: 1, pts: wave(160, 640, 55, 45, 150, 14, 0) }, { id: 2, pts: wave(300, 620, 45, 55, 150, 9, 2) }]);
+    const sharp = await p.evaluate(() => { const m = window.__game.S.move; return m && m.id === 'dance' ? { mood: +m.state.mood.toFixed(2), poses: m.state.poses } : null; });
+    ok('quick scattered strokes turn it sharp, without lifting', !!sharp && sharp.mood > 0.6 && sharp.poses >= 3, sharp);
+    await ev('pointerup', 2, 300, 620); await sleep(700); const de = await p.evaluate(() => { const g = window.__game, e = g.score.state.list[0]; return { name: e.name, pts: e.pts, move: g.S.move && g.S.move.id }; });
+    ok('lifting ends the choreography and it scores', de.name === 'Choreography' && de.pts > 0.5 && de.move === null, de); await ev('pointermove', 1, 160, 640); await calm(); }
   const card = await p.evaluate(() => { const e = window.__game.score.state.list[0]; return { name: e.name, base: e.base, goe: e.goe, art: e.art, pts: e.pts, cells: document.querySelectorAll('#pop .cards div').length, name2: (document.querySelector('#pop .pname') || {}).textContent, sub: document.getElementById('sub').textContent, best: window.__game.score.state.best.pts }; });
   ok('each action gets a score card and the best action is tracked', card.cells === 4 && card.name2 === card.name && Math.abs(card.base + card.goe + card.art - card.pts) < 0.11 && /Best jump/.test(card.sub) && card.best >= card.pts, card);
   // spin: rest the finger, then circle

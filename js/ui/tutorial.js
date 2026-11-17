@@ -122,6 +122,12 @@ const MOVES = [
     ['Keep both thumbs down to stay low', amount('hydro', (st) => st.t, 2), moveIs('hydro')],
     ['Lift to finish', element('hydro')],
   ] },
+  { name: 'Choreography', steps: [
+    ['Skate along with your left thumb', moving],
+    ['Put your right finger down and keep both thumbs moving, without lifting', moveIs('dance')],
+    ['Slow strokes together are calm; quick scattered ones are sharp. Keep going', amount('dance', (st) => st.t, 3), moveIs('dance')],
+    ['Lift to finish', element('dance')],
+  ] },
   { name: 'Spread eagle', steps: [
     ['Skate along with your left thumb', moving],
     ['Put your right finger down and spread your thumbs apart', moveIs('eagle')],
