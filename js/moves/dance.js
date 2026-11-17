@@ -46,7 +46,7 @@ export function createDance(S, api) {
     if (snap) { dur = 0.12 + Math.random() * 0.08; hold = (0.2 + Math.random() * 0.3) * (1.4 - 0.6 * st.mood); }
     else { dur = (1.1 + Math.random() * 0.9) * (1.25 - 0.6 * st.mood); hold = 0.25 + Math.random() * 0.8; }
   }
-  return { id: 'dance', steer: 0, state: st,
+  return { id: 'dance', steer: 0.6, state: st,
     start() { api.ensureSpeed(3.5); api.emit('say', { big: 'Choreography', small: '', hold: 0.8 }); },
     release() { st.held = false; },
     // called every frame with each thumb's speed (px/s) and how alike their directions are (1 the same way, -1 opposite)
@@ -56,8 +56,8 @@ export function createDance(S, api) {
       st.mood += (0.7 * quick + 0.3 * apart - st.mood) * (1 - Math.exp(-1.6 * dt)); },
     update(dt) {
       st.t += dt; st.moodSum += st.mood * dt; api.ensureSpeed(2.6); beat += dt * (2.2 + 3.8 * st.mood) * Math.PI;
-      // she drifts along a lazy winding path, at an unhurried pace
-      api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt); if (api.speed() > K.cruise) { const f = Math.exp(-0.5 * dt); S.vx *= f; S.vz *= f; }
+      // at an unhurried pace she goes where the thumbs steer her, and drifts along a lazy winding path when they don't
+      if (S.mag < 0.15) api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt); if (api.speed() > K.cruise) { const f = Math.exp(-2.5 * dt); S.vx *= f; S.vz *= f; }
       if (begun && st.held && !snap && st.mood > 0.6) next(true);                                   // the thumbs have turned sharp: she breaks off the slow gesture at once
       else if (u < 1) u = Math.min(1, u + dt / dur); else if (begun && (hold -= dt) <= 0 && st.held) next();
       // calm poses ease in and out; sharp ones hit and stop

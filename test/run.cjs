@@ -56,7 +56,12 @@ const { open } = require('./smoke.cjs');
     const a = await p.evaluate(() => window.__game.input.read().x); await ev('pointermove', 1, e0[0] - 60, e0[1]); await sleep(50);
     const b2 = await p.evaluate(() => [window.__game.input.read().x, window.__game.S.move && window.__game.S.move.id]);
     ok('steering works during a held spiral without lifting the left thumb', seen.includes('spiral') && a - b2[0] > 0.3 && b2[1] === 'spiral', { seen, a, b: b2 });
-    await ev('pointerup', 2, 300, 560); await calm(); await ev('pointermove', 1, 160, 640); }
+    await ev('pointermove', 2, 330, 560); await ev('pointermove', 2, 370, 560); await sleep(50);
+    const b3 = await p.evaluate(() => [window.__game.input.read().x, window.__game.S.move && window.__game.S.move.id]);
+    ok('the other thumb steers a held spiral too', b3[0] - b2[0] > 0.5 && b3[1] === 'spiral', { before: b2[0], after: b3[0], move: b3[1] });
+    await ev('pointerup', 2, 370, 560); await sleep(80); const b4 = await p.evaluate(() => window.__game.input.read().x);
+    ok('lifting that thumb hands steering back to the stick', Math.abs(b4 - b2[0]) < 0.05, { b4, stick: b2[0] });
+    await calm(); await ev('pointermove', 1, 160, 640); }
   // hockey stop: a sharp swipe against her travel, on any heading; the same swipe along her travel is the ordinary flick
   { await sleep(2500); const v = await p.evaluate(() => { const S = window.__game.S, sp = Math.hypot(S.vx, S.vz); return [S.vx / sp, S.vz / sp, sp]; });
     seen = await play(R(line(300, 560, 300 + v[0] * 110, 560 + v[1] * 110, 3))); ok('a swipe along her travel is not a hockey stop', !seen.includes('stop'), { seen, v }); await calm(); await sleep(1500);
@@ -72,7 +77,11 @@ const { open } = require('./smoke.cjs');
     await play([{ id: 1, pts: wave(160, 640, 55, 45, 150, 14, 0) }, { id: 2, pts: wave(300, 620, 45, 55, 150, 9, 2) }]);
     const sharp = await p.evaluate(() => { const m = window.__game.S.move; return m && m.id === 'dance' ? { mood: +m.state.mood.toFixed(2), poses: m.state.poses } : null; });
     ok('quick scattered strokes turn it sharp, without lifting', !!sharp && sharp.mood > 0.6 && sharp.poses >= 3, sharp);
-    await ev('pointerup', 2, 300, 620); await sleep(700); const de = await p.evaluate(() => { const g = window.__game, e = g.score.state.list[0]; return { name: e.name, pts: e.pts, move: g.S.move && g.S.move.id }; });
+    const h0 = await p.evaluate(() => { const S = window.__game.S; return Math.atan2(S.vx, S.vz); });
+    await play([{ id: 1, pts: line(160, 640, 160, 400, 60) }, { id: 2, pts: line(300, 620, 300, 380, 60) }]);
+    const dsteer = await p.evaluate(() => { const g = window.__game, S = g.S, r = g.input.read(); return { y: +r.y.toFixed(2), x: +r.x.toFixed(2), heading: +Math.atan2(S.vx, S.vz).toFixed(2), move: S.move && S.move.id }; });
+    ok('both thumbs steer her while she dances', dsteer.move === 'dance' && dsteer.y < -0.5, { from: +h0.toFixed(2), dsteer });
+    await ev('pointerup', 2, 300, 380); await sleep(700); const de = await p.evaluate(() => { const g = window.__game, e = g.score.state.list[0]; return { name: e.name, pts: e.pts, move: g.S.move && g.S.move.id }; });
     ok('lifting ends the choreography and it scores', de.name === 'Choreography' && de.pts > 0.5 && de.move === null, de); await ev('pointermove', 1, 160, 640); await calm(); }
   const card = await p.evaluate(() => { const e = window.__game.score.state.list[0]; return { name: e.name, base: e.base, goe: e.goe, art: e.art, pts: e.pts, cells: document.querySelectorAll('#pop .cards div').length, name2: (document.querySelector('#pop .pname') || {}).textContent, sub: document.getElementById('sub').textContent, best: window.__game.score.state.best.pts }; });
   ok('each action gets a score card and the best action is tracked', card.cells === 4 && card.name2 === card.name && Math.abs(card.base + card.goe + card.art - card.pts) < 0.11 && /Best jump/.test(card.sub) && card.best >= card.pts, card);
