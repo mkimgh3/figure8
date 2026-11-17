@@ -83,7 +83,9 @@ export function createDance(S, api) {
       st.t += dt; st.moodSum += st.mood * dt; beat += dt * (2.2 + 3.8 * st.mood) * Math.PI;
       // she goes where the thumbs steer her and picks up speed as they push, and drifts along a lazy winding path when they don't
       // if she is nearly standing she is eased up to a gentle glide, never set moving at a stroke
-      { const v = api.speed(); if (v < K.glide) { const nv = Math.min(K.glide, v + 2.5 * dt); if (v > 0.05) { S.vx *= nv / v; S.vz *= nv / v; } else { S.vx = Math.sin(S.facing) * nv; S.vz = Math.cos(S.facing) * nv; } } }
+      // spinning with no push from the left thumb, she slowly loses her momentum and the spin settles on the spot
+      if (st.spin > 0 && S.mag < 0.15) { const f = Math.exp(-dt / K.spinCoast); S.vx *= f; S.vz *= f; }
+      else { const v = api.speed(); if (v < K.glide) { const nv = Math.min(K.glide, v + 2.5 * dt); if (v > 0.05) { S.vx *= nv / v; S.vz *= nv / v; } else { S.vx = Math.sin(S.facing) * nv; S.vz = Math.cos(S.facing) * nv; } } }
       if (S.mag < 0.15) api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt * Math.min(1, st.t / 1.5));
       // how fast the finger is turning her (rad/s): 0 not spinning, 1 a slow spin, 2 a fast one, with a gap between going in and coming out
       if (!st.held) { w *= Math.exp(-dt / K.spinDown); turnGoal += w * dt; }
