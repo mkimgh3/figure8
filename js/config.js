@@ -34,7 +34,7 @@ export const CFG = {
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn
   difficulty: { 'Toe loop': 1, 'Salchow': 0.97, 'Loop': 0.93, 'Flip': 0.9, 'Lutz': 0.85, 'Inside Axel': 0.9, 'Axel': 0.88 },
-  fall: { seconds: 1.15, boostSeconds: 3, boostAccel: 3.2, repeatWindow: 3 },      // a second fall within repeatWindow seconds of the last gets no help back up to speed
+  fall: { seconds: 1.15, boostSeconds: 3, boostAccel: 3.2, repeatWindow: 5 },      // only a first fall gets help back up to speed; any fall within repeatWindow seconds of the last gets none, and restarts the wait
   // Speed beyond what steering alone can reach is earned by landing jumps: the better and bigger the jump, the more. It fades slowly and a fall loses it.
   bonus: { perfect: 1.1, clean: 0.6, shaky: 0, perRotation: 0.45, max: 6, fade: 0.22, kick: 0.6 },
   // Points, on the scale of real figure skating: jumps carry the big base values, everything else is worth a few points at most.
