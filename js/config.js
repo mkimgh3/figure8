@@ -62,7 +62,7 @@ export const CFG = {
     repeat: [1, 0.7, 0.5],                                         // the same element again straight away is worth less
   },
   trace: { width: 0.075, length: 0.2, spacing: 0.13, saveMax: 50000 },
-  camera: { fov: 38, fovFast: 9, closeHeight: 10.5, closeBack: 5.6, tilt: 28, tiltSpeed: 9, tiltAir: 8, speedLift: 0.2, lookAhead: 0.22, lookMax: 2.2, minOverview: 16 },      // at speed the view widens instead of rising, so the ice rushes past
+  camera: { fov: 38, fovFast: 9, closeHeight: 10.5, closeBack: 5.6, tilt: 28, tiltSpeed: 9, tiltAir: 8, speedLift: 0.2, lookAhead: 0.22, lookMax: 2.2, minOverview: 16, portrait: 1.2 },      // portrait: how much further back the view sits when the screen is taller than it is wide      // at speed the view widens instead of rising, so the ice rushes past
   // Times of day. Each is a complete lighting setup; the menu cycles through them. sun: [elevation, azimuth] in degrees (azimuth 0 = from the south, 90 = from the west).
   looks: [
     // linePunch deepens the line's colours (1 = as painted); lineWide draws it wider.

@@ -103,7 +103,7 @@ export function createScene(canvas) {
     // tilt: a little more side-on at speed and in the air, so height and pace read; back to the drawing view when slow
     air += ((S.grounded && S.visY < 0.05 ? 0 : 1) - air) * (1 - Math.exp(-(S.grounded ? 2.5 : 6) * dt));
     distK += (distGoal - distK) * (1 - Math.exp(-2 * dt));
-    const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG, dist = (DIST + camSp * C.speedLift) * distK;
+    const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG, dist = (DIST + camSp * C.speedLift) * distK * (camera.aspect < 1 ? C.portrait : 1);
     const closeH = dist * Math.cos(tilt), back = dist * Math.sin(tilt);
     view.zMax = Math.max(1.5, far.h / closeH); const fh = far.h / Math.min(view.zf, view.zMax);
     const e = zoomT * zoomT * (3 - 2 * zoomT), h = closeH * Math.pow(fh / closeH, e); view.e = e;
