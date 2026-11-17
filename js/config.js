@@ -32,7 +32,7 @@ export const CFG = {
   // Choreography: the right thumb dragged, that is, still moving dragMs after it first moved and at least dragPx along (longer than any flick).
   // A thumb simply held for holdMs starts it too, and so does one still down afterLand seconds after a jump lands, or when any other move ends.
   // It lasts while that thumb stays down. Circling turns her: turned faster than spinIn (rad/s) she takes spin positions until slower than spinOut,
-  // the open ones (camel, layback, attitude) below spinFast and the tight ones (sit, scratch) above it. Its speed,
+  // the open ones (camel, layback, attitude) below spinFast and the tight ones (scratch, arms overhead) above it. Its speed,
   // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street, and its circling turns her. It ends when
   // either thumb lifts, and scores once it has lasted minScore seconds.
   // While she dances the left thumb still steers and speeds her up, at `accel` times the usual rate.

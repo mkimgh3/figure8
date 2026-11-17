@@ -38,7 +38,6 @@ const SPIN_SLOW = [
   { lean: 0.25, fL: 0, lLx: 0.6, lLk: 1.0, lRk: 0.12, aLz: -2.4, aLe: -0.6, aRz: 1.3, aRe: -0.15 },                                                                 // attitude
 ];
 const SPIN_FAST = [
-  { lean: 0.75, dy: -0.46, fL: 0, lRx: -2.2, lRk: 2.35, lLx: -2.25, lLk: 0, aLx: -2.2, aRx: -2.2, aLz: -0.3, aRz: 0.3, aLe: -0.1, aRe: -0.1 },                      // sit
   { lean: 0, fL: 0, lLx: -0.55, lLk: 1.1, lLz: 0.15, aLz: 0.45, aRz: -0.45, aLx: -0.75, aRx: -0.75, aLe: -2.0, aRe: -2.0 },                                         // scratch: arms and free leg pulled in
   { lean: 0, fL: 0, lLx: -0.3, lLk: 1.3, lLz: 0.12, aLz: -2.7, aRz: 2.7, aLx: 0, aRx: 0, aLe: -0.3, aRe: -0.3 },                                                    // arms stretched overhead
 ];
@@ -60,7 +59,7 @@ export function createDance(S, api) {
     else { dur = (1.1 + Math.random() * 0.9) * (1.25 - 0.6 * st.mood); hold = 0.25 + Math.random() * 0.8; }
   }
   return { id: 'dance', steer: 1, accel: K.accel, state: st,
-    start() { api.ensureSpeed(3.5); api.emit('say', { big: 'Choreography', small: '', hold: 0.8 }); },
+    start() { api.ensureSpeed(3.5); },          // no banner: dancing is simply how she skates while the finger is down
     release() { st.held = false; },
     // called every frame with the right thumb's speed (px/s): slow strokes are calm, quick ones sharp
     feed(sb, dt) {
