@@ -5,10 +5,13 @@
   "scripts": {
     "serve": "npx --yes http-server -c-1 -p 8080 .",
     "stamp": "node tools/stamp.cjs",
-    "test": "node test/recognizer.test.js && node test/duo.test.js && node test/run.cjs"
+    "format": "prettier --write js test css tools",
+    "format:check": "prettier --check js test css tools",
+    "test": "npm run format:check && node test/recognizer.test.js && node test/duo.test.js && node test/run.cjs"
   },
   "devDependencies": {
     "playwright": "^1.48.0",
+    "prettier": "3.10.1",
     "three": "0.170.0"
   }
 }

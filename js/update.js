@@ -5,20 +5,36 @@ const KEY = 'icedoodle2-updated';
 
 export function createUpdater(build, onStatus, beforeReload) {
   let busy = false;
-  const tried = () => { try { return sessionStorage.getItem(KEY); } catch (e) { return null; } };
+  const tried = () => {
+    try {
+      return sessionStorage.getItem(KEY);
+    } catch (e) {
+      return null;
+    }
+  };
   // manual: the player asked, so always answer and always try. Otherwise a build is tried once per launch, so a
   // half-published update cannot make the page reload over and over.
   async function check(manual) {
-    if (busy) return; busy = true;
+    if (busy) return;
+    busy = true;
     try {
-      const r = await fetch('version.json', { cache: 'no-store' }); if (!r.ok) throw new Error('no version file');
+      const r = await fetch('version.json', { cache: 'no-store' });
+      if (!r.ok) throw new Error('no version file');
       const v = await r.json();
       if (!v.build || v.build === build) onStatus(manual ? 'up to date' : '');
       else if (!manual && tried() === v.build) onStatus(v.build + ' is out. Tap Update');
-      else { onStatus('updating to ' + v.build + '…'); try { sessionStorage.setItem(KEY, v.build); } catch (e) {}
+      else {
+        onStatus('updating to ' + v.build + '…');
+        try {
+          sessionStorage.setItem(KEY, v.build);
+        } catch (e) {}
         await Promise.all((v.files || []).map((f) => fetch(f, { cache: 'reload' }).catch(() => null)));
-        if (beforeReload) beforeReload(); location.reload(); }
-    } catch (e) { onStatus(manual ? 'could not check. Are you online?' : ''); }
+        if (beforeReload) beforeReload();
+        location.reload();
+      }
+    } catch (e) {
+      onStatus(manual ? 'could not check. Are you online?' : '');
+    }
     busy = false;
   }
   return { check };

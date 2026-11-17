@@ -1,0 +1,12 @@
+# three.js add-ons, kept as they came
+js/vendor/
+# the avatar models are base64 strings, and textures are painted by the Python scripts
+assets/
+# recorded finger traces and generated files
+test/fixtures/
+version.json
+package-lock.json
+# hand-written markup: formatting it could add whitespace between inline elements
+index.html
+*.md
+shots/
