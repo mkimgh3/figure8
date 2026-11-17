@@ -27,6 +27,8 @@ export function createHud(coarse) {
     stick(on, ox, oy, dx, dy) { joy.style.display = on ? 'block' : 'none'; if (on) { joy.style.transform = 'translate3d(' + ox + 'px,' + oy + 'px,0)'; knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; } },
     pad(on, x, y, armed) { pad.style.display = on ? 'block' : 'none'; if (on) { pad.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)'; pad.classList.toggle('armed', !!armed); } else pad.classList.remove('armed'); },
     padArmed(on) { pad.classList.toggle('armed', on); },
+    // k: how fast she is spinning, 0..1. The ring goes from a faint blue to a full one.
+    padSpin(k) { const q = Math.round(k * 20) / 20; if (q === pad._k) return; pad._k = q; pad.style.borderColor = 'rgba(110,175,255,' + (0.5 + 0.5 * q).toFixed(2) + ')'; pad.style.background = 'rgba(70,140,255,' + (0.1 + 0.55 * q).toFixed(2) + ')'; },
     // the chip: total, then the best jump: its full name (wrapping when long) over its own small score cards
     score(st) { target = st.total; if (st.total < shown) shown = st.total;
       const bj = st.bestJump, key = bj ? bj.name + bj.pts : '';

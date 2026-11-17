@@ -58,6 +58,7 @@ export function createTricks(game, taps, log) {
       if (isDoubleTap && game.jump(t < toeUntil)) { mode = 'air'; outcome = t < toeUntil && S.back ? 'toe-jump' : 'jump'; toeUntil = 0; }
       else if (!S.grounded) { mode = 'air'; outcome = 'air-rotate'; }
       else if (S.move && S.move.id === 'spin') { mode = 'spin'; S.move.hold(); outcome = 'spin-continue'; }
+      else if (S.move && S.move.id === 'dance' && !S.move.state.held) { mode = 'dance'; S.move.hold(); fired = true; outcome = 'dance-continue'; }
       else mode = 'pending';
     },
     move(x, y, t) {
@@ -90,6 +91,7 @@ export function createTricks(game, taps, log) {
         else { perform(shape.end(), shape); if (!fired) outcome = 'none'; }
         if (fired && S.move && S.move.release) S.move.release();
       }
+      if (outcome === 'dance-continue' && stroke.isTap(t, CFG.tap)) taps.tap(t);
       if ((mode === 'spin' || mode === 'twirl' || mode === 'dance') && S.move && S.move.id === mode) S.move.release();
       log.stroke('trick', outcome, stroke, Object.assign({ armed: mode === 'dance' }, extra || {})); stroke = null; shape = null; mode = null;
     },

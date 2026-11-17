@@ -36,7 +36,10 @@ export const CFG = {
   // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street, and its circling turns her. It ends when
   // either thumb lifts, and scores once it has lasted minScore seconds.
   // While she dances the left thumb still steers and speeds her up, at `accel` times the usual rate.
-  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8, dragMs: 280, dragPx: 30, holdMs: 300, afterLand: 0.3, spinIn: 2.2, spinOut: 1.3, spinFast: 5, turnRatio: 0.5, follow: 3.5, glide: 2.6 },
+  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8, dragMs: 280, dragPx: 30, holdMs: 300, afterLand: 0.3, spinIn: 2.2, spinOut: 1.3, spinFast: 5, turnRatio: 0.5, follow: 3.5, glide: 2.6,
+    // a spin kept going winds up from turnRatio to one turn of hers per thumb circle over gainRise seconds, and fades back over about gainFade when it is not;
+    // with the thumb lifted her turning dies away over about spinDown seconds
+    gainRise: 3, gainFade: 4, spinDown: 1.5 },
   steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn

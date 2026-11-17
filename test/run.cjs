@@ -80,7 +80,15 @@ const { open } = require('./smoke.cjs');
     ok('the left thumb steers her while she dances', dsteer.move === 'dance' && dsteer.y < -0.5, { from: +h0.toFixed(2), dsteer });
     const y0 = await p.evaluate(() => window.__game.S.yawX); await play([{ id: 2, pts: circle(300, 420, 40, 4, 110).map((q) => [q[0] - 40, q[1]]) }]);
     const y1 = await p.evaluate(() => { const S = window.__game.S, m = S.move; return [S.yawX, m && m.id, m && m.state.spin, m && +m.state.rate.toFixed(1)]; }); ok('circling the right thumb spins her inside the choreography, in a spin position', Math.abs(y1[0] - y0) > 5 && y1[1] === 'dance' && y1[2] > 0, { y0, y1 });
-    await ev('pointerup', 2, 300, 420); await sleep(700); const de = await p.evaluate(() => { const g = window.__game, e = g.score.state.list[0]; return { name: e.name, pts: e.pts, move: g.S.move && g.S.move.id }; });
+    const g1 = await p.evaluate(() => window.__game.S.spinGain);
+    await ev('pointerup', 2, 300, 420); await sleep(400); const sd = await p.evaluate(() => { const S = window.__game.S, m = S.move; return { move: m && m.id, held: m && m.state.held, yaw: S.yawX, ring: getComputedStyle(document.getElementById('pad')).display }; });
+    await sleep(300); const sd2 = await p.evaluate(() => { const S = window.__game.S; return { move: S.move && S.move.id, yaw: S.yawX, gain: S.spinGain }; });
+    ok('a sustained spin winds up the thumb-to-spin ratio', g1 > 0.1, { g1 });
+    ok('with the thumb lifted the spin winds down by itself', sd.move === 'dance' && sd.held === false && sd.ring === 'none' && (sd2.move !== 'dance' || Math.abs(sd2.yaw - sd.yaw) > 0.1), { sd, sd2 });
+    await ev('pointerdown', 2, 300, 420); await sleep(150); const rs = await p.evaluate(() => { const S = window.__game.S, m = S.move; return { move: m && m.id, held: m && m.state.held, gain: S.spinGain, ring: getComputedStyle(document.getElementById('pad')).display }; });
+    ok('the thumb coming back takes the spin up again with the ratio that was left, and the ring shows', rs.move === 'dance' && rs.held === true && rs.gain > 0.03 && rs.ring === 'block', rs);
+    await ev('pointerup', 2, 300, 420);
+    await p.evaluate(() => new Promise((res) => { const S = window.__game.S, t0 = Date.now(); const iv = setInterval(() => { if (!S.move || Date.now() - t0 > 15000) { clearInterval(iv); res(); } }, 50); })); const de = await p.evaluate(() => { const g = window.__game, e = g.score.state.list[0]; return { name: e.name, pts: e.pts, move: g.S.move && g.S.move.id }; });
     ok('lifting ends the choreography and it scores', de.name === 'Choreography' && de.pts > 0.5 && de.move === null, de); await ev('pointermove', 1, 160, 640); await calm(); }
   const card = await p.evaluate(() => { const e = window.__game.score.state.list[0]; return { name: e.name, base: e.base, goe: e.goe, art: e.art, pts: e.pts, cells: document.querySelectorAll('#pop .cards div').length, name2: (document.querySelector('#pop .pname') || {}).textContent, sub: document.getElementById('sub').textContent, best: window.__game.score.state.best.pts }; });
   ok('each action gets a score card and the best action is tracked', card.cells === 4 && card.name2 === card.name && Math.abs(card.base + card.goe + card.art - card.pts) < 0.11 && /Best jump/.test(card.sub) && card.best >= card.pts, card);
