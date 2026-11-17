@@ -94,7 +94,7 @@ const MOVES = [
   ] },
   { name: 'Hockey stop', steps: [
     ['Skate along with your left thumb and build some speed', (c) => moving(c) && c.speed > 5],
-    ['Swipe your right finger sharply against the way she is travelling', element('stop')],
+    ['Put your right finger down too, drag both thumbs down together, and lift', element('stop')],
   ] },
   { name: 'Step sequence', steps: [
     ['Skate along with your left thumb', moving],
@@ -118,15 +118,15 @@ const MOVES = [
   ] },
   { name: 'Hydroblade', steps: [
     ['Skate along with your left thumb', moving],
-    ['Put your right finger down too, and swipe both thumbs down together', moveIs('hydro')],
+    ['Put your right finger down too, swipe both thumbs down together, and keep them down', moveIs('hydro')],
     ['Keep both thumbs down to stay low', amount('hydro', (st) => st.t, 2), moveIs('hydro')],
     ['Lift to finish', element('hydro')],
   ] },
   { name: 'Choreography', steps: [
     ['Skate along with your left thumb', moving],
-    ['Put your right finger down and keep both thumbs moving, without lifting', moveIs('dance')],
-    ['Slow strokes together are calm; quick scattered ones are sharp. Keep going', amount('dance', (st) => st.t, 3), moveIs('dance')],
-    ['Lift to finish', element('dance')],
+    ['Put your right finger down and keep it moving, without lifting', moveIs('dance')],
+    ['Slow strokes are calm, quick ones sharp, circles spin her. The left thumb still steers. Keep going', amount('dance', (st) => st.t, 3), moveIs('dance')],
+    ['Lift your right finger to finish', element('dance')],
   ] },
   { name: 'Spread eagle', steps: [
     ['Skate along with your left thumb', moving],

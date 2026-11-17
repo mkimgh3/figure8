@@ -31,7 +31,7 @@ export function createSkater(emit) {
     if (busy()) return false; endMove();
     S.takeBack = S.back; S.flick = !!flick && S.back;      // the toe pick only changes a backward take-off
     S.combo = S.back && !S.flick && S.landT < CFG.jump.comboWindow && S.cleanLand;
-    S.vy = (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed) * (S.flick ? 1.16 : 1) * (boost || 1);
+    S.vy = (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed + S.bonus * CFG.jump.vyPerBonus) * (S.flick ? 1.16 : 1) * (boost || 1);
     S.grounded = false; S.spin = 0; S.goal = 0; S.fingerTurn = 0; S.airT = 0; S.jumps++; S.entry = S.curve;
     emit('takeoff', { yaw: S.facing + (S.back ? Math.PI : 0) }); return true;
   }
@@ -79,7 +79,7 @@ export function createSkater(emit) {
           const mt = Math.min(C.turnCapBoosted, Math.min(C.turnCap, C.lateral / sp) * (fine + Math.min(1.6, S.inW / 2.5))) * steerK * dt, tn = clamp(da, -mt, mt);
           let ns = sp;
           if (tv > sp + 0.4) pushing = true;
-          if (tv > sp) ns = Math.min(tv, sp + C.accel * (S.boostT > 0 ? CFG.fall.boostAccel : 1) * (1 - 0.55 * sp / C.maxSpeed) * (Math.abs(da) > 1.6 ? 0.3 : 1) * dt);
+          if (tv > sp) ns = Math.min(tv, sp + C.accel * (m && m.accel !== undefined ? m.accel : 1) * (S.boostT > 0 ? CFG.fall.boostAccel : 1) * (1 - 0.55 * sp / C.maxSpeed) * (Math.abs(da) > 1.6 ? 0.3 : 1) * dt);
           else ns = Math.max(tv, sp - C.easeOff * dt);
           ns = Math.max(0, ns - Math.abs(tn) * sp * 0.06); dir += tn;                    // tight carving costs a little speed
           S.vx = Math.sin(dir) * ns; S.vz = Math.cos(dir) * ns;
@@ -103,5 +103,11 @@ export function createSkater(emit) {
   const yaw = () => S.facing + S.spin + (S.move && S.move.yaw ? S.move.yaw() : 0) + S.yawX + (S.back ? Math.PI : 0) + S.flipYaw;
   const liveGrade = () => { const turns = Math.abs(S.spin) / TAU, h = Math.round(turns * 2) / 2; return gradeOf(Math.abs(turns - h), h, jumpType(S.spin >= 0)); };
   const liveName = () => { const r = Math.abs(S.spin) / TAU; return (!S.takeBack && r < 1) ? 'Waltz jump' : jumpType(S.spin >= 0); };
-  return { S, emit, speed, ensureSpeed, rotateVel, busy, startMove, endMove, jump, airRotate, crash, update, yaw, liveGrade, liveName };
+  // every finished move that counts leaves her with some extra speed to spend, the more the move was worth
+  const MOVES = { spin: 1, twizzles: 1, twirl: 1, steps: 1, swing: 1, spiral: 1, eagle: 1, hydro: 1, dance: 1, turn: 1, leap: 1, stop: 1 };
+  const emitMove = (type, data) => {
+    if (type === 'element' && data && MOVES[data.kind] && data.counted !== false) { const B = CFG.bonus, gain = B.move[0] + B.move[1] * (data.base || 0), before = S.bonus, v = speed();
+      S.bonus = Math.min(B.max, S.bonus + gain); data.speedGain = +(S.bonus - before).toFixed(2); if (v > 0.5 && data.kind !== 'stop') { const k = (v + gain * B.kick) / v; S.vx *= k; S.vz *= k; } }
+    emit(type, data); };
+  return { S, emit: emitMove, speed, ensureSpeed, rotateVel, busy, startMove, endMove, jump, airRotate, crash, update, yaw, liveGrade, liveName };
 }

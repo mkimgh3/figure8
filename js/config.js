@@ -18,25 +18,28 @@ export const CFG = {
   // The rubber band between finger and skater: follow (1/s) is how closely her body keeps up with the finger, pickup (0..1) how quickly
   // her spin takes on the finger's speed, coast (1/s) how fast it fades when the finger stops but stays down. After the finger lifts
   // it eases out at easeOut (1/s) until it is slower than endVel (rad/s), or for endMax seconds at most.
-  spin: { holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 1.8, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
+  // camel: in the camel position she turns this fraction as far as in the others for the same finger circle, so it is slower and easier to place.
+  spin: { camel: 0.55, holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 1.8, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
   // Two-finger moves: both thumbs moving together.
   shape: { flickPx: 50, reversalPx: 22, idleMs: 110, eightTurn: 4.2 },      // flicks, scribbles and drawn shapes
   duo: { minSpeed: 110, engageMs: 70, parallelCos: 0.5, spreadPx: 80, spreadEachPx: 25, calmTurn: 3.3, settleMs: 150, freezeMs: 350 },
-  // Hockey stop: a one-finger swipe at least swipePxPerS fast, within about 37 degrees (cos) of straight against her travel, while she moves at minSpeed or more.
+  // Hockey stop: both thumbs dragged down and lifted, while she moves at minSpeed or more. (The same drag held down is a hydroblade.)
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
-  stop: { swipePxPerS: 900, cos: -0.8, minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
+  stop: { minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
   twirl: { startTurn: 3.1 },
-  // Choreography: both thumbs kept moving (each faster than moveSpeed px/s) for startMs without lifting. Thumb speed between calmPx and
-  // sharpPx (px/s), and how unlike the two thumbs' motions are, slide the dancing from calm and broad to sharp and street. It ends when
-  // a thumb lifts or both have been still for idleEnd seconds, and scores once it has lasted minScore seconds.
-  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, cruise: 5 },
+  // Choreography: with the left thumb down, the right thumb kept moving (faster than moveSpeed px/s) for startMs without lifting. Its speed,
+  // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street, and its circling turns her. It ends when
+  // the right thumb lifts or has been still for idleEnd seconds, and scores once it has lasted minScore seconds.
+  // While she dances the left thumb still steers and speeds her up, at `accel` times the usual rate.
+  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.5 },
   steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
-  jump: { vyBase: 5.4, vyPerSpeed: 0.2, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
+  jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn
   difficulty: { 'Toe loop': 1, 'Salchow': 0.97, 'Loop': 0.93, 'Flip': 0.9, 'Lutz': 0.85, 'Inside Axel': 0.9, 'Axel': 0.88 },
   fall: { seconds: 1.15, boostSeconds: 3, boostAccel: 3.2, repeatWindow: 5 },      // only a first fall gets help back up to speed; any fall within repeatWindow seconds of the last gets none, and restarts the wait
   // Speed beyond what steering alone can reach is earned by landing jumps: the better and bigger the jump, the more. It fades slowly and a fall loses it.
-  bonus: { perfect: 1.1, clean: 0.6, shaky: 0, perRotation: 0.45, max: 6, fade: 0.22, kick: 0.6 },
+  // Every other finished move earns it too: move[0] plus move[1] for each point of the move's base value. Each m/s of it also lifts her next jump (jump.vyPerBonus).
+  bonus: { perfect: 1.1, clean: 0.6, shaky: 0, perRotation: 0.45, max: 6, fade: 0.22, kick: 0.6, move: [0.3, 0.35] },
   // Points, on the scale of real figure skating: jumps carry the big base values, everything else is worth a few points at most.
   points: {
     jumps: { 'Toe loop': [0.4, 1.3, 4.2, 9.5], 'Salchow': [0.4, 1.3, 4.3, 9.7], 'Loop': [0.5, 1.7, 4.9, 10.5], 'Flip': [0.5, 1.8, 5.3, 11.0], 'Lutz': [0.6, 2.1, 5.9, 11.5], 'Inside Axel': [1.0, 3.0, 7.5, 12.0], 'Axel': [1.1, 3.3, 8.0, 12.5] },

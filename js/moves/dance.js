@@ -1,6 +1,7 @@
-// Choreography: the artistic part of a programme. While both thumbs stay down and keep moving she improvises, one pose flowing
-// into the next. How the thumbs move sets the mood (0..1): slow strokes in step with each other give calm, broad, sustained
-// gestures; quick strokes that go their own ways give sharp, low, street-dance moves that hit on a beat.
+// Choreography: the artistic part of a programme. While the right thumb stays down and keeps moving she improvises, one pose
+// flowing into the next. The left thumb goes on steering her and setting her speed. How the right thumb moves sets the mood
+// (0..1): slow strokes give calm, broad, sustained gestures; quick ones give sharp, low, street-dance moves that hit on a
+// beat. Circling it turns her.
 import { CFG } from '../config.js';
 import { clamp, wrap, dimin } from '../core/math.js';
 
@@ -35,7 +36,7 @@ const mirror = (p) => Object.assign({}, p, { roll: -p.roll, yaw: -p.yaw, fL: p.f
 
 export function createDance(S, api) {
   const K = CFG.dance, st = { t: 0, held: true, rel: 0, mood: 0.2, moodSum: 0, idle: 0, poses: 0 };
-  const cur = full({}), from = full({}), out = {}; let to = full({}), u = 1, dur = 1, hold = 0, snap = false, last = -1, facing = 0, begun = false, beat = 0;
+  const cur = full({}), from = full({}), out = {}; let to = full({}), u = 1, dur = 1, hold = 0, snap = false, last = -1, facing = 0, begun = false, beat = 0, turnGoal = 0, turned = 0;
   function next(sharp) {
     for (const k of KEYS) from[k] = cur[k];
     snap = sharp || Math.random() < st.mood; const set = snap ? SHARP : CALM; let i = Math.floor(Math.random() * set.length); if (i === last) i = (i + 1) % set.length; last = i;
@@ -46,25 +47,26 @@ export function createDance(S, api) {
     if (snap) { dur = 0.12 + Math.random() * 0.08; hold = (0.2 + Math.random() * 0.3) * (1.4 - 0.6 * st.mood); }
     else { dur = (1.1 + Math.random() * 0.9) * (1.25 - 0.6 * st.mood); hold = 0.25 + Math.random() * 0.8; }
   }
-  return { id: 'dance', steer: 0.6, state: st,
+  return { id: 'dance', steer: 1, accel: K.accel, state: st,
     start() { api.ensureSpeed(3.5); api.emit('say', { big: 'Choreography', small: '', hold: 0.8 }); },
     release() { st.held = false; },
-    // called every frame with each thumb's speed (px/s) and how alike their directions are (1 the same way, -1 opposite)
-    feed(sa, sb, cos, dt) {
-      const both = sa > K.moveSpeed && sb > K.moveSpeed; if (sa > K.moveSpeed || sb > K.moveSpeed) st.idle = 0; else { st.idle += dt; if (st.idle > K.idleEnd) st.held = false; return; }
-      const quick = clamp(((sa + sb) / 2 - K.calmPx) / (K.sharpPx - K.calmPx), 0, 1), apart = both ? 1 - Math.max(0, cos) : 0.5;
-      st.mood += (0.7 * quick + 0.3 * apart - st.mood) * (1 - Math.exp(-1.6 * dt)); },
+    // called every frame with the right thumb's speed (px/s): slow strokes are calm, quick ones sharp
+    feed(sb, dt) {
+      if (sb > K.moveSpeed) st.idle = 0; else { st.idle += dt; if (st.idle > K.idleEnd) st.held = false; return; }
+      st.mood += (clamp((sb - K.calmPx) / (K.sharpPx - K.calmPx), 0, 1) - st.mood) * (1 - Math.exp(-1.6 * dt)); },
+    // the right thumb circling turns her, as far as it circles; she follows it on a short rubber band
+    rotate(d) { turnGoal += d; },
     update(dt) {
       st.t += dt; st.moodSum += st.mood * dt; api.ensureSpeed(2.6); beat += dt * (2.2 + 3.8 * st.mood) * Math.PI;
-      // at an unhurried pace she goes where the thumbs steer her, and drifts along a lazy winding path when they don't
-      if (S.mag < 0.15) api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt); if (api.speed() > K.cruise) { const f = Math.exp(-2.5 * dt); S.vx *= f; S.vz *= f; }
+      // she goes where the thumbs steer her and picks up speed as they push, and drifts along a lazy winding path when they don't
+      if (S.mag < 0.15) api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt);
       if (begun && st.held && !snap && st.mood > 0.6) next(true);                                   // the thumbs have turned sharp: she breaks off the slow gesture at once
       else if (u < 1) u = Math.min(1, u + dt / dur); else if (begun && (hold -= dt) <= 0 && st.held) next();
       // calm poses ease in and out; sharp ones hit and stop
       const e = snap ? 1 - Math.pow(1 - u, 3) : u * u * u * (u * (u * 6 - 15) + 10); for (const k of KEYS) cur[k] = from[k] + (to[k] - from[k]) * e;
-      S.yawX = cur.yaw;
+      turned += (turnGoal - turned) * (1 - Math.exp(-7 * dt)); S.yawX = cur.yaw + turned;
       if (!st.held) { st.rel += dt; return st.rel < 0.35; } return true; },
-    end() { S.flipYaw = wrap(cur.yaw);          // her body eases back round to face the way she is going
+    end() { S.flipYaw = wrap(cur.yaw + turned);         // her body eases back round to face the way she is going
       const m = st.t > 0 ? st.moodSum / st.t : 0;
       api.emit('element', { kind: 'dance', name: 'Choreography', detail: st.t.toFixed(1) + ' seconds, ' + (m < 0.33 ? 'flowing' : m > 0.6 ? 'sharp' : 'mixed'), base: dimin(CFG.points.dance[0], st.t, CFG.points.dance[1]), counted: st.t >= K.minScore }); },
     blade(o) { o.width = 1.3; },

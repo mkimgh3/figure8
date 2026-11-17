@@ -11,8 +11,8 @@ export function createSpin(S, api, seed) {
       // she glides into the spin and settles; the steering thumb lets the spin travel slowly
       const m = Math.hypot(steer.x, steer.y); st.stick = m; if (m > 0.2) { const k = 1 - Math.exp(-2.5 * dt); S.vx += (steer.x * CFG.spin.travel - S.vx) * k; S.vz += (steer.y * CFG.spin.travel - S.vz) * k; } else { const f = Math.exp(-CFG.spin.decay * dt); S.vx *= f; S.vz *= f; }
       // the finger and her body are joined by a rubber band: she lags a little behind the finger, and carries on turning after it stops
-      const K = CFG.spin;
-      if (st.imp !== 0) { st.vel += (st.imp * K.gain / dt - st.vel) * K.pickup; st.goal += st.imp * K.gain; st.imp = 0; st.idle = 0; }
+      const K = CFG.spin, gain = K.gain * (st.pos === 'Camel' ? K.camel : 1);
+      if (st.imp !== 0) { st.vel += (st.imp * gain / dt - st.vel) * K.pickup; st.goal += st.imp * gain; st.imp = 0; st.idle = 0; }
       else { st.idle += dt; if (st.idle > 0.07) { st.goal += st.vel * dt; st.vel *= Math.exp(-(st.held ? K.coast : K.easeOut) * dt); } }
       st.vel = clamp(st.vel, -32, 32); st.angle += (st.goal - st.angle) * (1 - Math.exp(-K.follow * dt));
       st.pos = steer.y > 0.5 ? 'Sit' : steer.y < -0.5 ? 'Camel' : 'Upright'; st.kinds[st.pos] = 1;
