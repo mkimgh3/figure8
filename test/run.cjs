@@ -100,7 +100,7 @@ const { open } = require('./smoke.cjs');
   await ev('pointermove', 1, 220, 590); await sleep(3500);
   await p.evaluate(() => { const g = window.__game; g.game.jump(false); g.game.airRotate(1.25 * 6.2832); }); await sleep(1800); s = await st(); ok('a quarter-turn-off landing is a fall', /fall/i.test(s.pop) && s.move === 'fall', s);
   await sleep(1500); s = await st(); ok('she gets back up', s.move === null, s);
-  const bo = await p.evaluate(() => new Promise((res) => { const g = window.__game, S = g.S; S.x += 400; g.game.jump(false); g.game.airRotate(2 * 6.2832); const iv = setInterval(() => { if (S.grounded) { clearInterval(iv); const bonus = S.bonus;
+  const bo = await p.evaluate(() => new Promise((res) => { const g = window.__game, S = g.S; S.x += 400; S.fallEndT = S.clock - 10; g.game.jump(false); g.game.airRotate(2 * 6.2832); const iv = setInterval(() => { if (S.grounded) { clearInterval(iv); const bonus = S.bonus;
     g.game.jump(false); g.game.airRotate(1.25 * 6.2832); const iv2 = setInterval(() => { if (S.grounded) { clearInterval(iv2); const afterFall = S.bonus; setTimeout(() => { const b1 = S.boostT; g.game.jump(false); g.game.airRotate(1.25 * 6.2832); const iv3 = setInterval(() => { if (S.grounded && !S.move) { clearInterval(iv3); res({ bonus, afterFall, firstBoost: b1 > 0, secondBoost: S.boostT > 0 }); } }, 30); }, 1500); } }, 30); } }, 30); }));
   ok('a clean double raises top speed, a fall loses it, and a second quick fall gets no boost', bo.bonus > 0.5 && bo.afterFall === 0 && bo.firstBoost && !bo.secondBoost, bo); await sleep(1500);
   // one-finger double tap with no steering finger
