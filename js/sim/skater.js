@@ -26,11 +26,12 @@ export function createSkater(emit) {
   // The landing window is generous for singles and narrows with every extra rotation and for the harder jumps.
   const tolerance = (h, type) => clamp(1.25 - 0.2 * h, 0.45, 1.15) * (h >= 1 ? (CFG.difficulty[type] || 1) : 1);
   function gradeOf(off, h, type) { const k = tolerance(h, type); for (const g of CFG.grades) if (off < g[0] * k) return g[1]; return null; }
-  function jump(flick) {
+  // boost: a launch pad throws her this many times faster off the ice than her own legs would
+  function jump(flick, boost) {
     if (busy()) return false; endMove();
     S.takeBack = S.back; S.flick = !!flick && S.back;      // the toe pick only changes a backward take-off
     S.combo = S.back && !S.flick && S.landT < CFG.jump.comboWindow && S.cleanLand;
-    S.vy = (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed) * (S.flick ? 1.16 : 1);
+    S.vy = (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed) * (S.flick ? 1.16 : 1) * (boost || 1);
     S.grounded = false; S.spin = 0; S.goal = 0; S.fingerTurn = 0; S.airT = 0; S.jumps++; S.entry = S.curve;
     emit('takeoff', { yaw: S.facing + (S.back ? Math.PI : 0) }); return true;
   }

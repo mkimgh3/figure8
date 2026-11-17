@@ -19,8 +19,10 @@ import { createLog } from './log.js';
 import { createScoring } from './scoring.js';
 import * as save from './save.js';
 import { createUpdater } from './update.js';
+import { createPads, createRace } from './modes.js';
+import { createDuet } from './duet.js';
 
-const BUILD = 'v3-look14';
+const BUILD = 'v3-look15';
 let world;
 try { world = createScene(document.getElementById('c')); } catch (e) { document.getElementById('err').style.display = 'flex'; throw e; }
 const saved = save.load();
@@ -35,7 +37,8 @@ const showAvatar = () => avatars.forEach((a, i) => { if (!a) return; const on = 
 const AVA_SLIM = { Spine: -0.012, Spine1: -0.008, Pelvis: -0.006, Thigh: -0.01, Calf: -0.005, UpperArm: -0.006, Forearm: -0.003 };
 const AVA_SKIRT = [{ length: 0.92, waist: [0.125, 0.095], rest: 19, open: 70, bell: 0.8, follow: 0.4, colours: [0xebe5f7, 0x8a74d4], opacity: 1, iridescence: 0.5, sheen: 0.7, sparkle: 0.6 },
   { length: 0.95, waist: [0.131, 0.101], rest: 22, open: 74, bell: 0.75, follow: 0.35, colours: [0xffffff, 0xc2b2ff], opacity: 0.4, iridescence: 0.9, sheen: 1, sparkle: 1.6 }];
-loadAvatar(models, 0, { url: 'assets/ava_model.js', tex: texOf('ava'), height: 1.72, skirt: AVA_SKIRT, inflate: AVA_SLIM, look: { iridescence: 0.8, sheen: 0xd9ccff, sparkle: 1, fabricSheen: true, skinRough: 0.85 } }, avU, (a) => { avatars[0] = a; showAvatar(); });
+const AV_OPTS = [{ url: 'assets/ava_model.js', tex: texOf('ava'), height: 1.72, skirt: AVA_SKIRT, inflate: AVA_SLIM, look: { iridescence: 0.8, sheen: 0xd9ccff, sparkle: 1, fabricSheen: true, skinRough: 0.85 } }, null];
+loadAvatar(models, 0, AV_OPTS[0], avU, (a) => { avatars[0] = a; showAvatar(); });
 // Ivor: tall, shirtless and muscular; the bulk is added along the normals, most on the chest, shoulders and arms
 const MAX_BULK = { Spine2: 0.032, Spine1: 0.016, Spine: 0.002, Clavicle: 0.03, Neck: 0.034, UpperArm: 0.024, Forearm: 0.012, Thigh: 0.014, Calf: 0.009, RCheek: -0.004, LCheek: -0.004 };
 // boulder shoulders: a round swell over each shoulder joint, and the traps rising toward the neck
@@ -43,14 +46,15 @@ const MAX_BUMPS = [{ bone: 'Bip01 L UpperArm', a: 0.042, r: 0.085, out: 0.02, up
   { bone: 'Bip01 L UpperArm', mid: 'Bip01 Neck', a: 0.022, r: 0.06, up: 0.03 }, { bone: 'Bip01 R UpperArm', mid: 'Bip01 Neck', a: 0.022, r: 0.06, up: 0.03 }];
 // his strawberry-blond dreadlocks: 22 heavy locks of 12 joints each (lengths in metres)
 const MAX_HAIR = { count: 22, joints: 12, length: 0.52, radius: 0.023, keep: 0.989, drag: 0.8, bend: 0.5, windy: 0.4, colours: [0xd29a62, 0xefc08a, 0xf8dcae] };      // heavy locks: damped, stiff, barely stirred by wind
-loadAvatar(models, 1, { url: 'assets/max_model.js', tex: texOf('max'), height: 1.92, skirt: false, inflate: MAX_BULK, bumps: MAX_BUMPS, mantle: true, longHair: MAX_HAIR, camera: world.camera, look: { iridescence: 0, sheen: 0xffd2b0, sheenAmt: 0.25, rough: 0.46, sparkle: 0 } }, avU, (a) => { avatars[1] = a; a.night(CFG.looks[lookIx].night ? 1 : 0); showAvatar(); });
+AV_OPTS[1] = { url: 'assets/max_model.js', tex: texOf('max'), height: 1.92, skirt: false, inflate: MAX_BULK, bumps: MAX_BUMPS, mantle: true, longHair: MAX_HAIR, camera: world.camera, look: { iridescence: 0, sheen: 0xffd2b0, sheenAmt: 0.25, rough: 0.46, sparkle: 0 } };
+loadAvatar(models, 1, AV_OPTS[1], avU, (a) => { avatars[1] = a; a.night(CFG.looks[lookIx].night ? 1 : 0); showAvatar(); });
 let avatar = null;
 const pose = createPoser(models), taps = new TapTracker(CFG.tap), score = createScoring(saved && saved.sc);
 let dirty = false;
 const showScore = () => hud.score(score.state);
 const tutorial = createTutorial();
 let placeIx = 0, lookIx = 0;
-const setLook = (i) => { lookIx = ((i % CFG.looks.length) + CFG.looks.length) % CFG.looks.length; world.setLook(CFG.looks[lookIx]); trace.glow(CFG.looks[lookIx].lineGlow || 1); trace.punch(CFG.looks[lookIx].linePunch || 1, CFG.looks[lookIx].lineWide || 1); avatars.forEach((a) => a && a.night(CFG.looks[lookIx].night ? 1 : 0)); hud.text('timename', CFG.looks[lookIx].name); };
+const setLook = (i) => { lookIx = ((i % CFG.looks.length) + CFG.looks.length) % CFG.looks.length; world.setLook(CFG.looks[lookIx]); trace.glow(CFG.looks[lookIx].lineGlow || 1); trace.punch(CFG.looks[lookIx].linePunch || 1, CFG.looks[lookIx].lineWide || 1); avatars.forEach((a) => a && a.night(CFG.looks[lookIx].night ? 1 : 0)); duet.night(CFG.looks[lookIx].night ? 1 : 0); hud.text('timename', CFG.looks[lookIx].name); };
 const showGfx = () => hud.text('gfxname', world.qualityName);
 const setPlace = (i) => { placeIx = ((i % CFG.places.length) + CFG.places.length) % CFG.places.length; const p = CFG.places[placeIx]; world.setPlace(p); forest.set(p.trees); hud.text('placename', p.name); };
 
@@ -76,11 +80,19 @@ const S = game.S, tricks = createTricks(game, taps, log);
 const setZoom = () => { const z = world.toggleZoom(); hud.text('zoom', z ? 'Zoom in' : 'Zoom out'); hud.board(z, score.state); if (z) { hud.stick(false); persist(); } last = performance.now(); };
 const input = createInput(document.getElementById('c'), game, tricks, taps, world.view, hud, setZoom);
 
+// Ways to play: free skating, or one of the modes (modes.js, duet.js). Race best times are kept with the save.
+const bests = (saved && saved.rb) || {}, sayMode = (big, small, hold) => hud.say(big, small, hold);
+const duet = createDuet(world.scene, game, (m, i, done) => loadAvatar(m, i, AV_OPTS[i], avU, done));
+const MODES = [null, createPads(world.scene, game, sayMode), createRace(world.scene, game, sayMode, () => score.state.total, bests), duet];
+let modeIx = 0, modeLineT = 0;
+const setMode = (i, quiet) => { const n = MODES.length; if (MODES[modeIx]) MODES[modeIx].off(); modeIx = ((i % n) + n) % n; const m = MODES[modeIx]; if (m) m.on(models.index);
+  hud.text('modename', CFG.modes.names[modeIx]); hud.text('modeline', ''); if (m && !quiet && modeIx !== 2) hud.say(m.name, m.hint, 3.2); };
+
 // saved drawing and score
 if (saved) { trace.palette = saved.pv === 2 ? saved.pal | 0 : 0; trace.restore(saved.prints); S.x = +saved.x || 0; S.z = +saved.z || 0; S.skated = +saved.skated || 0; models.setChar(saved.ch | 0); world.snapTo(S.x, S.z); }
-setPlace(saved ? saved.pl | 0 : 0); setLook(saved ? saved.tm | 0 : 0);
+setPlace(saved ? saved.pl | 0 : 0); setLook(saved ? saved.tm | 0 : 0); setMode(saved ? saved.md | 0 : 0, true);
 if (saved && saved.gq && saved.gq !== 'Auto' && CFG.quality[saved.gq]) world.setQuality(saved.gq, false); showGfx();
-const persist = () => { if (!dirty) return; dirty = false; save.store({ x: S.x, z: S.z, skated: S.skated, pal: trace.palette, pv: 2, ch: models.index, pl: placeIx, tm: lookIx, ui: uiIx, uv: 2, gq: world.auto ? 'Auto' : world.qualityName, sc: score.serialise(), prints: trace.serialise() }); };
+const persist = () => { if (!dirty) return; dirty = false; save.store({ x: S.x, z: S.z, skated: S.skated, pal: trace.palette, pv: 2, ch: models.index, pl: placeIx, tm: lookIx, md: modeIx, rb: bests, ui: uiIx, uv: 2, gq: world.auto ? 'Auto' : world.qualityName, sc: score.serialise(), prints: trace.serialise() }); };
 setInterval(persist, 20000);       // saving a big drawing costs a frame or two, so it is done rarely and whenever the game pauses
  window.addEventListener('pagehide', persist); document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
 
@@ -100,6 +112,7 @@ hud.on('movesbtn', () => hud.page('moves')); hud.on('back', () => hud.page('home
 document.getElementById('sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') { hud.sheet(false); last = performance.now(); } });
 hud.on('char', () => { models.setChar(models.index + 1); showAvatar(); hud.text('charname', models.rig.name); dirty = true; });
 hud.on('timebtn', () => { setLook(lookIx + 1); dirty = true; });
+hud.on('modebtn', () => { setMode(modeIx + 1); dirty = true; });
 // Screen: the look and layout of everything drawn over the ice
 const UI_STYLES = ['Classic', 'Broadcast', 'Glass', 'Minimal', 'Arcade'];
 let uiIx = saved && saved.uv === 2 && UI_STYLES[saved.ui] ? saved.ui : 3;       // Minimal is the standard screen; a style chosen since then is kept
@@ -143,6 +156,9 @@ function frame(now) {
     hud.combo(score.chainLeft()); tutorial.tick(dt, { S, speed: game.speed(), armed: tricks.armed, rhythm: tricks.rhythm(now)[0], now }); { const r = tricks.rhythm(now); hud.rhythm(r[0], r[1]); }
     // a shore turns her along it: she keeps the speed that runs along the coast and loses what was heading inland
     { const t = forest.hit(S.x, S.z); if (t) { S.x = t.x; S.z = t.z; const vn = S.vx * t.nx + S.vz * t.nz; if (vn < 0) { S.vx -= vn * t.nx; S.vz -= vn * t.nz; if (S.grounded && vn < -2 && Math.random() < 0.5) spray.emit(S.x, S.z, t.nx, t.nz, 3, 2, 1.5); } } }
+    // the mode in play: its pads or course, and its line under the speed
+    if (modeIx === 1) MODES[1].update(dt); else if (modeIx === 2) MODES[2].update(dt, game.emit, game.crash);
+    modeLineT -= dt; if (modeIx && modeLineT <= 0) { modeLineT = 0.1; hud.text('modeline', MODES[modeIx].line()); }
     // spray: off a hard edge, off each push when she is working for speed, and around a spin
     const sp = game.speed(), edge = Math.abs(S.turn) * sp;
     if (S.grounded) { const hx = Math.cos(S.facing), hz = -Math.sin(S.facing), out = S.turn > 0 ? -1 : 1;
@@ -158,6 +174,7 @@ function frame(now) {
     avatar = avatars[models.index];
     if (avatar && avatar.visible) { const spinRate = (S.move && S.move.spinRate ? S.move.spinRate() : 0) + (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20);
       avU.uTime.value = now / 1000; avatar.reflection(world.quality.reflection, 0.26); avatar.update(dt, S, Math.min(1, spinRate / 18 + game.speed() * 0.02), Math.min(1, spinRate / 18)); }
+    if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection);
     ring.update(game, models.rig.scale); log.tick(dt, game, steer);
   }
   world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale); forest.update(S.x, S.z); trace.sharpen(world.view.e);
@@ -165,5 +182,5 @@ function frame(now) {
   world.render(); requestAnimationFrame(frame);
 }
 hud.swatch(PALETTES[trace.palette].css, PALETTES[trace.palette].name); showScore();
-window.__game = { CFG, get avatar() { return avatar; }, tutorial, world, forest, setPlace, game, S, input, tricks, score, trace, log, view: world.view, zoom: setZoom, hudText: () => document.getElementById('pop').textContent };
+window.__game = { CFG, modes: MODES, setMode, get modeIx() { return modeIx; }, get avatar() { return avatar; }, tutorial, world, forest, setPlace, game, S, input, tricks, score, trace, log, view: world.view, zoom: setZoom, hudText: () => document.getElementById('pop').textContent };
 requestAnimationFrame(frame);

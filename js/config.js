@@ -74,5 +74,17 @@ export const CFG = {
     Balanced: { dpr: 2, shadow: 1024, reflection: true, snow: 0, mist: 0, glow: true },
     Low: { dpr: 1.5, shadow: 1024, reflection: false, snow: 0, mist: 0, glow: false },
   },
+  // Ways to play, chosen in the menu.
+  modes: {
+    names: ['Free skate', 'Jump park', 'Race', 'Duet'],
+    // Jump park: one launch pad in every `cell` metres of ice, `radius` wide; it throws her `boost` times faster off the ice than her own jump.
+    pads: { cell: 22, radius: 1.5, boost: 1.45, cooldown: 1.2 },
+    // Race: coins are worth `coin` points each, a hurdle jumped `hurdle`, and every second under the course's par time `second`.
+    // A course is laid out again if she strays `stray` metres from it or takes longer than `timeout` seconds.
+    race: { coin: 0.1, hurdle: 0.5, second: 0.3, reach: 1.3, stray: 70, timeout: 150, nextAfter: 4 },
+    // Duet: the partner skates `beside` metres to her side and does what she does `delay` seconds later; `keepUp` (0..1) is how much
+    // of the ground that delay costs it makes up, so it stays level with her instead of trailing.
+    duet: { beside: 2.1, delay: 0.22, keepUp: 0.85 },
+  },
   log: { maxStrokes: 160, maxPointsPerStroke: 90 },
 };

@@ -133,7 +133,23 @@ const { open } = require('./smoke.cjs');
   await p.tap('#menu'); await sleep(200); const bn = await p.evaluate(() => document.getElementById('buildname').textContent), vf = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'version.json'), 'utf8'));
   ok('the menu shows the build, and version.json names the same one (run npm run stamp)', bn.includes('Build ' + vf.build) && vf.files.includes('js/main.js'), { menu: bn, file: vf.build });
   await p.tap('#update'); await sleep(600); const up = await p.evaluate(() => document.getElementById('buildname').textContent); ok('Update says it is up to date when nothing newer is published', /up to date/.test(up), up);
+  await p.tap('#modebtn'); const mn = await p.evaluate(() => [document.getElementById('modename').textContent, window.__game.modeIx]); ok('the menu switches the way to play', mn[0] === 'Jump park' && mn[1] === 1, mn);
   await p.tap('#close'); await sleep(150);
+  // ways to play (from a standstill her own jump reaches about 1 m, so a launch must clear 1.7 m)
+  const until = (fn, ms) => p.evaluate(([src, ms]) => new Promise((res) => { const f = new Function('g', 'return (' + src + ')(g)'), t0 = performance.now(); const iv = setInterval(() => { const v = f(window.__game); if (v || performance.now() - t0 > ms) { clearInterval(iv); res(v || null); } }, 30); }), [fn.toString(), ms]);
+  await until((g) => g.S.grounded && !g.S.move, 6000);
+  { const j0 = await p.evaluate(() => { const g = window.__game, S = g.S, pad = g.modes[1].pads()[4]; S.x = pad[0]; S.z = pad[1]; return S.jumps; });
+    const up = await until((g) => !g.S.grounded && { vy: g.S.vy, jumps: g.S.jumps }, 1500), top = await until((g) => g.S.vy < 0 && { y: g.S.y }, 4000);
+    ok('Jump park: a pad launches her higher than her own jump', !!up && up.jumps === j0 + 1 && !!top && top.y > 1.7, { up, top }); await until((g) => g.S.grounded && !g.S.move, 8000); }
+  { await p.evaluate(() => { const g = window.__game; g.setMode(2); const c = g.modes[2].course, o = c.origin, S = g.S; g.input.setAuto({ x: Math.sin(o.h), y: Math.cos(o.h) }); S.vx = Math.sin(o.h) * 6; S.vz = Math.cos(o.h) * 6; });
+    const run = await until((g) => g.modes[2].course.state === 'run', 9000);
+    const coin = await p.evaluate(() => new Promise((res) => { const g = window.__game, c = g.modes[2].course, o = c.origin, it = c.items.filter((i) => i.kind === 'coin')[3], S = g.S; S.x = o.x + Math.sin(o.h) * it.f + Math.cos(o.h) * it.s; S.z = o.z + Math.cos(o.h) * it.f - Math.sin(o.h) * it.s; setTimeout(() => res(g.modes[2].course.got), 300); }));
+    await p.evaluate(() => { const g = window.__game, c = g.modes[2].course, o = c.origin, S = g.S; S.x = o.x + Math.sin(o.h) * (c.finish - 2); S.z = o.z + Math.cos(o.h) * (c.finish - 2); });
+    const fin = await until((g) => g.modes[2].course.state === 'done' && { name: g.score.state.list[0].name, pts: g.score.state.list[0].pts, line: document.getElementById('modeline').textContent }, 6000);
+    ok('Race: the clock starts at the gate, coins are collected, and finishing scores', !!run && coin >= 1 && !!fin && /Coin trail finished/.test(fin.name) && fin.pts > 0 && /coins/.test(fin.line), { run, coin, fin }); }
+  { await p.evaluate(() => window.__game.setMode(3)); await sleep(1200); const du = await p.evaluate(() => { const g = window.__game, q = g.modes[3].partner; return { gap: +Math.hypot(q.x - g.S.x, q.z - g.S.z).toFixed(2), visible: q.visible, who: q.who }; });
+    ok('Duet: the other skater keeps beside her', du.visible && du.who === 1 && du.gap > 1 && du.gap < 4.5, du); await p.evaluate(() => { window.__game.setMode(0); window.__game.input.setAuto(null); });
+    const off = await p.evaluate(() => window.__game.modes[3].partner.visible); ok('back in Free skate the partner and the course are gone', off === false && (await p.evaluate(() => document.getElementById('modeline').textContent)) === '', off); }
   ok('no errors during the run', errs.length === 0, errs);
   console.log(failed ? `\n${failed} FAILED` : '\nall passed'); await b.close(); process.exit(failed ? 1 : 0);
 })();

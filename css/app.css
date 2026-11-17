@@ -59,6 +59,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #tdots i.done { background: #35c98a; }
 #tstep { font-size: 12.5px; font-weight: 650; line-height: 1.3; }
 
+/* the mode in play: course, time and coins */
+#modeline { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #f2f6ff; text-shadow: 0 1px 8px rgba(0,0,20,.8); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#modeline:empty { display: none; }
 /* rhythm bar for step sequences */
 #rhythm { width: 150px; text-align: center; display: none; }
 #rhythm.on { display: block; }

@@ -1,5 +1,5 @@
 {
- "build": "v3-look14",
+ "build": "v3-look15",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -23,11 +23,13 @@
   "index.html",
   "js/config.js",
   "js/core/math.js",
+  "js/duet.js",
   "js/input/pointers.js",
   "js/input/recognizer.js",
   "js/input/tricks.js",
   "js/log.js",
   "js/main.js",
+  "js/modes.js",
   "js/moves/README.md",
   "js/moves/dance.js",
   "js/moves/fall.js",
