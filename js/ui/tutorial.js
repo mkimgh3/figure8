@@ -53,23 +53,7 @@ const JUMPS = [
   ] },
 ];
 
-// A spin: the way the finger circles picks it.
-const spin = (name, pos, how) => ({ name, steps: [
-  ['Circle your right finger ' + how, (c) => moveIs('spin')(c) && c.S.move.state.pos === pos],
-  ['Keep circling like that: three revolutions', amount('spin', spinRevs, 3), moveIs('spin')],
-  ['Lift your finger to finish', element('spin')],
-] });
-
 const MOVES = [
-  spin('Camel spin', 'Camel', 'slowly, counter-clockwise'),
-  spin('Sit spin', 'Sit', 'quickly, counter-clockwise'),
-  spin('Layback spin', 'Layback', 'slowly, clockwise'),
-  spin('Scratch spin', 'Scratch', 'quickly, clockwise'),
-  { name: 'Combination spin', steps: [
-    ['Circle your right finger slowly, counter-clockwise: camel', (c) => moveIs('spin')(c) && !!c.S.move.state.kinds.Camel],
-    ['Speed up without lifting: she drops into a sit', (c) => moveIs('spin')(c) && !!c.S.move.state.kinds.Sit, moveIs('spin')],
-    ['Lift your finger to finish', element('spin', (d) => d.name === 'Combination spin')],
-  ] },
   { name: 'Twizzles', steps: [
     ['Skate along with your left thumb', moving],
     ['Flick your right finger to the right for a split leap', element('leap')],
@@ -105,6 +89,7 @@ const MOVES = [
     ['Skate along with your left thumb', moving],
     ['Drag your right finger about: any stroke longer than a flick', moveIs('dance')],
     ['Keep it moving: slow strokes are calm, quick ones sharp. The left thumb still steers', amount('dance', (st) => st.t, 3), moveIs('dance')],
+    ['Now circle it: she spins. Slow circles open her out, fast ones pull her in', (c) => moveIs('dance')(c) && c.S.move.state.spin > 0, moveIs('dance')],
     ['Lift your right finger to finish', element('dance')],
   ] },
   { name: 'Spread eagle', steps: [
