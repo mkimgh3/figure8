@@ -1,6 +1,6 @@
 // The frozen lake. One large plane with a standard (physically based) material, extended in its shader with:
-//   depth    clear, thick ice: deeper colour when you look straight into it, soft light at two depths that shifts with the view,
-//            and faint cracks underneath
+//   depth    clear ice with no bottom: deep blue, darkest where you look straight into it, soft light far down that shifts
+//            with the view, and cracks hanging at three depths
 //   clouds   soft cloud shadows drifting across the ice
 //   aurora   at night, bands of coloured light reflected in the ice
 // The ice writes no depth, so the skater's mirror image (drawn just below the surface) shows through it as a reflection.
@@ -39,8 +39,9 @@ export function createIce(renderer) {
     g.fillStyle = '#000'; g.fillRect(0, 0, 512, 512); g.globalCompositeOperation = 'lighter';
     for (i = 0; i < 9; i++) { x = rnd() * 512; y = rnd() * 512; a = rnd() * 6.28; const path = [[x, y]];
       for (let k = 0; k < 10; k++) { a += (rnd() - 0.5) * 1.2; x += Math.cos(a) * (12 + rnd() * 22); y += Math.sin(a) * (12 + rnd() * 22); path.push([x, y]); if (rnd() < 0.25) { const b = a + (rnd() < 0.5 ? 1 : -1) * (0.6 + rnd()); path.push([x + Math.cos(b) * 18, y + Math.sin(b) * 18], [x, y]); } }
-      tile(512, (ox, oy) => { for (const [col, w] of [['rgba(0,0,170,1)', 3.5], ['rgba(170,0,0,1)', 0.7]]) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); path.forEach((q, k) => (k ? g.lineTo(q[0] + ox, q[1] + oy) : g.moveTo(q[0] + ox, q[1] + oy))); g.stroke(); } }); }
+      tile(512, (ox, oy) => { for (const [col, w] of [['rgba(0,0,170,1)', 3.5], ['rgba(170,0,0,1)', 1.0]]) { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); path.forEach((q, k) => (k ? g.lineTo(q[0] + ox, q[1] + oy) : g.moveTo(q[0] + ox, q[1] + oy))); g.stroke(); } }); }
   });
+  deep.anisotropy = aniso;
 
   const U = { uTime: { value: 0 }, uDeep: { value: deep }, uDepthTint: { value: new THREE.Color(0x3d6fa8) }, uGlitter: { value: 1 }, uSunDir: { value: new THREE.Vector3(-0.6, 0.5, 0.4).normalize() },
     uSunCol: { value: new THREE.Color(0xffffff) }, uCloud: { value: 0.3 }, uWind: { value: new THREE.Vector2(0.6, 0.25) }, uAurora: { value: 0 }, uAur1: { value: new THREE.Color(0x3dffb0) }, uAur2: { value: new THREE.Color(0x8a5cff) },
@@ -62,14 +63,17 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
       .replace('#include <map_fragment>', `#include <map_fragment>
 { vec3 V = normalize(cameraPosition - vWPos); float near = 1.0 - uOverview;
   vec2 par = V.xz / max(V.y, 0.25);
-  vec2 duv = (vWPos.xz - par * 0.35) / 9.0;
-  vec3 d = texture2D(uDeep, duv).rgb;
   float look = pow(clamp(V.y, 0.0, 1.0), 1.5);                                   // 1: straight down into the ice
-  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uDepthTint * 1.55, (0.2 + 0.38 * look) * near);
-  float l1 = fbm((vWPos.xz - par * 0.6) * 0.05), l2 = fbm((vWPos.xz - par * 1.6) * 0.03 + 4.3);
-  diffuseColor.rgb *= 1.0 + ((l1 - 0.5) * 0.12 + (l2 - 0.5) * 0.16) * near;
-  diffuseColor.rgb *= 1.0 - d.b * 0.03 * near;
-  diffuseColor.rgb += vec3(0.9, 0.95, 1.0) * d.r * 0.035 * near;
+  // the body of the ice: blue that deepens toward black-blue the more directly you look into it, with soft light far down
+  vec3 body = mix(diffuseColor.rgb * uDepthTint * 1.25, uDepthTint * uDepthTint * 0.5, 0.55 + 0.4 * look);
+  float l1 = fbm((vWPos.xz - par * 1.0) * 0.05), l2 = fbm((vWPos.xz - par * 3.0) * 0.03 + 4.3);
+  body *= 1.0 + (l1 - 0.5) * 0.3 + (l2 - 0.5) * 0.7;
+  // cracks hang at three depths; each deeper sheet is larger, dimmer and bluer, and slides further as the view moves
+  vec3 c1 = texture2D(uDeep, (vWPos.xz - par * 0.3) / 9.0).rgb;
+  float c2 = texture2D(uDeep, (vWPos.xz - par * 1.2) / 13.0 + 0.37).r, c3 = texture2D(uDeep, (vWPos.xz - par * 2.6) / 19.0 + 0.71).r;
+  body *= 1.0 - c1.b * 0.12;
+  body += vec3(0.86, 0.94, 1.0) * c1.r * 0.15 + mix(vec3(0.8, 0.9, 1.0), uDepthTint, 0.45) * c2 * 0.085 + mix(vec3(0.8, 0.9, 1.0), uDepthTint, 0.7) * c3 * 0.06;
+  diffuseColor.rgb = mix(diffuseColor.rgb, body, (0.87 + 0.08 * look) * near);
   float cl = smoothstep(0.42, 0.75, fbm(vWPos.xz * 0.018 + uTime * uWind * 0.02));
   diffuseColor.rgb *= 1.0 - cl * uCloud; }`)
       // aurora reflected from the sky is light added on top

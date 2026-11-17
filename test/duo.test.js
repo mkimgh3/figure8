@@ -41,6 +41,8 @@ for (const name of ['scribbleX', 'scribbleY', 'flickUp', 'flickDown', 'flickLeft
 ok('thumbs spreading apart -> spread', play(line(160, 600, 80, 600, 220), line(240, 600, 320, 600, 220)).ev.includes('spread'));
 ok('circling thumbs are never read as a spread or a flick', play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, false)).ev.every((e) => e === 'engage' || e === 'beat'), play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, false)).ev);
 ok('same-way circles are not an eight', !play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, true)).ev.includes('eight'));
+{ const r = solo([...line(290, 560, 360, 490, 100), [360, 490, 300]]); ok('one finger diagonal flick -> slash, drawn fast', r.ev.join() === 'slash' && r.sh.speed > 900, { ev: r.ev, speed: Math.round(r.sh.speed) }); }
+ok('same-way circles are not a spiral gesture any more', play(circ(110, 600, 42, 2.2, 1800, true), circ(290, 600, 42, 2.2, 1800, true)).ev.every((e) => e === 'engage'), play(circ(110, 600, 42, 2.2, 1800, true), circ(290, 600, 42, 2.2, 1800, true)).ev);
 { const up = [...line(110, 600, 110, 520, 180), [110, 520, 400]]; const res = play(up, shift(up, 180)); ok('both up and hold -> up, decided while the fingers are still down', res.ev.beforeLift.join() === 'engage,up', res.ev); }
 { const pa = [...line(110, 600, 190, 600, 200), ...shift(line(190, 600, 110, 600, 200), 0, 0, 210), ...shift(line(110, 600, 190, 600, 200), 0, 0, 420), ...shift(line(190, 600, 110, 600, 200), 0, 0, 630)];
   const res = play(pa, shift(pa, 180)); ok('long scribble keeps reporting beats', res.ev.includes('scribbleX') && res.ev.includes('beat'), res.ev); }

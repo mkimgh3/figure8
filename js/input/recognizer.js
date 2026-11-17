@@ -52,6 +52,7 @@ export class TapTracker {
 //   eight                   one loop, then a loop the other way (sign in .loopSign)
 //   corner                  a sharp L: sideways, then up or down (.side is -1 left / 1 right, .vertical is -1 up / 1 down)
 //   up, down, left, right   a straight flick, reported once the motion stops or the finger lifts
+//   slash                   a straight flick on a diagonal
 export class Shape {
   constructor(cfg) { this.c = cfg; this.x = 0; this.y = 0; this.path = 0; this.t0 = null; this.lastMove = 0; this.decided = null;
     this.minX = 0; this.maxX = 0; this.minY = 0; this.maxY = 0; this.revX = 0; this.revY = 0; this.dirX = 0; this.dirY = 0; this.sx = 0; this.sy = 0;
@@ -80,32 +81,21 @@ export class Shape {
     if (this.revX + this.revY === 1 && this.path >= 100 && Math.abs(this.l1) < 1.5) { const w = this.maxX - this.minX, h = this.maxY - this.minY;
       if (this.revY === 1 && w < Math.max(26, h * 0.45)) { this.decided = 'scribbleY'; return this.decided; } if (this.revX === 1 && h < Math.max(26, w * 0.45)) { this.decided = 'scribbleX'; return this.decided; } }
     if ( this.revX + this.revY > 0 || d < c.flickPx || this.path > d * 1.25 || Math.abs(this.l1) > 1.2) return null;
-    this.decided = Math.abs(this.y) > Math.abs(this.x) * 1.2 ? (this.y < 0 ? 'up' : 'down') : Math.abs(this.x) > Math.abs(this.y) * 1.2 ? (this.x > 0 ? 'right' : 'left') : null; return this.decided; }
+    this.decided = Math.abs(this.y) > Math.abs(this.x) * 1.2 ? (this.y < 0 ? 'up' : 'down') : Math.abs(this.x) > Math.abs(this.y) * 1.2 ? (this.x > 0 ? 'right' : 'left') : 'slash'; return this.decided; }
+  // how fast the stroke was drawn, in px/s
+  get speed() { return this.t0 === null ? 0 : this.path / Math.max(16, this.lastMove - this.t0) * 1000; }
   settle(t) { return this.t0 !== null && !this.decided && t - this.lastMove >= this.c.idleMs ? this.flick() : null; }    // call every frame
   end() { return this.flick(); }                                                                                        // call when the finger lifts
 }
 
-// How far a finger has gone round the middle of the area it has covered. Unlike Stroke.turn this also counts slow, wide circles.
-class Orbit {
-  constructor(min) { this.min = min; this.acc = 0; this.a = null; }
-  add(x, y) { if (this.a === null && this.minX === undefined) { this.minX = this.maxX = x; this.minY = this.maxY = y; }
-    if (x < this.minX) this.minX = x; if (x > this.maxX) this.maxX = x; if (y < this.minY) this.minY = y; if (y > this.maxY) this.maxY = y;
-    if (this.maxX - this.minX < this.min || this.maxY - this.minY < this.min) return 0;
-    const ang = Math.atan2(y - (this.minY + this.maxY) / 2, x - (this.minX + this.maxX) / 2); let d = this.a === null ? 0 : wrap(ang - this.a); this.a = ang; if (Math.abs(d) > 1.2) d = 0; this.acc += d; return d; }
-}
-
 // Two thumbs moving together. Feed it both strokes whenever either moves.
-// Reports 'engage' once they are in step, 'spread' when they move apart, 'eight' when they circle opposite ways,
+// Reports 'engage' once they are in step, 'spread' when they move apart,
 // and otherwise whatever Shape reads from their shared motion.
 export class Duo {
-  constructor(cfg, shapeCfg) { this.cfg = cfg; this.shape = new Shape(shapeCfg); this.sync = 0; this.peak = 0; this.lastT = null; this.active = false; this.decided = null; this.px = null; this.oa = new Orbit(cfg.circleMinPx); this.ob = new Orbit(cfg.circleMinPx); this.dTurn = 0; }
+  constructor(cfg, shapeCfg) { this.cfg = cfg; this.shape = new Shape(shapeCfg); this.sync = 0; this.peak = 0; this.lastT = null; this.active = false; this.decided = null; this.px = null; }
   update(a, b, t) {
     const c = this.cfg, dt = this.lastT === null ? 0 : Math.min(100, t - this.lastT); this.lastT = t;
     if (this.px === null) { this.sep0 = Math.hypot(a.x - b.x, a.y - b.y); this.ta0 = a.turn; this.tb0 = b.turn; this.ax0 = a.x; this.ay0 = a.y; this.bx0 = b.x; this.by0 = b.y; this.pa0 = a.path; this.pb0 = b.path; }
-    this.dTurn = (this.oa.add(a.x, a.y) + this.ob.add(b.x, b.y)) / 2;                   // shared rotation this sample, for moves the circling drives
-    if (this.decided === 'circles' || this.decided === 'counter') return null;
-    if (!this.decided && this.oa.acc * this.ob.acc < 0 && Math.abs(this.oa.acc) >= c.circleTurn && Math.abs(this.ob.acc) >= c.circleTurn) { this.decided = 'counter'; this.active = true; this.peak = Math.max(this.peak, 1); return 'counter'; }
-    if (!this.decided && this.oa.acc * this.ob.acc > 0 && Math.abs(this.oa.acc) >= c.circleTurn && Math.abs(this.ob.acc) >= c.circleTurn) { this.decided = 'circles'; this.active = true; this.loopSign = this.oa.acc > 0 ? 1 : -1; this.peak = Math.max(this.peak, 1); return 'circles'; }
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, ddx = this.px === null ? 0 : mx - this.px, ddy = this.px === null ? 0 : my - this.py; this.px = mx; this.py = my;
     const sa = a.speedAt(t), sb = b.speedAt(t), moving = sa > c.minSpeed && sb > c.minSpeed, cos = moving ? (a.vx * b.vx + a.vy * b.vy) / (sa * sb) : 0;
     const mirror = moving && a.vx * b.vx < 0 && Math.abs(a.vx) > Math.abs(a.vy) * 0.8 && Math.abs(b.vx) > Math.abs(b.vy) * 0.8;
@@ -115,7 +105,7 @@ export class Duo {
     let ev = null; const was = this.active;
     if (!this.active && this.sync >= c.engageMs) this.active = true;
     // the shared motion is read from the start of the stroke, so a quick flick is not lost while waiting to engage
-    const se = this.shape.add(ddx, ddy, 0, t);
+    const se = ddx !== 0 || ddy !== 0 ? this.shape.add(ddx, ddy, 0, t) : null;                // a thumb resting on the glass is not motion
     if (!this.active) { if (se) this.pending = se; return null; }
     if (!this.decided) {
       const sep = Math.hypot(a.x - b.x, a.y - b.y) - this.sep0, common = Math.hypot(this.shape.x, this.shape.y);

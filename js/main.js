@@ -20,7 +20,7 @@ import { createScoring } from './scoring.js';
 import * as save from './save.js';
 import { createUpdater } from './update.js';
 
-const BUILD = 'v3-look10';
+const BUILD = 'v3-look11';
 let world;
 try { world = createScene(document.getElementById('c')); } catch (e) { document.getElementById('err').style.display = 'flex'; throw e; }
 const saved = save.load();
@@ -147,6 +147,7 @@ function frame(now) {
     const sp = game.speed(), edge = Math.abs(S.turn) * sp;
     if (S.grounded) { const hx = Math.cos(S.facing), hz = -Math.sin(S.facing), out = S.turn > 0 ? -1 : 1;
       if (edge > 9 && Math.random() < dt * 40) spray.emit(blade.x, blade.z, hx * out, hz * out, 2, 1.2 + edge * 0.08, 0.9);
+      if (S.move && S.move.skid && S.move.skid() && sp > 0.8) spray.emit(blade.x, blade.z, S.vx, S.vz, 3 + Math.round(sp * 0.8), 1.8 + sp * 0.35, 1.9);       // a skid throws snow ahead of her
       if (S.push > 0.5 && Math.sin(S.phase) * Math.sin(S.phase - 0.4) < 0) spray.emit(S.x, S.z, -S.vx, -S.vz, 5, 1.6, 1.4);
       if (S.move && S.move.spinRate && S.move.spinRate() > 8 && Math.random() < dt * 30) spray.emit(blade.x, blade.z, Math.random() - 0.5, Math.random() - 0.5, 1, 1.1, 6.3); }
     // drifting snow hangs in the air ahead of her; the faster she goes, the more of it whips past

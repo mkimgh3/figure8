@@ -92,6 +92,10 @@ const MOVES = [
     ['Skate along with your left thumb', moving],
     ['Flick your right finger to the right', element('leap')],
   ] },
+  { name: 'Hockey stop', steps: [
+    ['Skate along with your left thumb and build some speed', (c) => moving(c) && c.speed > 5],
+    ['Swipe your right finger sharply against the way she is travelling', element('stop')],
+  ] },
   { name: 'Step sequence', steps: [
     ['Skate along with your left thumb', moving],
     ['Flick your right finger up. "Steps ready" appears', (c) => c.rhythm === 1 || c.rhythm === 2],
@@ -108,14 +112,14 @@ const MOVES = [
   ] },
   { name: 'Spiral', steps: [
     ['Skate along with your left thumb', moving],
-    ['Put your right finger down too, and circle both thumbs the same way', moveIs('spiral')],
-    ['Hold both thumbs still to hold the spiral', amount('spiral', (st) => st.t, 2), moveIs('spiral')],
+    ['Put your right finger down too, and swipe both thumbs up together', moveIs('spiral')],
+    ['Keep both thumbs down to hold the spiral', amount('spiral', (st) => st.t, 2), moveIs('spiral')],
     ['Lift to finish', element('spiral')],
   ] },
   { name: 'Hydroblade', steps: [
     ['Skate along with your left thumb', moving],
-    ['Put your right finger down too, and circle the thumbs opposite ways', moveIs('hydro')],
-    ['Hold both thumbs still to stay down', amount('hydro', (st) => st.t, 2), moveIs('hydro')],
+    ['Put your right finger down too, and swipe both thumbs down together', moveIs('hydro')],
+    ['Keep both thumbs down to stay low', amount('hydro', (st) => st.t, 2), moveIs('hydro')],
     ['Lift to finish', element('hydro')],
   ] },
   { name: 'Spread eagle', steps: [

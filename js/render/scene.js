@@ -68,7 +68,7 @@ export function createScene(canvas) {
     const U = ice.uniforms; U.uDepthTint.value.setHex(l.deep); U.uSunDir.value.copy(sunDir); U.uSunCol.value.setHex(l.sunColor); U.uCloud.value = l.cloud; U.uAurora.value = l.aurora;
     scene.environment = sky.set(l, sunDir); atmos.look(l); spotOn = l.spot || 0;
     glowOn = !!q.glow && l.glow[0] > 0;      // glow only at night, for the line: by day it only hazes the ice
-    document.body.classList.toggle('night', !!l.night);      // light text over dark ice
+    document.body.classList.add('night');      // light text over the ice, which is deep blue at every time of day
   }
 
   // ---- graphics levels

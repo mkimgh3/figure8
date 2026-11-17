@@ -1,4 +1,4 @@
-// Two quick moves that do not interrupt the skating.
+// Quick moves: the three-turn and the split leap do not interrupt the skating; the hockey stop ends it.
 import { CFG } from '../config.js';
 import { clamp, sstep } from '../core/math.js';
 // Three-turn: a half turn on one foot. It swaps forward and backward skating, which changes which jumps are on offer.
@@ -9,6 +9,23 @@ export function createTurn(S, api) {
     end() { S.back = !S.back; api.emit('element', { kind: 'turn', name: 'Three-turn', detail: S.back ? 'now backward' : 'now forward', base: CFG.points.turn }); },
     blade(out) { const u = clamp(t / T_ALL, 0, 1), z = 0.35 * Math.abs(Math.sin(Math.PI * 2 * u)) * dir; out.x += Math.cos(S.facing) * z; out.z -= Math.sin(S.facing) * z; },
     pose(T, kit) { kit.set({ lean: 0.1, bodyY: kit.HIP - 0.03, fL: 0, lRx: -0.3, lRk: 0.35, lLx: 0.5, lLk: 0.5, aLx: -1.1 * dir, aRx: 1.1 * dir, aLz: -0.9, aRz: 0.9, aLe: -0.2, aRe: -0.2 }); return 18; } };
+}
+// Hockey stop: she throws both blades side-on to her travel and skids to a halt in a burst of snow, arms flung wide.
+// dir: which way she turns her body, 1 or -1
+export function createStop(S, api, dir) {
+  const K = CFG.stop, st = { t: 0, stopped: 0 }, v0 = api.speed(), a = Math.atan2(S.vx, S.vz), decel = Math.max(K.decel, v0 / K.maxTime);
+  return { id: 'stop', steer: 0, holdFacing: true, state: st,
+    start() { api.emit('say', { big: 'Hockey stop', small: '', hold: 0.6 }); },
+    update(dt) { st.t += dt; const v = Math.max(0, api.speed() - decel * dt); S.vx = Math.sin(a) * v; S.vz = Math.cos(a) * v; if (v <= 0 && !st.stopped) st.stopped = st.t;
+      const up = st.stopped ? sstep(st.stopped + K.hold, st.stopped + K.hold + K.rise, st.t) : 0;
+      S.yawX = dir * Math.PI / 2 * sstep(0, K.snap, st.t) * (1 - up); return up < 1; },
+    end() { api.emit('element', { kind: 'stop', name: 'Hockey stop', detail: 'from ' + Math.round(v0 * 3.6) + ' km/h', base: CFG.points.stop * clamp(v0 / CFG.steer.maxSpeed, 0.25, 1) }); },
+    skid: () => (st.stopped ? 0 : 1),
+    blade(out) { out.width = 3.2; },
+    // the arms fly up and out in the first instant, then settle wide; knees deep, weight thrown back against the skid
+    pose(T, kit) { const hit = 1 - sstep(0.1, 0.4, st.t);
+      kit.set({ roll: -0.32 * dir, lean: 0.14, bodyY: kit.HIP - 0.15, fL: 1, fR: 1, lLx: -0.62, lRx: -0.62, lLk: 0.95, lRk: 0.95, lLz: -0.24, lRz: 0.24,
+        aLz: -1.62 - 0.55 * hit, aRz: 1.62 + 0.55 * hit, aLx: 0.1, aRx: 0.1, aLe: -0.05, aRe: -0.05 }); return 34; } };
 }
 // Split leap: a low, travelling leap with the legs in a split. No rotation, no landing to judge.
 export function createLeap(S, api) {

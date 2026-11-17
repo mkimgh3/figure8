@@ -17,9 +17,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     steer.ox = steer.cx - steer.hx * R; steer.oy = steer.cy - steer.hy * R; steer.x = steer.hx; steer.y = steer.hy; hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R); };
   const duoEvent = (ev) => { if (!ev) return; if (Array.isArray(ev)) { ev.forEach(duoEvent); return; }
     if (ev === 'engage') return;
-    if (tricks.perform(ev, duo)) { steer.frozen = true; steer.frozenAt = performance.now(); steer.x = steer.hx; steer.y = steer.hy; hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R); } };      // the gesture itself must not steer her
-  const feedDuo = (now) => { if (!duo || !tricks.canDuo()) return; duoEvent(duo.update(left, tricks.stroke, now));
-    const m = game.S.move; if (duo.decided === 'circles' && m && m.id === 'butterfly') m.rotate(-duo.dTurn); };
+    if (tricks.perform(ev, duo, true)) { steer.frozen = true; steer.frozenAt = performance.now(); steer.x = steer.hx; steer.y = steer.hy; hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R); } };      // the gesture itself must not steer her
+  const feedDuo = (now) => { if (!duo || !tricks.canDuo()) return; duoEvent(duo.update(left, tricks.stroke, now)); };
   const pinchEnd = () => { pinch.on = false; if (view.zoomed && view.zf >= view.zMax * 0.72) onPinchClose(); };
 
   canvas.addEventListener('pointerdown', (e) => {
@@ -77,7 +76,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
       // steering is live again, from where it was, once the left thumb settles, or after a short grace even if it never
       // goes still (a thumb on glass always jitters, and the spiral or hydroblade is held with the right thumb down)
       if (steer.frozen && left && (now - left.t > CFG.duo.settleMs || now - steer.frozenAt > CFG.duo.freezeMs)) unfreeze();
-      const was = tricks.armed; tricks.frame(now); if (tricks.armed !== was) hud.padArmed(true); },
+      const was = tricks.armed; tricks.frame(now, !!duo && duo.active && !duo.decided); if (tricks.armed !== was) hud.padArmed(true); },
     read() { if (auto) return auto;
       return { x: steer.x + ((keys.KeyD || keys.ArrowRight) ? 1 : 0) - ((keys.KeyA || keys.ArrowLeft) ? 1 : 0), y: steer.y + ((keys.KeyS || keys.ArrowDown) ? 1 : 0) - ((keys.KeyW || keys.ArrowUp) ? 1 : 0) }; },
   };

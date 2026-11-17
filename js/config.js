@@ -18,7 +18,10 @@ export const CFG = {
   spin: { holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 1.8 },
   // Two-finger moves: both thumbs moving together.
   shape: { flickPx: 50, reversalPx: 22, idleMs: 110, eightTurn: 4.2 },      // flicks, scribbles and drawn shapes
-  duo: { minSpeed: 110, engageMs: 70, parallelCos: 0.5, spreadPx: 80, spreadEachPx: 25, calmTurn: 3.3, settleMs: 150, freezeMs: 350, circleTurn: 6.3, circleMinPx: 50 },      // circleTurn: how far both thumbs circle together before butterflies start
+  duo: { minSpeed: 110, engageMs: 70, parallelCos: 0.5, spreadPx: 80, spreadEachPx: 25, calmTurn: 3.3, settleMs: 150, freezeMs: 350 },
+  // Hockey stop: a one-finger swipe at least swipePxPerS fast, within about 37 degrees (cos) of straight against her travel, while she moves at minSpeed or more.
+  // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
+  stop: { swipePxPerS: 900, cos: -0.8, minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
   twirl: { startTurn: 3.1 },
   steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
@@ -39,7 +42,7 @@ export const CFG = {
     twizzles: [2.0, 2],                                            // per turn
     steps: [3.9, 5],                                               // per step; x0.6 with one kind of step, full value with three
     swing: [1.5, 3], spiral: [1.6, 2], eagle: [1.6, 2], hydro: [2.0, 2],      // per second
-    turn: 0.3, leap: 0.6,
+    turn: 0.3, leap: 0.6, stop: 0.8,                               // stop: from full speed; less from slower
     entry: [[4.5, 1.5], [1.6, 1.25]],                              // a jump out of curves and figures (radians turned in the seconds before take-off) beats one from a straight run-up
     repeat: [1, 0.7, 0.5],                                         // the same element again straight away is worth less
   },
@@ -47,12 +50,12 @@ export const CFG = {
   camera: { fov: 38, fovFast: 9, closeHeight: 10.5, closeBack: 5.6, tilt: 28, tiltSpeed: 9, tiltAir: 8, speedLift: 0.2, lookAhead: 0.22, lookMax: 2.2, minOverview: 16 },      // at speed the view widens instead of rising, so the ice rushes past
   // Times of day. Each is a complete lighting setup; the menu cycles through them. sun: [elevation, azimuth] in degrees (azimuth 0 = from the south, 90 = from the west).
   looks: [
-    // linePunch deepens the line's colours where the ice is bright (1 = as painted); lineWide draws it wider.
-    { name: 'Day', glow: [0, 0.5, 9], lineGlow: 1, linePunch: 2.6, lineWide: 1.35, sun: [42, 45], sunColor: 0xfff3e2, sunPower: 2.3, sky: [0x86b4ee, 0xf4f8ff, 0xd4e4f5], hemi: [0xf2f8ff, 0xdde9f6, 1.15], ice: 0xe3eef9, deep: 0x4a78b0, exposure: 1.0, cloud: 0, aurora: 0, snow: 0, mist: 0, mistColor: 0xffffff, stars: 0 },
+    // linePunch deepens the line's colours (1 = as painted); lineWide draws it wider.
+    { name: 'Day', glow: [0, 0.5, 9], lineGlow: 1, linePunch: 1.2, lineWide: 1.35, sun: [42, 45], sunColor: 0xfff3e2, sunPower: 2.3, sky: [0x86b4ee, 0xf4f8ff, 0xd4e4f5], hemi: [0xf2f8ff, 0xdde9f6, 1.15], ice: 0xe3eef9, deep: 0x4a78b0, exposure: 1.0, cloud: 0, aurora: 0, snow: 0, mist: 0, mistColor: 0xffffff, stars: 0 },
     { name: 'Golden hour', glow: [0, 0.5, 9], lineGlow: 1, sun: [11, 60], sunColor: 0xffb46e, sunPower: 3.2, sky: [0x7194d6, 0xffcfa0, 0xe9cfb6], hemi: [0xdfe6ff, 0xd9c2b0, 0.9], ice: 0xf2e8e0, deep: 0x5f78b8, exposure: 1.0, cloud: 0, aurora: 0, snow: 0, mist: 0, mistColor: 0xffe2c4, stars: 0 },
     { name: 'Blue hour', glow: [0.6, 0.25, 1.3], lineGlow: 1.5, night: true, sun: [-3, 70], sunColor: 0x8fa6ff, sunPower: 0.3, sky: [0x1d2b66, 0x9a8fd6, 0x39407a], hemi: [0x9aaaf0, 0x34407a, 1.45], ice: 0xb3c0ea, deep: 0x30449a, exposure: 1.1, cloud: 0, aurora: 0.2, snow: 0, mist: 0, mistColor: 0xc2c4f4, stars: 0.3 },
     { name: 'Night', spot: 1, glow: [0.65, 0.25, 1.3], lineGlow: 1.8, night: true, sun: [38, -30], sunColor: 0xb3c6ff, sunPower: 0.7, sky: [0x040818, 0x18264f, 0x0a1230], hemi: [0x4a5ca8, 0x0e1430, 0.5], ice: 0x6a7fb8, deep: 0x1c2a70, exposure: 1.15, cloud: 0, aurora: 1, snow: 0, mist: 0, mistColor: 0x7c8fe0, stars: 1 },
-    { name: 'Dawn', glow: [0, 0.5, 9], lineGlow: 1, linePunch: 2.6, lineWide: 1.35, sun: [7, -70], sunColor: 0xffc4d2, sunPower: 2.4, sky: [0x7e98d6, 0xffd6de, 0xd9cfe6], hemi: [0xf0e4f6, 0xcfd3ec, 1.0], ice: 0xece8f6, deep: 0x5e6ab4, exposure: 1.0, cloud: 0, aurora: 0, snow: 0, mist: 0, mistColor: 0xfff0f6, stars: 0.1 },
+    { name: 'Dawn', glow: [0, 0.5, 9], lineGlow: 1, linePunch: 1.2, lineWide: 1.35, sun: [7, -70], sunColor: 0xffc4d2, sunPower: 2.4, sky: [0x7e98d6, 0xffd6de, 0xd9cfe6], hemi: [0xf0e4f6, 0xcfd3ec, 1.0], ice: 0xece8f6, deep: 0x5e6ab4, exposure: 1.0, cloud: 0, aurora: 0, snow: 0, mist: 0, mistColor: 0xfff0f6, stars: 0.1 },
   ],
   places: [
     { name: 'Open lake', trees: false },
