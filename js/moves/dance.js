@@ -1,4 +1,4 @@
-// Choreography: the artistic part of a programme. It starts when the right thumb rests on the glass, and while it stays down she improvises, one pose
+// Choreography: the artistic part of a programme. It starts when the right thumb drags, and while it stays down she improvises, one pose
 // flowing into the next. The left thumb goes on steering her and setting her speed. How the right thumb moves sets the mood
 // (0..1): slow strokes give calm, broad, sustained gestures; quick ones give sharp, low, street-dance moves that hit on a
 // beat. Circling it turns her.

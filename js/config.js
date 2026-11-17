@@ -29,11 +29,12 @@ export const CFG = {
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
   stop: { minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
   twirl: { startTurn: 3.1, afterLeapMs: 3000 },      // a circle is twizzles for afterLeapMs after a split leap; any other time it is a spin
-  // Choreography: the right thumb rested on the glass for holdMs. It lasts while that thumb stays down. Its speed,
+  // Choreography: the right thumb dragged, that is, still moving dragMs after it first moved and at least dragPx along (longer than any flick).
+  // It lasts while that thumb stays down. Circling (counted over about circleMs) takes her into a spin. Its speed,
   // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street, and its circling turns her. It ends when
   // either thumb lifts, and scores once it has lasted minScore seconds.
   // While she dances the left thumb still steers and speeds her up, at `accel` times the usual rate.
-  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8, holdMs: 450 },
+  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8, dragMs: 280, dragPx: 30, circleMs: 1500 },
   steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn

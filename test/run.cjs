@@ -31,15 +31,8 @@ const { open } = require('./smoke.cjs');
   const resteer = async () => { await ev('pointerup', 1, 160, 640); await sleep(100); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); }; await resteer(); await calm();
   seen = await play(R(line(300, 560, 380, 556, 6))); ok('flick right is a split leap', seen.includes('leap'), seen);
   seen = await play(R(circle(300, 560, 36, 2.2, 90))); ok('a circle straight after a split leap is twizzles', seen.includes('twirl') && !seen.includes('spin'), seen); await calm(); await ev('pointermove', 1, 100, 700); await sleep(1500); const b0 = (await st()).back; seen = await play(R(line(380, 560, 300, 556, 6))); await sleep(600); ok('flick left across her travel is a three-turn that swaps direction', seen.includes('turn') && (await st()).back !== b0, seen); await ev('pointermove', 1, 160, 640); await calm();
-  seen = await play(R(line(300, 600, 296, 500, 6))); await sleep(100); const rd = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rhythm').classList.contains('on'), document.getElementById('rlabel').textContent]); ok('flick up makes a step sequence ready and shows the bar', rd[0] === 1 && rd[1] && rd[2] === 'Steps ready' && !seen.includes('spiral'), { seen, rd });
-  seen = await play(R(line(300, 500, 304, 600, 6))); await sleep(100); const toe = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rlabel').textContent]); ok('flick down readies the toe pick and says so', toe[0] === 3 && toe[1] === 'Toe pick ready' && !seen.includes('hydro'), { seen, toe });
-  const fl = await p.evaluate(() => new Promise((res) => { const g = window.__game, c = document.getElementById('c'), E = (t, x, y) => c.dispatchEvent(new PointerEvent(t, { pointerId: 2, clientX: x, clientY: y, pointerType: 'touch', bubbles: true }));
-    g.S.back = true; let name = null; const off = g.game.S; E('pointerdown', 300, 560); E('pointerup', 300, 560); setTimeout(() => { E('pointerdown', 300, 560); setTimeout(() => { g.game.airRotate(6.2832); E('pointerup', 300, 560);
-      const iv = setInterval(() => { const e = g.score.state.list[0]; if (g.S.grounded) { clearInterval(iv); setTimeout(() => res({ name: g.score.state.list[0] && g.score.state.list[0].name, ready: g.tricks.rhythm(performance.now())[0] }), 200); } }, 30); }, 60); }, 120); }));
-  ok('a backward double tap with the toe pick ready and a counter-clockwise turn is a flip', /flip/i.test(fl.name || '') && fl.ready !== 3, fl); await sleep(3500);
-  seen = await play(R(zig(270, 560, 90, 0, 3, 5))); ok('a scribble without the flick up does nothing', !seen.includes('steps'), seen); await sleep(600); await play(R(line(300, 600, 296, 500, 6)));
-  seen = await play(R(zig(270, 560, 90, 0, 3, 5))); ok('after a flick up, scribble side to side is a step sequence', seen.includes('steps'), seen); await calm(); await calm(); await play(R(line(300, 600, 296, 500, 6)));
-  seen = await play(R(zig(300, 520, 0, 90, 3, 5))); ok('after a flick up, scribble up and down is swing rolls', seen.includes('swing'), seen); await calm();
+  seen = await play(R(line(300, 600, 296, 500, 6))); await sleep(100); const rd = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rhythm').classList.contains('on'), document.getElementById('rlabel').textContent]); ok('flick up is a spiral', seen.includes('spiral') && rd[0] === 0, { seen, rd }); await calm();
+  seen = await play(R(line(300, 500, 304, 600, 6))); await sleep(100); const toe = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rlabel').textContent]); ok('flick down is a hydroblade', seen.includes('hydro') && toe[0] === 0, { seen, toe }); await calm();
   seen = await play(R(line(260, 560, 340, 560, 6).concat(line(340, 560, 342, 480, 6)))); ok('a corner no longer triggers a spread eagle', !seen.includes('eagle'), seen); await calm();
   // both thumbs together
   await ev('pointermove', 1, 160, 640); await sleep(1500);
@@ -75,9 +68,9 @@ const { open } = require('./smoke.cjs');
     ok('both thumbs dragged down and lifted are a hockey stop: she halts and it scores', seen.includes('stop') && hs.name === 'Hockey stop' && hs.pts > 0 && hs.low < 0.3, { seen, w, hs }); await ev('pointermove', 1, 160, 640); await sleep(2500); }
   // choreography: both thumbs kept moving without lifting; slow matching strokes are calm, quick scattered ones sharp
   { await calm(); const wave = (x, y, ax, ay, n, per, ph) => Array.from({ length: n + 1 }, (_, i) => [x + Math.sin(i / per * 6.2832 + ph) * ax, y + Math.cos(i / per * 6.2832 * 0.5 + ph) * ay]);
-    seen = await play([{ id: 1, pts: wave(160, 640, 40, 10, 200, 150, 0) }, { id: 2, pts: wave(300, 620, 40, 10, 200, 150, 0), down: true, up: false }], 700);
+    seen = await play([{ id: 1, pts: wave(160, 640, 40, 10, 200, 150, 0) }, { id: 2, pts: wave(300, 620, 40, 10, 200, 150, 0), down: true, up: false }]);
     const calmMood = await p.evaluate(() => { const m = window.__game.S.move; return m && m.id === 'dance' ? +m.state.mood.toFixed(2) : null; });
-    ok('resting the right thumb starts choreography, and slow strokes keep it calm', seen.includes('dance') && calmMood !== null && calmMood < 0.4, { seen, calmMood });
+    ok('dragging the right thumb starts choreography, and slow strokes keep it calm', seen.includes('dance') && calmMood !== null && calmMood < 0.4, { seen, calmMood });
     await play([{ id: 1, pts: wave(160, 640, 55, 45, 150, 14, 0) }, { id: 2, pts: wave(300, 620, 70, 80, 220, 7, 2) }]);
     const sharp = await p.evaluate(() => { const m = window.__game.S.move; return m && m.id === 'dance' ? { mood: +m.state.mood.toFixed(2), poses: m.state.poses } : null; });
     ok('quick scattered strokes turn it sharp, without lifting', !!sharp && sharp.mood > 0.6 && sharp.poses >= 3, sharp);
@@ -85,8 +78,6 @@ const { open } = require('./smoke.cjs');
     await play([{ id: 1, pts: line(160, 640, 160, 400, 60) }, { id: 2, pts: line(300, 620, 300, 380, 60) }]);
     const dsteer = await p.evaluate(() => { const g = window.__game, S = g.S, r = g.input.read(); return { y: +r.y.toFixed(2), x: +r.x.toFixed(2), heading: +Math.atan2(S.vx, S.vz).toFixed(2), move: S.move && S.move.id }; });
     ok('the left thumb steers her while she dances', dsteer.move === 'dance' && dsteer.y < -0.5, { from: +h0.toFixed(2), dsteer });
-    const y0 = await p.evaluate(() => window.__game.S.yawX); await play([{ id: 2, pts: circle(300, 420, 40, 3, 90).map((q) => [q[0] - 40, q[1]]) }]);
-    const y1 = await p.evaluate(() => [window.__game.S.yawX, window.__game.S.move && window.__game.S.move.id]); ok('circling the right thumb spins her while she dances', Math.abs(y1[0] - y0) > 10 && y1[1] === 'dance', { y0, y1 });
     await ev('pointerup', 2, 300, 420); await sleep(700); const de = await p.evaluate(() => { const g = window.__game, e = g.score.state.list[0]; return { name: e.name, pts: e.pts, move: g.S.move && g.S.move.id }; });
     ok('lifting ends the choreography and it scores', de.name === 'Choreography' && de.pts > 0.5 && de.move === null, de); await ev('pointermove', 1, 160, 640); await calm(); }
   const card = await p.evaluate(() => { const e = window.__game.score.state.list[0]; return { name: e.name, base: e.base, goe: e.goe, art: e.art, pts: e.pts, cells: document.querySelectorAll('#pop .cards div').length, name2: (document.querySelector('#pop .pname') || {}).textContent, sub: document.getElementById('sub').textContent, best: window.__game.score.state.best.pts }; });
