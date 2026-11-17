@@ -9,7 +9,7 @@ export function createSkater(emit) {
   const S = { x: 0, y: 0, z: 0, vx: 0, vz: 0, vy: 0, grounded: true, facing: Math.PI, back: false,
     spin: 0, goal: 0, takeBack: false, flick: false, combo: false, cleanLand: false, landT: 9, airT: 0,
     turn: 0, boostT: 0, move: null, yawX: 0, flipYaw: 0, visY: 0, skated: 0, phase: 0, mag: 0,
-    inW: 0, inA: 0, inOn: false, jumps: 0, fingerTurn: 0, push: 0, curve: 0, entry: 0, clock: 0, fallEndT: -99, bonus: 0 };
+    inW: 0, inA: 0, inOn: false, jumps: 0, fingerTurn: 0, push: 0, curve: 0, entry: 0, clock: 0, fallEndT: -99, bonus: 0, surge: 0, flipK: 9 };
   const C = CFG.steer;
   const speed = () => Math.hypot(S.vx, S.vz);
   const ensureSpeed = (min) => { if (speed() < min) { S.vx = Math.sin(S.facing) * min; S.vz = Math.cos(S.facing) * min; } };
@@ -98,7 +98,9 @@ export function createSkater(emit) {
     }
     if (S.boostT > 0) S.boostT -= dt;
     S.clock += dt; if (S.bonus > 0) S.bonus = Math.max(0, S.bonus - CFG.bonus.fade * dt);
-    S.landT += dt; S.flipYaw *= Math.exp(-9 * dt); S.visY *= Math.exp(-14 * dt);
+    S.landT += dt; S.flipYaw *= Math.exp(-S.flipK * dt); if (Math.abs(S.flipYaw) < 0.03) S.flipK = 9;
+    // speed still owed to her from a move's exit arrives smoothly
+    if (S.surge > 0) { const dv = Math.min(S.surge, 6 * dt), v = speed(); S.surge = S.grounded && !(S.move && S.move.id === 'fall') ? S.surge - dv : 0; if (S.surge >= 0 && v > 0.2 && S.grounded) { S.vx *= (v + dv) / v; S.vz *= (v + dv) / v; } else if (v <= 0.2) ensureSpeed(0.3); } S.visY *= Math.exp(-14 * dt);
   }
   const yaw = () => S.facing + S.spin + (S.move && S.move.yaw ? S.move.yaw() : 0) + S.yawX + (S.back ? Math.PI : 0) + S.flipYaw;
   const liveGrade = () => { const turns = Math.abs(S.spin) / TAU, h = Math.round(turns * 2) / 2; return gradeOf(Math.abs(turns - h), h, jumpType(S.spin >= 0)); };

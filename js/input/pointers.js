@@ -63,7 +63,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     const now = performance.now();
     if (e.pointerId === pinch.id2) { pinch.id2 = null; if (pinch.on) { pinchEnd(); recentre(); } return; }
     if (pinch.on && e.pointerId === steer.id) { pinchEnd(); steer.id = null; steer.x = steer.y = 0; return; }
-    if (e.pointerId === steer.id) { if (duo && trickId !== null && tricks.canDuo()) duoEvent(duo.end(), true); if (!steer.moved && now - steer.t <= T.maxMs && !view.zoomed) taps.tap(now); steer.id = null; steer.x = steer.y = 0; steer.frozen = false; duo = null; left = null; hud.stick(false); }
+    if (e.pointerId === steer.id) { const mv = game.S.move; if (mv && mv.id === 'spin') mv.drop(); else if (mv && mv.id === 'dance') mv.release();      // lifting the left thumb lets a spin wind down and ends choreography
+      if (duo && trickId !== null && tricks.canDuo()) duoEvent(duo.end(), true); if (!steer.moved && now - steer.t <= T.maxMs && !view.zoomed) taps.tap(now); steer.id = null; steer.x = steer.y = 0; steer.frozen = false; duo = null; left = null; hud.stick(false); }
     if (e.pointerId === trickId) { let extra = null;
       if (duo && left) { if (tricks.canDuo()) duoEvent(duo.end(), true); const lp = left.points, k = Math.ceil(lp.length / 45); extra = { duo: duo.summary(), left: lp.filter((_, i) => i % k === 0).flat() }; }
       tricks.up(now, extra); trickId = null; duo = null; left = null; unfreeze(); hud.pad(false); }

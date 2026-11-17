@@ -98,6 +98,8 @@ const { open } = require('./smoke.cjs');
   ok('rest then circle starts a spin, and the ring shows it is ready', spun.move === 'spin' && spun.armedSeen && spun.startedAtLoops < 1.1, spun);
   await ev('pointermove', 1, 160, 700); await sleep(500); s = await st(); ok('thumb down during a spin is a sit spin', s.spinPos === 'Sit', s);
   await ev('pointermove', 1, 160, 590); await sleep(500); s = await st(); ok('thumb up during a spin is a camel spin', s.spinPos === 'Camel', s);
+  { await ev('pointerup', 1, 160, 590); const so = await p.evaluate(() => new Promise((res) => { const g = window.__game, S = g.S, m = S.move, v0 = m && m.spinRate ? m.spinRate() : -1, t0 = performance.now(); const iv = setInterval(() => { if (!S.move || S.move.id !== 'spin') { clearInterval(iv); const sp0 = Math.hypot(S.vx, S.vz); setTimeout(() => res({ v0: +v0.toFixed(1), ms: Math.round(performance.now() - t0), sp0: +sp0.toFixed(1), sp1: +Math.hypot(S.vx, S.vz).toFixed(1), surge: +S.surge.toFixed(2) }), 1500); } }, 30); setTimeout(() => { clearInterval(iv); res({ timeout: true }); }, 9000); }));
+    ok('lifting the left thumb winds the spin down and she swoops out, gathering speed', !so.timeout && so.sp1 > so.sp0 + 1 && so.sp1 > 4, so); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); }
   await ev('pointerup', 2, 300, 560); await sleep(2200); s = await st(); ok('spin ends after release and is announced', s.move === null && /spin/.test(s.pop), s);
   // bad landing -> fall -> back up
   await ev('pointermove', 1, 220, 590); await sleep(3500);

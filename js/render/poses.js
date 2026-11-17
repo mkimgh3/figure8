@@ -15,6 +15,8 @@ const LANDINGS = [
   { aLz: -1.15, aLx: 0.9, aLe: -0.9, aRz: 1.15, aRx: 0.9, aRe: -0.9 },                                        // rounded in front, as if holding a hoop
 ];
 const mirror = (o) => ({ aLz: -o.aRz, aRz: -o.aLz, aLx: o.aRx, aRx: o.aLx, aLe: o.aRe, aRe: o.aLe });
+// Coming out of a spin or choreography she swoops out: arms opening wide, free leg trailing, then settles into skating over OUT seconds.
+const SWOOP = Object.assign({ lean: 0.42, bodyY: 0.885, fL: 0, lRx: -0.8, lRk: 0.7, lRz: 0, lLx: 0.75, lLk: 0.1, lLz: -0.1 }, WIDE), OUT = 1.7;
 const LAND_HOLD = 1.5, LAND_EASE = 0.7;                                                                      // seconds held, then eased back to skating
 // Carving arms: when she curves, her arms flow through these, from holding herself to a broad open reach.
 const HUG = { aLz: 0.3, aRz: -0.3, aLx: -0.85, aRx: -0.85, aLe: -1.85, aRe: -1.85 };                         // arms folded across her chest
@@ -25,7 +27,7 @@ const CARVE = { from: 0.1, full: 0.4, minSpeed: 1.2, easeIn: 2.6, easeOut: 1.1, 
 
 export function createPoser(model) {
   const pose = { roll: 0, lean: 0.1, bodyY: HIP, side: 0, fL: 1, fR: 1, aLx: 0, aRx: 0, aLz: -0.8, aRz: 0.8, aLe: -0.3, aRe: -0.3, lLx: 0, lRx: 0, lLz: 0, lRz: 0, lLk: 0.05, lRk: 0.05 };
-  let lastLandT = 99, arms = WIDE, pick = 0;
+  let lastLandT = 99, arms = WIDE, pick = 0, wasMove = null, outT = 99;
   // carving arms: `flow` is where the arms are now, easing from `flowA` to `flowB`; carve is how much of it shows, 0..1
   const flow = Object.assign({}, SOFT); let flowA = SOFT, flowB = SOFT, flowT = 1, flowLen = 1, flowRest = 0, flowIx = 1, carve = 0;
   const nextFlow = () => { flowA = Object.assign({}, flow); flowIx = (flowIx + 1 + Math.floor(Math.random() * (FLOWS.length - 1))) % FLOWS.length; flowB = Math.random() < 0.5 ? FLOWS[flowIx] : mirror(FLOWS[flowIx]);
@@ -65,6 +67,10 @@ export function createPoser(model) {
       const e = w * w * (3 - 2 * w); for (const k in L) T[k] += (L[k] - T[k]) * e;
       rate = 9; }
     lastLandT = S.landT;
+    // out of a spin or a dance: no snap back to skating. The pose drifts into the swoop, and the swoop melts into the stride.
+    { const id = m ? m.id : null; if (!id && (wasMove === 'spin' || wasMove === 'dance')) outT = 0; wasMove = id;
+      if (m || !S.grounded) outT = 99; else if (outT < OUT) { outT += dt; const u = Math.min(1, outT / OUT), w = (1 - u * u * (3 - 2 * u)) * (1 - hustle);
+        for (const k in SWOOP) T[k] += (SWOOP[k] - T[k]) * w; rate = 3.2 + 9.8 * u; } }
     const kp = 1 - Math.exp(-rate * dt); for (const k in T) pose[k] += (T[k] - pose[k]) * kp;
     const r = model.rig;
     r.armL.g.rotation.set(pose.aLx, 0, pose.aLz); r.armR.g.rotation.set(pose.aRx, 0, pose.aRz); r.armL.lower.rotation.x = pose.aLe; r.armR.lower.rotation.x = pose.aRe;

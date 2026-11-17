@@ -66,7 +66,7 @@ export function createDance(S, api) {
       const e = snap ? 1 - Math.pow(1 - u, 3) : u * u * u * (u * (u * 6 - 15) + 10); for (const k of KEYS) cur[k] = from[k] + (to[k] - from[k]) * e;
       turned += (turnGoal - turned) * (1 - Math.exp(-7 * dt)); S.yawX = cur.yaw + turned;
       if (!st.held) { st.rel += dt; return st.rel < 0.35; } return true; },
-    end() { S.flipYaw = wrap(cur.yaw + turned);         // her body eases back round to face the way she is going
+    end() { S.flipYaw = wrap(cur.yaw + turned); S.flipK = 2.6;         // her body eases back round to face the way she is going
       const m = st.t > 0 ? st.moodSum / st.t : 0;
       api.emit('element', { kind: 'dance', name: 'Choreography', detail: st.t.toFixed(1) + ' seconds, ' + (m < 0.33 ? 'flowing' : m > 0.6 ? 'sharp' : 'mixed'), base: dimin(CFG.points.dance[0], st.t, CFG.points.dance[1]), counted: st.t >= K.minScore }); },
     blade(o) { o.width = 1.3; },

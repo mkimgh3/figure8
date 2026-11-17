@@ -5,7 +5,8 @@ export function createSpin(S, api, seed) {
   const pre = { vx: S.vx, vz: S.vz, dir: api.speed() > 0.5 ? Math.atan2(S.vx, S.vz) : S.facing };
   const st = { angle: 0, goal: seed, vel: (seed < 0 ? -1 : 1) * 10, imp: 0, idle: 0, held: true, rel: 0, pos: 'Upright', kinds: {} };
   return { id: 'spin', steer: 0, holdFacing: true, state: st,
-    rotate(d) { st.imp += d; }, hold() { st.held = true; st.rel = 0; }, release() { st.held = false; },
+    rotate(d) { if (!st.dropped) st.imp += d; }, hold() { if (!st.dropped) { st.held = true; st.rel = 0; } }, release() { st.held = false; },
+    drop() { st.held = false; st.dropped = true; },          // the left thumb has lifted: she lets the spin wind down, whatever the finger does
     yaw: () => st.angle,
     update(dt, steer) {
       // she glides into the spin and settles; the steering thumb lets the spin travel slowly
@@ -23,7 +24,8 @@ export function createSpin(S, api, seed) {
     end() {
       const revs = Math.abs(st.angle) / TAU, kinds = Object.keys(st.kinds), preSp = Math.hypot(pre.vx, pre.vz);
       // an aborted spin gives her speed back; a finished one only sends her off if the thumb is steering, otherwise she stays where she spun
-      const out = revs < 1 ? preSp : (st.stick || 0) > 0.2 ? Math.max(2.6, Math.min(preSp, 7) * 0.75) : Math.min(api.speed(), 0.6);
+      const full = revs < 1 ? preSp : CFG.steer.maxSpeed * CFG.spin.exitSpeed, out = revs < 1 ? full : Math.max(api.speed(), full * 0.3);
+      S.surge = full - out; S.flipK = 2.6;          // she swoops out: the rest of her exit speed builds over the next moment, and her body comes round slowly
       // she leaves along the curve the blade was already drawing, so the line flows out of the last loop instead of kinking
       const yawWas = S.facing + st.angle, dir = revs < 0.5 ? pre.dir : yawWas + (S.back ? Math.PI : 0) + (st.vel < 0 ? -1 : 1) * Math.PI / 2;
       S.facing = dir; S.vx = Math.sin(dir) * out; S.vz = Math.cos(dir) * out; S.flipYaw = wrap(yawWas - dir);          // the body eases round to the new heading
@@ -39,6 +41,6 @@ export function createSpin(S, api, seed) {
       if (st.pos === 'Sit') { kit.set({ lean: 0.75, bodyY: 0.41, fL: 0, lRx: -2.2, lRk: 2.35, lRz: 0, lLx: -2.25, lLk: 0, lLz: mix(-0.45, 0), aLx: -2.2, aRx: -2.2, aLz: mix(-1.1, -0.1), aRz: mix(1.1, 0.1), aLe: -0.1, aRe: -0.1 }); }
       else if (st.pos === 'Camel') { kit.set({ lean: 1.45, bodyY: kit.HIP, fL: 0, lRx: -1.45, lRk: 0.05, lRz: 0, lLx: 0.1, lLk: 0, lLz: 0, aLz: mix(-1.4, -0.2), aRz: mix(1.4, 0.2), aLx: mix(0.15, 1.3), aRx: mix(0.15, 1.3), aLe: -0.15, aRe: -0.15 }); }
       else { kit.set(arms); kit.set({ lean: 0, bodyY: kit.HIP, fL: 0, lRx: 0, lRk: 0.05, lRz: 0, lLx: mix(0, -0.55), lLk: mix(0.1, 1.1), lLz: mix(-0.85, 0.15) }); }
-      return 9;
+      return st.held ? 9 : 4.5;          // winding down, she rises and opens out slowly
     } };
 }

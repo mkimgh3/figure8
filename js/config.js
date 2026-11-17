@@ -18,8 +18,9 @@ export const CFG = {
   // The rubber band between finger and skater: follow (1/s) is how closely her body keeps up with the finger, pickup (0..1) how quickly
   // her spin takes on the finger's speed, coast (1/s) how fast it fades when the finger stops but stays down. After the finger lifts
   // it eases out at easeOut (1/s) until it is slower than endVel (rad/s), or for endMax seconds at most.
+  // exitSpeed: she swoops out of a finished spin at this fraction of top speed. Lifting the left thumb winds the spin down.
   // camel, sit: in these positions she turns this fraction as far as upright for the same finger circle, so they are slower and easier to place.
-  spin: { camel: 0.55, sit: 0.6, holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 3.6, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
+  spin: { exitSpeed: 0.5, camel: 0.55, sit: 0.6, holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 3.6, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
   // Two-finger moves: both thumbs moving together.
   shape: { flickPx: 50, reversalPx: 22, idleMs: 110, eightTurn: 4.2 },      // flicks, scribbles and drawn shapes
   duo: { minSpeed: 110, engageMs: 70, parallelCos: 0.5, spreadPx: 80, spreadEachPx: 25, calmTurn: 3.3, settleMs: 150, freezeMs: 350 },
