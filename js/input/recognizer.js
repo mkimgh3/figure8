@@ -48,28 +48,28 @@ export class TapTracker {
 }
 
 // Reads the shape of one stream of motion: a single finger, or the shared motion of two thumbs.
-//   scribbleX / scribbleY   side to side, or up and down (two reversals); then 'beat' on each further reversal
-//   eight                   one loop, then a loop the other way (sign in .loopSign)
-//   corner                  a sharp L: sideways, then up or down (.side is -1 left / 1 right, .vertical is -1 up / 1 down)
 //   up, down, left, right   a straight flick, reported once the motion stops or the finger lifts
+//   scribbleX / scribbleY   side to side, or up and down (two reversals, or one long out-and-back stroke)
+//   corner                  a sharp L: sideways, then up or down (.side is -1 left / 1 right, .vertical is -1 up / 1 down)
 //   slash                   a straight flick on a diagonal
+// Only the flicks start moves. The other three are read so the gesture counts as decided (see tricks.js).
 export class Shape {
   constructor(cfg) { this.c = cfg; this.x = 0; this.y = 0; this.path = 0; this.t0 = null; this.lastMove = 0; this.decided = null;
     this.minX = 0; this.maxX = 0; this.minY = 0; this.maxY = 0; this.revX = 0; this.revY = 0; this.dirX = 0; this.dirY = 0; this.sx = 0; this.sy = 0;
-    this.l1 = 0; this.l2 = 0; this.diag = 0; this.noCorner = false; this.side = 0; this.hx = 0; this.hy = 0; this.vertical = 0; this.loopSign = 1; }
+    this.l1 = 0; this.l2 = 0; this.diag = 0; this.noCorner = false; this.side = 0; this.hx = 0; this.hy = 0; this.vertical = 0; }
   add(dx, dy, dturn, t) {
-    const c = this.c; if (this.t0 === null) { this.t0 = t; this.revT = t; this.ampPx = 0; this.periodMs = 0; } this.lastMove = t; this.x += dx; this.y += dy; this.path += Math.hypot(dx, dy); let beat = false;
+    const c = this.c; if (this.t0 === null) this.t0 = t; this.lastMove = t; this.x += dx; this.y += dy; this.path += Math.hypot(dx, dy);
     if (this.x < this.minX) this.minX = this.x; if (this.x > this.maxX) this.maxX = this.x; if (this.y < this.minY) this.minY = this.y; if (this.y > this.maxY) this.maxY = this.y;
-    if (Math.abs(dx) > Math.abs(dy) * 1.2) { const d = dx > 0 ? 1 : -1; if (this.dirX && d !== this.dirX) { if (Math.abs(this.sx) >= c.reversalPx) { this.revX++; beat = true; this.ampPx = Math.abs(this.sx); this.ampDir = this.sx > 0 ? 1 : -1; this.periodMs = t - this.revT; this.revT = t; } this.sx = 0; } this.dirX = d; this.sx += dx; }
-    if (Math.abs(dy) > Math.abs(dx) * 1.2) { const d = dy > 0 ? 1 : -1; if (this.dirY && d !== this.dirY) { if (Math.abs(this.sy) >= c.reversalPx) { this.revY++; beat = true; this.ampPx = Math.abs(this.sy); this.periodMs = t - this.revT; this.revT = t; } this.sy = 0; } this.dirY = d; this.sy += dy; }
+    if (Math.abs(dx) > Math.abs(dy) * 1.2) { const d = dx > 0 ? 1 : -1; if (this.dirX && d !== this.dirX) { if (Math.abs(this.sx) >= c.reversalPx) this.revX++; this.sx = 0; } this.dirX = d; this.sx += dx; }
+    if (Math.abs(dy) > Math.abs(dx) * 1.2) { const d = dy > 0 ? 1 : -1; if (this.dirY && d !== this.dirY) { if (Math.abs(this.sy) >= c.reversalPx) this.revY++; this.sy = 0; } this.dirY = d; this.sy += dy; }
+    // l1: how far the stroke has turned one way; l2: how far it has since turned back (a stroke that turns too much is no flick)
     if (dturn !== 0) { if (this.l1 === 0 || dturn * this.l1 > 0) { if (Math.abs(this.l2) < 1.5) { this.l1 += dturn; this.l2 = 0; } else this.l2 += dturn; } else this.l2 += dturn; }
-    if (this.decided) return beat && (this.decided === 'scribbleX' || this.decided === 'scribbleY') ? 'beat' : null;
+    if (this.decided) return null;
     // a corner is sharp: a level sideways leg, then little travel on the diagonal before the vertical leg
     if (Math.abs(dx) <= Math.abs(dy) * 2 && Math.abs(dy) <= Math.abs(dx) * 2) { this.diag += Math.hypot(dx, dy); if (this.diag > 30) { this.noCorner = true; this.side = 0; } }
     if (!this.noCorner && Math.abs(dx) > Math.abs(dy) * 1.2) { if (Math.abs(this.y) > Math.max(18, Math.abs(this.x) * 0.4)) { this.noCorner = true; this.side = 0; } else if (Math.abs(this.x) >= 40) { this.side = this.x > 0 ? 1 : -1; this.hx = this.x; this.hy = this.y; } }
     const w = this.maxX - this.minX, h = this.maxY - this.minY; let ev = null;
-    if (Math.abs(this.l1) >= c.eightTurn && Math.abs(this.l2) >= c.eightTurn && this.l1 * this.l2 < 0) { ev = 'eight'; this.loopSign = this.l1 > 0 ? 1 : -1; }
-    else if (this.revX >= 2 && h < Math.max(26, w * 0.45)) ev = 'scribbleX';
+    if (this.revX >= 2 && h < Math.max(26, w * 0.45)) ev = 'scribbleX';
     else if (this.revY >= 2 && w < Math.max(26, h * 0.45)) ev = 'scribbleY';
     if (ev) this.decided = ev; return ev;
   }
@@ -113,9 +113,9 @@ export class Duo {
       const calm = Math.abs(ta) < c.calmTurn + 0.005 * (a.path - this.pa0) && Math.abs(tb) < c.calmTurn + 0.005 * (b.path - this.pb0), da = Math.hypot(a.x - this.ax0, a.y - this.ay0), db = Math.hypot(b.x - this.bx0, b.y - this.by0);
       if (!calm) { this.pending = null; return was ? null : 'engage'; }
       if (sep >= c.spreadPx && common < sep * 0.5 && Math.abs(ta) < 1 && Math.abs(tb) < 1 && da >= c.spreadEachPx && db >= c.spreadEachPx) ev = 'spread';
-      else if (se && se !== 'beat' && se !== 'corner' && se !== 'eight') ev = se; else if (this.pending && this.pending !== 'corner' && this.pending !== 'eight') ev = this.pending;
+      else if (se) ev = se; else if (this.pending) ev = this.pending;
       if (ev) { this.decided = ev; this.pending = null; return was ? ev : ['engage', ev]; }
-    } else if (se === 'beat') return 'beat';
+    }
     return was ? null : 'engage';
   }
   settle(t) { if (!this.active || this.decided) return null; const e = this.shape.settle(t); if (e) this.decided = e; return e; }

@@ -20,6 +20,6 @@ ok('small circle (r 16) counts nothing', Math.abs(circle(2, 16, 2).turn) < 0.5, 
 { const s = new Stroke(100, 100, 0, CFG.rotate); s.add(103, 101, 40); ok('still touch is a tap', s.isTap(120, CFG.tap)); ok('long press is not a tap', !s.isTap(600, CFG.tap)); }
 { const s = new Stroke(100, 100, 0, CFG.rotate); for (let i = 1; i <= 5; i++) s.add(100 + i * 8, 100, i * 16); ok('a swipe is not a tap', !s.isTap(100, CFG.tap)); }
 { const t = new TapTracker(CFG.tap); t.tap(1000); ok('second touch 200 ms later is a double tap', t.isDouble(1200)); ok('second touch 600 ms later is not', !t.isDouble(1600)); }
-{ const s = circle(0.35, 36, 1.2); ok('a third of a loop stays under the spin threshold', Math.abs(s.turn) < CFG.spin.startTurn, s.turn.toFixed(2)); }
-{ const s = circle(0.7, 36, 1.2); ok('0.7 loop passes the spin threshold', Math.abs(s.turn) >= CFG.spin.startTurn, s.turn.toFixed(2)); }
+{ const s = circle(0.35, 36, 1.2); ok('a third of a loop stays under the twizzles threshold', Math.abs(s.turn) < CFG.twirl.startTurn, s.turn.toFixed(2)); }
+{ const s = circle(0.7, 36, 1.2); ok('0.7 loop passes the twizzles threshold', Math.abs(s.turn) >= CFG.twirl.startTurn, s.turn.toFixed(2)); }
 console.log(failed ? `\n${failed} FAILED` : '\nall passed'); process.exit(failed ? 1 : 0);

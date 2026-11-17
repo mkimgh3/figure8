@@ -7,7 +7,7 @@ const COUNT = ['', 'Single', 'Double', 'Triple', 'Quad', 'Quint'];
 
 export function createSkater(emit) {
   const S = { x: 0, y: 0, z: 0, vx: 0, vz: 0, vy: 0, grounded: true, facing: Math.PI, back: false,
-    spin: 0, goal: 0, takeBack: false, flick: false, combo: false, cleanLand: false, landT: 9, airT: 0,
+    spin: 0, goal: 0, takeBack: false, combo: false, cleanLand: false, landT: 9, airT: 0,
     turn: 0, boostT: 0, move: null, yawX: 0, flipYaw: 0, visY: 0, skated: 0, phase: 0, mag: 0,
     inW: 0, inA: 0, inOn: false, jumps: 0, fingerTurn: 0, push: 0, curve: 0, entry: 0, clock: 0, fallEndT: -99, bonus: 0, surge: 0, flipK: 9 };
   const C = CFG.steer;
@@ -21,17 +21,17 @@ export function createSkater(emit) {
   function startMove(m) { if (!S.grounded) return false; if (S.move && S.move.id === 'fall') return false; endMove(); S.move = m; if (m.start) m.start(); return true; }
 
   // ---- jumps
-  // Which jump it is depends on the way she is skating, the kind of take-off, and which way she rotates.
-  function jumpType(ccw) { if (!S.takeBack) return ccw ? 'Axel' : 'Inside Axel'; if (S.flick) return ccw ? 'Flip' : 'Lutz'; if (S.combo) return 'Loop'; return ccw ? 'Toe loop' : 'Salchow'; }
+  // Which jump it is depends on the way she is skating, whether she takes off straight out of a landing, and which way she rotates.
+  function jumpType(ccw) { if (!S.takeBack) return ccw ? 'Axel' : 'Inside Axel'; if (S.combo) return 'Loop'; return ccw ? 'Toe loop' : 'Salchow'; }
   // The landing window is generous for singles and narrows with every extra rotation and for the harder jumps.
   const tolerance = (h, type) => clamp(1.25 - 0.2 * h, 0.45, 1.15) * (h >= 1 ? (CFG.difficulty[type] || 1) : 1);
   function gradeOf(off, h, type) { const k = tolerance(h, type); for (const g of CFG.grades) if (off < g[0] * k) return g[1]; return null; }
   // boost: a launch pad throws her this many times faster off the ice than her own legs would
-  function jump(flick, boost) {
+  function jump(boost) {
     if (busy()) return false; endMove();
-    S.takeBack = S.back; S.flick = !!flick && S.back;      // the toe pick only changes a backward take-off
-    S.combo = S.back && !S.flick && S.landT < CFG.jump.comboWindow && S.cleanLand;
-    S.vy = (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed + S.bonus * CFG.jump.vyPerBonus) * (S.flick ? 1.16 : 1) * (boost || 1);
+    S.takeBack = S.back;
+    S.combo = S.back && S.landT < CFG.jump.comboWindow && S.cleanLand;
+    S.vy = (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed + S.bonus * CFG.jump.vyPerBonus) * (boost || 1);
     S.grounded = false; S.spin = 0; S.goal = 0; S.fingerTurn = 0; S.airT = 0; S.jumps++; S.entry = S.curve;
     emit('takeoff', { yaw: S.facing + (S.back ? Math.PI : 0) }); return true;
   }
@@ -39,7 +39,7 @@ export function createSkater(emit) {
   function jumpName(t, n, half) {
     const c = COUNT[Math.min(n, 5)];
     if (!S.takeBack) return !half ? (n ? c + ' hop' : '') : n === 0 ? 'Waltz jump' : n === 1 ? t : c + ' ' + (t === 'Axel' ? 'Axel' : 'inside Axel');
-    const low = (t === 'Salchow' || t === 'Lutz') ? t : t.toLowerCase(); return n ? c + ' ' + low : (half ? 'Half ' + low : '');
+    const low = t === 'Salchow' ? t : t.toLowerCase(); return n ? c + ' ' + low : (half ? 'Half ' + low : '');
   }
   function land() {
     const rots = Math.abs(S.spin) / TAU, h = Math.round(rots * 2) / 2, n = Math.floor(h), half = h - n > 0.25, t = jumpType(S.spin >= 0);
@@ -106,7 +106,7 @@ export function createSkater(emit) {
   const liveGrade = () => { const turns = Math.abs(S.spin) / TAU, h = Math.round(turns * 2) / 2; return gradeOf(Math.abs(turns - h), h, jumpType(S.spin >= 0)); };
   const liveName = () => { const r = Math.abs(S.spin) / TAU; return (!S.takeBack && r < 1) ? 'Waltz jump' : jumpType(S.spin >= 0); };
   // every finished move that counts leaves her with some extra speed to spend, the more the move was worth
-  const MOVES = { spin: 1, twizzles: 1, twirl: 1, steps: 1, swing: 1, spiral: 1, eagle: 1, hydro: 1, dance: 1, turn: 1, leap: 1, stop: 1 };
+  const MOVES = { twizzles: 1, twirl: 1, spiral: 1, eagle: 1, hydro: 1, dance: 1, turn: 1, leap: 1, stop: 1 };
   const emitMove = (type, data) => {
     if (type === 'element' && data && MOVES[data.kind] && data.counted !== false) { const B = CFG.bonus, gain = B.move[0] + B.move[1] * (data.base || 0), before = S.bonus, v = speed();
       S.bonus = Math.min(B.max, S.bonus + gain); data.speedGain = +(S.bonus - before).toFixed(2); if (v > 0.5 && data.kind !== 'stop') { const k = (v + gain * B.kick) / v; S.vx *= k; S.vz *= k; } }

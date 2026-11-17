@@ -4,7 +4,7 @@ Each move is one file exporting `createX(S, api, args)`. It returns an object th
 
 | Field | Purpose |
 |---|---|
-| `id` | short name, e.g. `'spin'` |
+| `id` | short name, e.g. `'spiral'` |
 | `steer` | 0..1, how much the steering thumb still steers (default 1) |
 | `holdFacing` | true if her facing should not follow her velocity |
 | `start()` | optional, called once |

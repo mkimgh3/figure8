@@ -1,14 +1,14 @@
 // Points, laid out the way a skating judges' sheet reads. Every scored element has four numbers:
 //   base   what the element is worth (real figure-skating values for jumps)
-//   goe    grade of execution: how well it was done (landing quality, rhythm; less for repeating the same element straight away)
+//   goe    grade of execution: how well it was done (landing quality; less for repeating the same element straight away)
 //   art    what the skating around it adds (a jump out of figures, jump combinations, linking different kinds of element)
 //   pts    the total
-// Jumps landed one straight after another are one combination element, named like "Triple Lutz + Double toe loop".
+// Jumps landed one straight after another are one combination element, named like "Triple Salchow + Double toe loop".
 import { CFG } from './config.js';
 const P = CFG.points;
 const r1 = (v) => Math.round(v * 10) / 10;
 const VERSION = 2;                                   // the points scale; a save from an older scale is set aside
-const CODE = { 'Toe loop': 'T', 'Salchow': 'S', 'Loop': 'Lo', 'Flip': 'F', 'Lutz': 'Lz', 'Axel': 'A', 'Inside Axel': 'iA' };
+const CODE = { 'Toe loop': 'T', 'Salchow': 'S', 'Loop': 'Lo', 'Axel': 'A', 'Inside Axel': 'iA' };
 
 export function jumpBase(d) {
   const n = Math.floor(d.target), half = d.target % 1 !== 0, row = P.jumps[d.type], forward = d.type === 'Axel' || d.type === 'Inside Axel';

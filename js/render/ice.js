@@ -54,7 +54,7 @@ export function createIce(renderer) {
   });
   deep.anisotropy = aniso;
 
-  const U = { uTime: { value: 0 }, uDeep: { value: deep }, uDepthTint: { value: new THREE.Color(0x3d6fa8) }, uGlitter: { value: 1 }, uSunDir: { value: new THREE.Vector3(-0.6, 0.5, 0.4).normalize() },
+  const U = { uTime: { value: 0 }, uDeep: { value: deep }, uDepthTint: { value: new THREE.Color(0x3d6fa8) }, uSunDir: { value: new THREE.Vector3(-0.6, 0.5, 0.4).normalize() },
     uSunCol: { value: new THREE.Color(0xffffff) }, uCloud: { value: 0.3 }, uWind: { value: new THREE.Vector2(0.6, 0.25) }, uAurora: { value: 0 }, uAur1: { value: new THREE.Color(0x3dffb0) }, uAur2: { value: new THREE.Color(0x8a5cff) },
     uOverview: { value: 0 } };
   const mat = new THREE.MeshStandardMaterial({ color: 0xd9e9f8, map: surface, roughness: 1, roughnessMap: rough, metalness: 0, envMapIntensity: 0.35, depthWrite: false });
@@ -64,7 +64,7 @@ export function createIce(renderer) {
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
 varying vec3 vWPos;
-uniform float uTime, uGlitter, uCloud, uAurora, uOverview;
+uniform float uTime, uCloud, uAurora, uOverview;
 uniform sampler2D uDeep; uniform vec3 uDepthTint, uSunDir, uSunCol, uAur1, uAur2; uniform vec2 uWind;
 float h21(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
 float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);

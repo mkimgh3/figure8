@@ -1,5 +1,5 @@
 {
- "build": "v3-look32",
+ "build": "v3-look33",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -35,8 +35,6 @@
   "js/moves/fall.js",
   "js/moves/held.js",
   "js/moves/quick.js",
-  "js/moves/spin.js",
-  "js/moves/steps.js",
   "js/moves/twirl.js",
   "js/render/atmos.js",
   "js/render/avatar.js",

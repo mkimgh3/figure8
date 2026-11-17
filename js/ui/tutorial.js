@@ -4,7 +4,7 @@
 // A step can also say what must stay true while it is being worked on; if that breaks, the skill starts again.
 import { TAU } from '../core/math.js';
 
-// ---- tests, written against c = { S, speed, armed, rhythm, ev, mem }   (rhythm: 1 steps ready, 2 stepping, 3 toe pick ready)
+// ---- tests, written against c = { S, speed, armed, ev, mem, now }
 const gliding = (c) => c.S.grounded && !c.S.move;
 const forward = (c) => gliding(c) && !c.S.back && c.speed > 3.5;
 const backward = (c) => gliding(c) && c.S.back && c.speed > 3;
@@ -24,13 +24,6 @@ const TAP = 'Double tap, keep your finger down and ';
 const jump = (name, target, how, entry) => ({ name, target, steps: [
   ...(entry || [[FWD_HINT, forward]]),
   [TAP + how + ', then lift', landedAny],
-] });
-
-// A toe-pick jump: backward, flick down to plant the pick, then jump.
-const toe = (name, target, how) => ({ name, target, steps: [
-  [BACK_HINT, backward],
-  ['Flick your right finger down. "Toe pick ready" appears', (c) => c.rhythm === 3],
-  ['Within three seconds: ' + TAP.toLowerCase() + how + ', then lift', landedAny, (c) => c.rhythm === 3 || !c.S.grounded || landedAny(c)],
 ] });
 
 const JUMPS = [
@@ -130,7 +123,7 @@ export function createTutorial() {
   return {
     get on() { return !!cat; },
     event(type, d) { if (cat) events.push({ type, d }); },
-    // c: { S, speed, armed, rhythm, now }
+    // c: { S, speed, armed, now }
     tick(dt, c) {
       if (!cat) { events.length = 0; return; }
       if (noteT > 0) { noteT -= dt; if (noteT <= 0) { note = ''; render(); } }

@@ -26,13 +26,13 @@ const { open } = require('./smoke.cjs');
   const R = (pts) => [{ id: 2, pts, down: true, up: true }];
   const calm = async () => { await sleep(3200); };
   await ev('pointermove', 1, 160, 640); await sleep(2500);
-  let seen = await play(R(circle(300, 560, 36, 5, 200))); s = await st(); ok('a circle is part of choreography: no separate spin, no twizzles', seen.includes('dance') && !seen.includes('spin') && !seen.includes('twirl'), seen);
+  let seen = await play(R(circle(300, 560, 36, 5, 200))); s = await st(); ok('a circle is part of choreography, not twizzles', seen.includes('dance') && !seen.includes('twirl'), seen);
   { const tb = await p.evaluate(() => new Promise((res) => { const S = window.__game.S, iv = setInterval(() => { if (!S.move) { clearInterval(iv); res([+S.bonus.toFixed(2), null]); } }, 30); setTimeout(() => { clearInterval(iv); res([S.bonus, S.move && S.move.id]); }, 7000); })); ok('finishing a move leaves her a speed bonus', tb[0] > 0.1 && tb[1] === null, tb); }
   const resteer = async () => { await ev('pointerup', 1, 160, 640); await sleep(100); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); }; await resteer(); await calm();
   seen = await play(R(line(300, 560, 380, 556, 6))); ok('flick right is a split leap', seen.includes('leap'), seen);
-  seen = await play(R(circle(300, 560, 36, 2.2, 90))); ok('a circle straight after a split leap is twizzles', seen.includes('twirl') && !seen.includes('spin'), seen); await calm(); await ev('pointermove', 1, 100, 700); await sleep(1500); const b0 = (await st()).back; seen = await play(R(line(380, 560, 300, 556, 6))); await sleep(600); ok('flick left across her travel is a three-turn that swaps direction', seen.includes('turn') && (await st()).back !== b0, seen); await ev('pointermove', 1, 160, 640); await calm();
-  seen = await play(R(line(300, 600, 296, 500, 6))); await sleep(100); const rd = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rhythm').classList.contains('on'), document.getElementById('rlabel').textContent]); ok('flick up is a spiral', seen.includes('spiral') && rd[0] === 0, { seen, rd }); await calm();
-  seen = await play(R(line(300, 500, 304, 600, 6))); await sleep(100); const toe = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rlabel').textContent]); ok('flick down is a hydroblade', seen.includes('hydro') && toe[0] === 0, { seen, toe }); await calm();
+  seen = await play(R(circle(300, 560, 36, 2.2, 90))); ok('a circle straight after a split leap is twizzles', seen.includes('twirl'), seen); await calm(); await ev('pointermove', 1, 100, 700); await sleep(1500); const b0 = (await st()).back; seen = await play(R(line(380, 560, 300, 556, 6))); await sleep(600); ok('flick left across her travel is a three-turn that swaps direction', seen.includes('turn') && (await st()).back !== b0, seen); await ev('pointermove', 1, 160, 640); await calm();
+  seen = await play(R(line(300, 600, 296, 500, 6))); await sleep(100); ok('flick up is a spiral', seen.includes('spiral'), seen); await calm();
+  seen = await play(R(line(300, 500, 304, 600, 6))); await sleep(100); ok('flick down is a hydroblade', seen.includes('hydro'), seen); await calm();
   seen = await play(R(line(260, 560, 340, 560, 6).concat(line(340, 560, 342, 480, 6)))); ok('a corner no longer triggers a spread eagle', !seen.includes('eagle'), seen); await calm();
   // both thumbs together
   await ev('pointermove', 1, 160, 640); await sleep(1500);
@@ -92,7 +92,7 @@ const { open } = require('./smoke.cjs');
     ok('lifting ends the choreography and it scores', de.name === 'Choreography' && de.pts > 0.5 && de.move === null, de); await ev('pointermove', 1, 160, 640); await calm(); }
   const card = await p.evaluate(() => { const e = window.__game.score.state.list[0]; return { name: e.name, base: e.base, goe: e.goe, art: e.art, pts: e.pts, cells: document.querySelectorAll('#pop .cards div').length, name2: (document.querySelector('#pop .pname') || {}).textContent, sub: document.getElementById('sub').textContent, best: window.__game.score.state.best.pts }; });
   ok('each action gets a score card and the best action is tracked', card.cells === 4 && card.name2 === card.name && Math.abs(card.base + card.goe + card.art - card.pts) < 0.11 && /Best jump/.test(card.sub) && card.best >= card.pts, card);
-  // spin: rest the finger, then circle
+  // a fresh steering thumb
   await ev('pointerup', 1, 160, 640); await sleep(300); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); await sleep(2500);
   // a finger kept down through a jump: she dances on from the landing until it lifts
   { await tap(2, 300, 560); await sleep(120); await ev('pointerdown', 2, 336, 560);
@@ -101,10 +101,10 @@ const { open } = require('./smoke.cjs');
     await ev('pointerup', 2, 336, 560); await sleep(1500); s = await st(); ok('lifting it ends the choreography', s.move === null, s); await sleep(2500); }
   // bad landing -> fall -> back up
   await ev('pointermove', 1, 220, 590); await sleep(3500);
-  await p.evaluate(() => { const g = window.__game; g.game.jump(false); g.game.airRotate(1.25 * 6.2832); }); await sleep(1800); s = await st(); ok('a quarter-turn-off landing is a fall', /fall/i.test(s.pop) && s.move === 'fall', s);
+  await p.evaluate(() => { const g = window.__game; g.game.jump(); g.game.airRotate(1.25 * 6.2832); }); await sleep(1800); s = await st(); ok('a quarter-turn-off landing is a fall', /fall/i.test(s.pop) && s.move === 'fall', s);
   await sleep(1500); s = await st(); ok('she gets back up', s.move === null, s);
-  const bo = await p.evaluate(() => new Promise((res) => { const g = window.__game, S = g.S; S.x += 400; S.fallEndT = S.clock - 10; g.game.jump(false); g.game.airRotate(2 * 6.2832); const iv = setInterval(() => { if (S.grounded) { clearInterval(iv); const bonus = S.bonus;
-    g.game.jump(false); g.game.airRotate(1.25 * 6.2832); const iv2 = setInterval(() => { if (S.grounded) { clearInterval(iv2); const afterFall = S.bonus; setTimeout(() => { const b1 = S.boostT; g.game.jump(false); g.game.airRotate(1.25 * 6.2832); const iv3 = setInterval(() => { if (S.grounded && !S.move) { clearInterval(iv3); res({ bonus, afterFall, firstBoost: b1 > 0, secondBoost: S.boostT > 0 }); } }, 30); }, 1500); } }, 30); } }, 30); }));
+  const bo = await p.evaluate(() => new Promise((res) => { const g = window.__game, S = g.S; S.x += 400; S.fallEndT = S.clock - 10; g.game.jump(); g.game.airRotate(2 * 6.2832); const iv = setInterval(() => { if (S.grounded) { clearInterval(iv); const bonus = S.bonus;
+    g.game.jump(); g.game.airRotate(1.25 * 6.2832); const iv2 = setInterval(() => { if (S.grounded) { clearInterval(iv2); const afterFall = S.bonus; setTimeout(() => { const b1 = S.boostT; g.game.jump(); g.game.airRotate(1.25 * 6.2832); const iv3 = setInterval(() => { if (S.grounded && !S.move) { clearInterval(iv3); res({ bonus, afterFall, firstBoost: b1 > 0, secondBoost: S.boostT > 0 }); } }, 30); }, 1500); } }, 30); } }, 30); }));
   ok('a clean double raises top speed, a fall loses it, and a second quick fall gets no boost', bo.bonus > 0.5 && bo.afterFall === 0 && bo.firstBoost && !bo.secondBoost, bo); await sleep(1500);
   // one-finger double tap with no steering finger
   await ev('pointerup', 1, 220, 590); await sleep(700); const j0 = (await st()).jumps;

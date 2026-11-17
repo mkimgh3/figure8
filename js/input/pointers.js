@@ -14,13 +14,12 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
   // with both thumbs down, their shared motion is watched for two-thumb gestures
   const pair = (now) => { if (!tricks.canDuo()) return; left = new Stroke(steer.cx, steer.cy, now, CFG.rotate); duo = new Duo(CFG.duo, CFG.shape); steer.hx = steer.x; steer.hy = steer.y; };
   const recentre = () => { duo = null; left = null; steer.frozen = false; if (steer.id === null) return; steer.ox = steer.cx; steer.oy = steer.cy; steer.x = steer.y = 0; hud.stick(true, steer.ox, steer.oy, 0, 0); };
-  game.recentreSteer = recentre;
   // after a two-thumb move the stick carries on from where it was held, wherever the thumb ended up
   const unfreeze = () => { if (!steer.frozen) return; steer.frozen = false; if (steer.id === null) return;
     steer.ox = steer.cx - steer.hx * R; steer.oy = steer.cy - steer.hy * R; steer.x = steer.hx; steer.y = steer.hy; hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R); };
   const duoEvent = (ev, lifted) => { if (!ev) return; if (Array.isArray(ev)) { ev.forEach((q) => duoEvent(q, lifted)); return; }
     if (ev === 'engage') return;
-    if (tricks.perform(ev, duo, true, lifted === true)) { steer.frozen = true; steer.frozenAt = performance.now(); steer.x = steer.hx; steer.y = steer.hy; hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R); } };      // the gesture itself must not steer her
+    if (tricks.perform(ev, true, lifted === true)) { steer.frozen = true; steer.frozenAt = performance.now(); steer.x = steer.hx; steer.y = steer.hy; hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R); } };      // the gesture itself must not steer her
   const feedDuo = (now) => { if (!duo || !tricks.canDuo()) return; duoEvent(duo.update(left, tricks.stroke, now)); };
   const pinchEnd = () => { pinch.on = false; if (view.zoomed && view.zf >= view.zMax * 0.72) onPinchClose(); };
 
@@ -64,7 +63,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     const now = performance.now();
     if (e.pointerId === pinch.id2) { pinch.id2 = null; if (pinch.on) { pinchEnd(); recentre(); } return; }
     if (pinch.on && e.pointerId === steer.id) { pinchEnd(); steer.id = null; steer.x = steer.y = 0; return; }
-    if (e.pointerId === steer.id) { const mv = game.S.move; if (mv && mv.id === 'spin') mv.drop();      // choreography carries on under the right thumb when the left one lifts: she just coasts
+    if (e.pointerId === steer.id) {      // choreography carries on under the right thumb when the left one lifts: she just coasts
       if (duo && trickId !== null && tricks.canDuo()) duoEvent(duo.end(), true); if (!steer.moved && now - steer.t <= T.maxMs && !view.zoomed) taps.tap(now); steer.id = null; steer.x = steer.y = 0; steer.frozen = false; duo = null; left = null; hud.stick(false); }
     if (e.pointerId === trickId) { let extra = null;
       if (duo && left) { if (tricks.canDuo()) duoEvent(duo.end(), true); const lp = left.points, k = Math.ceil(lp.length / 45); extra = { duo: duo.summary(), left: lp.filter((_, i) => i % k === 0).flat() }; }
@@ -76,7 +75,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
 
   // keyboard, for desktop: WASD steers, Space jumps, A/D rotate in the air
   window.addEventListener('keydown', (e) => { if (e.repeat) { if (e.code === 'Space') e.preventDefault(); return; } keys[e.code] = true; hud.touched();
-    if (e.code === 'Space') { if (!view.zoomed) game.jump(false); e.preventDefault(); } });
+    if (e.code === 'Space') { if (!view.zoomed) game.jump(); e.preventDefault(); } });
   window.addEventListener('keyup', (e) => { keys[e.code] = false; });
   return {
     keys, setAuto(a) { auto = a; },

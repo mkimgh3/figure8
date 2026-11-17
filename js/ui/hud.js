@@ -14,7 +14,7 @@ const clockText = (s) => Math.floor(s / 60) + ':' + ('0' + Math.floor(s % 60)).s
 export function createHud(coarse) {
   const pop = $('pop'), arc = $('arc'), kmh = $('kmhn'), spfill = $('spfill'), joy = $('joy'), knob = $('knob'), pad = $('pad'), hint = $('hint'), sheet = $('sheet');
   let popT = 0, touched = false, hudT = 0, shown = 0, target = 0, barOn = false, chipKey = null;
-  const bar = $('cbar'), rh = $('rhythm'); let rState = 0;
+  const bar = $('cbar');
   hint.textContent = coarse ? 'Left thumb steers. Right finger: double tap to jump. Tap Tutorial to learn each skill step by step.'
                             : 'WASD steers. Space jumps, A or D rotates in the air.';
   return {
@@ -33,9 +33,6 @@ export function createHud(coarse) {
     score(st) { target = st.total; if (st.total < shown) shown = st.total;
       const bj = st.bestJump, key = bj ? bj.name + bj.pts : '';
       if (key !== chipKey) { chipKey = key; $('sub').textContent = bj ? 'Best jump' : 'Best jump \u2013'; $('bjname').textContent = bj ? bj.name : ''; const c = $('bjcards'); c.textContent = ''; if (bj) c.appendChild(cards(bj, false, 'xs')); } },
-    // the rhythm bar: state 0 hidden, 1 a step sequence is ready, 2 one is running; v is how even the scribble is, 0..1
-    rhythm(state, v) { if (state !== rState) { rState = state; rh.classList.toggle('on', !!state); rh.classList.toggle('ready', state === 1 || state === 3); $('rlabel').textContent = state === 1 ? 'Steps ready' : state === 3 ? 'Toe pick ready' : 'Rhythm'; }
-      if (state === 2) { $('rfill').style.transform = 'scaleX(' + (0.06 + 0.94 * v).toFixed(2) + ')'; $('rfill').style.background = v > 0.75 ? '#35c98a' : v > 0.4 ? '#f2b84b' : '#ef6a6a'; } else $('rfill').style.transform = ''; },
     // the scoreboard shown while paused: total, jumps, the highest-scoring element, then every element, newest first
     board(open, st) { document.body.classList.toggle('paused', open); if (!open) return;
       $('btotal').textContent = num(st.total);

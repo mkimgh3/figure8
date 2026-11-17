@@ -39,27 +39,23 @@ for (const name of ['scribbleX', 'scribbleY', 'flickUp', 'flickDown', 'flickLeft
 { const r = circ(290, 560, 36, 2, 1000), res = play(line(110, 620, 150, 640, 1000, 40), r); ok('steering drift + right-finger circles -> nothing', res.ev.length === 0, res.ev); }
 // --- synthetic pairs
 ok('thumbs spreading apart -> spread', play(line(160, 600, 80, 600, 220), line(240, 600, 320, 600, 220)).ev.includes('spread'));
-ok('circling thumbs are never read as a spread or a flick', play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, false)).ev.every((e) => e === 'engage' || e === 'beat'), play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, false)).ev);
-ok('same-way circles are not an eight', !play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, true)).ev.includes('eight'));
-{ const r = solo([...line(290, 560, 360, 490, 100), [360, 490, 300]]); ok('one finger diagonal flick -> slash, drawn fast', r.ev.join() === 'slash' && r.sh.speed > 900, { ev: r.ev, speed: Math.round(r.sh.speed) }); }
+ok('circling thumbs are never read as a spread or a flick', play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, false)).ev.every((e) => e === 'engage'), play(circ(110, 600, 34, 1.2, 900, true), circ(290, 600, 34, 1.2, 900, false)).ev);{ const r = solo([...line(290, 560, 360, 490, 100), [360, 490, 300]]); ok('one finger diagonal flick -> slash, drawn fast', r.ev.join() === 'slash' && r.sh.speed > 900, { ev: r.ev, speed: Math.round(r.sh.speed) }); }
 ok('same-way circles are not a spiral gesture any more', play(circ(110, 600, 42, 2.2, 1800, true), circ(290, 600, 42, 2.2, 1800, true)).ev.every((e) => e === 'engage'), play(circ(110, 600, 42, 2.2, 1800, true), circ(290, 600, 42, 2.2, 1800, true)).ev);
 { const up = [...line(110, 600, 110, 520, 180), [110, 520, 400]]; const res = play(up, shift(up, 180)); ok('both up and hold -> up, decided while the fingers are still down', res.ev.beforeLift.join() === 'engage,up', res.ev); }
 { const pa = [...line(110, 600, 190, 600, 200), ...shift(line(190, 600, 110, 600, 200), 0, 0, 210), ...shift(line(110, 600, 190, 600, 200), 0, 0, 420), ...shift(line(190, 600, 110, 600, 200), 0, 0, 630)];
-  const res = play(pa, shift(pa, 180)); ok('long scribble keeps reporting beats', res.ev.includes('scribbleX') && res.ev.includes('beat'), res.ev); }
+  const res = play(pa, shift(pa, 180)); ok('long scribble with both thumbs is read as a scribble, once', res.ev.filter((e) => e === 'scribbleX').length === 1 && res.ev.every((e) => e === 'engage' || e === 'scribbleX'), res.ev); }
 
 // --- one finger alone: his real strokes
 for (const [name, want] of [['scribbleX', 'scribbleX'], ['scribbleY', 'scribbleY'], ['scribbleYlong', 'scribbleY'], ['flickUp', 'up'], ['flickDown', 'down'], ['flickLeft', 'left'], ['flickRight', 'right']]) { const r = solo(samples(FX[name])); ok(`one finger, real ${name} -> ${want}`, r.ev.includes(want), r.ev); }
 for (const name of ['unintendedSpin', 'unintendedSpin2', 'jumpRotation']) { const r = solo(samples(FX[name])); ok(`one finger, real ${name} (circling) -> nothing`, r.ev.length === 0, r.ev); }
 { const r = solo([...line(290, 560, 290, 480, 120), [290, 480, 400]], 0); ok('one finger flick up and hold -> up before lifting', r.ev.beforeLift.join() === 'up', r.ev); }
 { const r = solo([...line(250, 600, 310, 600, 120), ...shift(line(310, 600, 310, 530, 120), 0, 0, 125).slice(1)]); ok('one finger sideways then up -> corner (right, up)', r.ev.includes('corner') && r.sh.side === 1 && r.sh.vertical === -1, r.ev); }
-{ const arc = (cx, a0, dir, t0) => Array.from({ length: 61 }, (_, i) => [cx + Math.cos(a0 + dir * TAU * i / 60) * 36, 560 + Math.sin(a0 + dir * TAU * i / 60) * 36, t0 + 900 * i / 60]);
-  const r = solo([...arc(290, 0, 1, 0), ...arc(362, Math.PI, -1, 900).slice(1)]); ok('one finger loop then reverse loop -> eight', r.ev.includes('eight'), r.ev); }
 { const r = solo(circ(290, 560, 80, 1.5, 1500)); ok('one finger big circle -> nothing (not a corner, not a scribble)', r.ev.length === 0, r.ev); }
 
-// --- spin arming: rest first, then circle
+// --- how long a finger rested before it moved (choreography's drag rule measures from the first movement)
 const rested = (f) => { const p = samples(f), s = new Stroke(p[0][0], p[0][1], 0, CFG.rotate); for (const q of p.slice(1)) s.add(q[0], q[1], q[2]); return s; };
-for (const name of ['unintendedSpin', 'unintendedSpin2', 'jumpRotation']) { const s = rested(FX[name]); ok(`real ${name} moved at once (rest ${s.restMs} ms) -> does not arm a spin`, s.restMs < CFG.spin.holdMs, s.restMs); }
+for (const name of ['unintendedSpin', 'unintendedSpin2', 'jumpRotation']) { const s = rested(FX[name]); ok(`real ${name} moved at once -> rest under 100 ms`, s.restMs < 100, s.restMs); }
 { const p = [...still(326, 560, 300, 3), ...shift(circ(290, 560, 36, 1, 800), 0, 0, 300).slice(1)], s = new Stroke(p[0][0], p[0][1], 0, CFG.rotate); for (const q of p.slice(1)) s.add(q[0], q[1], q[2]);
-  ok('rest 300 ms then circle -> arms, and half a loop passes the start threshold', s.restMs >= CFG.spin.holdMs && Math.abs(s.turn) > CFG.spin.startTurn, { rest: s.restMs, turn: +s.turn.toFixed(2) }); }
+  ok('rest 300 ms then circle -> the rest is measured, and the circle still counts', s.restMs >= 280 && s.restMs < 400 && Math.abs(s.turn) > CFG.twirl.startTurn, { rest: s.restMs, turn: +s.turn.toFixed(2) }); }
 { const s = rested(FX.jumpRotation); ok('real in-air rotation counts the same as it did in his session', Math.abs(Math.abs(s.turn) / TAU - FX.jumpRotation.countedTurns) < 0.03, +(Math.abs(s.turn) / TAU).toFixed(2)); }
 console.log(failed ? `\n${failed} FAILED` : '\nall passed'); process.exit(failed ? 1 : 0);

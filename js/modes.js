@@ -25,7 +25,7 @@ export function createPads(scene, game, say) {
     update(dt) { t += dt; cool -= dt; const cx = Math.floor(S.x / K.cell), cz = Math.floor(S.z / K.cell); let k = 0;
       for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const p = pads[k++], q = at(cx + i, cz + j); p.g.position.x = q[0]; p.g.position.z = q[1];
         const u = (t * 0.9 + k * 0.13) % 1; p.pulse.scale.setScalar(0.6 + u * 1.25); p.pulse.material.opacity = 0.8 * (1 - u);      // a ring that keeps rising out of the pad
-        if (cool <= 0 && S.grounded && Math.hypot(S.x - q[0], S.z - q[1]) < K.radius && game.jump(false, K.boost)) { cool = K.cooldown; say('Launched!', 'finger down and circle', 1.2); } } } };
+        if (cool <= 0 && S.grounded && Math.hypot(S.x - q[0], S.z - q[1]) < K.radius && game.jump(K.boost)) { cool = K.cooldown; say('Launched!', 'finger down and circle', 1.2); } } } };
 }
 
 // ---- Race

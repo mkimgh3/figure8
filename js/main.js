@@ -23,7 +23,7 @@ import { createUpdater } from './update.js';
 import { createPads, createRace } from './modes.js';
 import { createDuet } from './duet.js';
 
-const BUILD = 'v3-look32';
+const BUILD = 'v3-look33';
 let world;
 try { world = createScene(document.getElementById('c')); } catch (e) { document.getElementById('err').style.display = 'flex'; throw e; }
 const saved = save.load();
@@ -69,8 +69,7 @@ const game = createSkater((type, d) => {
     if (d.grade === 'fall') hud.say('Fall', (d.name ? d.name + ' under-rotated' : 'bad landing') + ' · ' + d.offDeg + '° off', 2.4, e);
     else if (d.name) { hud.say(d.name + (d.grade === 'perfect' ? '!' : ''), d.grade + ' landing · ' + d.offDeg + '° off' + (d.target % 1 ? (d.back ? ' · now backward' : ' · now forward') : '') + (d.speedGain ? ' · top speed +' + Math.round(d.speedGain * 3.6) + ' km/h' : ''), 2.8, e); trace.rosette(game.S, Math.floor(d.target)); }
     dirty = true; showScore();
-  } else if (type === 'spinning') { if (d.revs > 0.5) hud.say(d.position + ' spin', d.revs.toFixed(1) + ' revolutions', 0.3); }
-  else if (type === 'say') hud.say(d.big, d.small, d.hold);
+  } else if (type === 'say') hud.say(d.big, d.small, d.hold);
   else if (type === 'crash') { spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, 40, 2.4, 6.3); const e = score.jump({ grade: 'fall', crash: 'ran into ' + d.what }); hud.say('Crash', 'ran into ' + d.what, 2.4, e); dirty = true; showScore(); }
   else if (type === 'element') {
     if (d.counted === false) { log.element(d); return; }
@@ -155,7 +154,7 @@ function frame(now) {
     if (trace.count !== before) { dirty = true; if (S.grounded && blade.pen) icicles.trail(blade.x, blade.z, trace.colorAt(S.skated)); if (blade.double) trace.place(S.x - px, S.z - pz, S.facing, trace.colorAt(S.skated), 1); }       // spread eagle: both blades draw
     if (!S.grounded) { const r = Math.abs(S.spin) / TAU; if (r > 0.3) hud.say(r.toFixed(1) + '×', game.liveName(), 0.25); }
     hud.padSpin(S.move && S.move.id === 'dance' ? Math.min(1, S.move.state.rate / (CFG.dance.spinFast * 1.4)) : 0);
-    hud.combo(score.chainLeft()); tutorial.tick(dt, { S, speed: game.speed(), armed: tricks.armed, rhythm: tricks.rhythm(now)[0], now }); { const r = tricks.rhythm(now); hud.rhythm(r[0], r[1]); }
+    hud.combo(score.chainLeft()); tutorial.tick(dt, { S, speed: game.speed(), armed: tricks.armed, now });
     // a shore turns her along it: she keeps the speed that runs along the coast and loses what was heading inland
     { const t = forest.hit(S.x, S.z); if (t) { S.x = t.x; S.z = t.z; const vn = S.vx * t.nx + S.vz * t.nz; if (vn < 0) { S.vx -= vn * t.nx; S.vz -= vn * t.nz; if (S.grounded && vn < -2 && Math.random() < 0.5) spray.emit(S.x, S.z, t.nx, t.nz, 3, 2, 1.5); } } }
     // the mode in play: its pads or course, and its line under the speed

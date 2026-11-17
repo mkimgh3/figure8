@@ -1,5 +1,5 @@
 /* Layout: the game fills the screen. Score chip top-left, buttons top-right, and a top-centre column that stacks
-   the speed meter, the tutorial, the rhythm bar and the score card, so none of them can overlap.
+   the speed meter, the tutorial, the mode line and the score card, so none of them can overlap.
    Works upright and on its side; edges respect the phone's notch and home bar. */
 :root { --ink: #16263f; --paper: rgba(255,255,255,.86); --line: rgba(22,38,63,.22); --accent: #1f6fd6; --card: #07090d;
   --st: max(12px, env(safe-area-inset-top)); --sr: max(12px, env(safe-area-inset-right)); --sb: max(12px, env(safe-area-inset-bottom)); --sl: max(12px, env(safe-area-inset-left)); }
@@ -62,15 +62,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* the mode in play: course, time and coins */
 #modeline { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #f2f6ff; text-shadow: 0 1px 8px rgba(0,0,20,.8); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #modeline:empty { display: none; }
-/* rhythm bar for step sequences */
-#rhythm { width: 150px; text-align: center; display: none; }
-#rhythm.on { display: block; }
-#rlabel { font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; opacity: .75; }
-#rtrack { height: 6px; border-radius: 3px; background: rgba(22,38,63,.16); overflow: hidden; margin-top: 3px; }
-#rfill { display: block; height: 100%; width: 100%; transform-origin: left center; transform: scaleX(.06); background: #f2b84b; transition: transform .2s; }
-#rhythm.ready #rfill { animation: pulse 1s ease-in-out infinite; background: var(--accent); transform: scaleX(1); }
-@keyframes pulse { 50% { opacity: .25; } }
-@media (prefers-reduced-motion: reduce) { #rhythm.ready #rfill { animation: none; } }
 
 /* announcements, and the score card: the element's name over four equal black cards */
 #pop { text-align: center; opacity: 0; transition: opacity .35s; text-shadow: 0 2px 14px rgba(255,255,255,.9); }
@@ -92,9 +83,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #hint { left: 0; right: 0; bottom: calc(var(--sb) + 18px); text-align: center; font-size: 13px; line-height: 1.5; opacity: .85; transition: opacity .8s; padding: 0 30px; }
 
 /* dark ice (night, blue hour, and the overview): text drawn straight on the ice turns light */
-body.night #pop, body.night #rlabel { color: #f2f6ff; }
-body.night #pop { text-shadow: 0 2px 12px rgba(0,0,20,.85); }
-body.night #rtrack { background: rgba(255,255,255,.2); }
+body.night #pop { color: #f2f6ff; text-shadow: 0 2px 12px rgba(0,0,20,.85); }
 body.night #hint { color: #e8eeff; }
 
 /* ---- scoreboard: only while paused */

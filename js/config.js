@@ -13,22 +13,13 @@ export const CFG = {
   },
   tap: { maxMs: 260, maxMovePx: 14, doubleMs: 330 },
   rotate: { minRadiusPx: 26, pivotLag: 0.3, minSegPx: 5, bufferCap: 2.5, bufferMs: 500 },
-  // A spin needs a deliberate start: rest the finger for holdMs, then circle. A circle drawn straight away does nothing,
-  // because that is exactly what an in-air rotation looks like (playtest 1: 26 spins, most unintended).
-  // The rubber band between finger and skater: follow (1/s) is how closely her body keeps up with the finger, pickup (0..1) how quickly
-  // her spin takes on the finger's speed, coast (1/s) how fast it fades when the finger stops but stays down. After the finger lifts
-  // it eases out at easeOut (1/s) until it is slower than endVel (rad/s), or for endMax seconds at most.
-  // exitSpeed: she swoops out of a finished spin at this fraction of top speed. Lifting the left thumb winds the spin down.
-  // The finger's own circling speed picks the position: faster than fastAbove (rad/s) is the fast one of the pair, and it stays until slower than slowBelow.
-  // camel, sit, layback: in these positions she turns this fraction as far as upright for the same finger circle, so they are slower and easier to place.
-  spin: { fastAbove: 10, slowBelow: 7.5, layback: 0.6, exitSpeed: 0.5, camel: 0.55, sit: 0.6, holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 3.6, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
+  shape: { flickPx: 50, reversalPx: 22, idleMs: 110 },      // flicks, and the scribbles that are told apart from them
   // Two-finger moves: both thumbs moving together.
-  shape: { flickPx: 50, reversalPx: 22, idleMs: 110, eightTurn: 4.2 },      // flicks, scribbles and drawn shapes
   duo: { minSpeed: 110, engageMs: 70, parallelCos: 0.5, spreadPx: 80, spreadEachPx: 25, calmTurn: 3.3, settleMs: 150, freezeMs: 350 },
   // Hockey stop: both thumbs dragged down and lifted, while she moves at minSpeed or more. (The same drag held down is a hydroblade.)
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
   stop: { minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
-  twirl: { startTurn: 3.1, afterLeapMs: 3000 },      // a circle is twizzles for afterLeapMs after a split leap; any other time it is a spin
+  twirl: { startTurn: 3.1, afterLeapMs: 3000 },      // a circle is twizzles for afterLeapMs after a split leap; any other time it is part of choreography
   // Choreography: the right thumb dragged, that is, still moving dragMs after it first moved and at least dragPx along (longer than any flick).
   // A thumb simply held for holdMs starts it too, and so does one still down afterLand seconds after a jump lands, or when any other move ends.
   // It lasts while that thumb stays down. Circling turns her, turnRatio of a turn for each finger circle, following the finger at `follow` (1/s) like a rubber band: turned faster than spinIn (rad/s) she takes spin positions until slower than spinOut,
@@ -42,26 +33,23 @@ export const CFG = {
     gainRise: 3, gainFade: 4, spinDown: 1.5,
     // spinning with the left thumb not pushing, her travel speed dies away over about this many seconds
     spinCoast: 2.5 },
-  steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
-  jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
+  jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7 },
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn
-  difficulty: { 'Toe loop': 1, 'Salchow': 0.97, 'Loop': 0.93, 'Flip': 0.9, 'Lutz': 0.85, 'Inside Axel': 0.9, 'Axel': 0.88 },
+  difficulty: { 'Toe loop': 1, 'Salchow': 0.97, 'Loop': 0.93, 'Inside Axel': 0.9, 'Axel': 0.88 },
   fall: { seconds: 1.15, boostSeconds: 3, boostAccel: 3.2, repeatWindow: 5 },      // only a first fall gets help back up to speed; any fall within repeatWindow seconds of the last gets none, and restarts the wait
   // Speed beyond what steering alone can reach is earned by landing jumps: the better and bigger the jump, the more. It fades slowly and a fall loses it.
   // Every other finished move earns it too: move[0] plus move[1] for each point of the move's base value. Each m/s of it also lifts her next jump (jump.vyPerBonus).
   bonus: { perfect: 1.1, clean: 0.6, shaky: 0, perRotation: 0.45, max: 6, fade: 0.22, kick: 0.6, move: [0.3, 0.35] },
   // Points, on the scale of real figure skating: jumps carry the big base values, everything else is worth a few points at most.
   points: {
-    jumps: { 'Toe loop': [0.4, 1.3, 4.2, 9.5], 'Salchow': [0.4, 1.3, 4.3, 9.7], 'Loop': [0.5, 1.7, 4.9, 10.5], 'Flip': [0.5, 1.8, 5.3, 11.0], 'Lutz': [0.6, 2.1, 5.9, 11.5], 'Inside Axel': [1.0, 3.0, 7.5, 12.0], 'Axel': [1.1, 3.3, 8.0, 12.5] },
+    jumps: { 'Toe loop': [0.4, 1.3, 4.2, 9.5], 'Salchow': [0.4, 1.3, 4.3, 9.7], 'Loop': [0.5, 1.7, 4.9, 10.5], 'Inside Axel': [1.0, 3.0, 7.5, 12.0], 'Axel': [1.1, 3.3, 8.0, 12.5] },
     waltz: 0.3, half: 0.2, hop: 0.2, quality: { perfect: 1.3, clean: 1, shaky: 0.7 }, fall: -1,
     jumpCombo: [1, 1, 1.5, 2, 2.5], jumpComboWindow: 2.5,          // 2nd, 3rd, 4th jump in a row: one combination element, the later jumps worth more
     chainWindow: 3, artistry: 0.3,                                 // elements linked within chainWindow seconds; each new kind adds artistry x kinds so far
     // Everything that lasts: [most it can be worth, how quickly it gets there]. Value = most x (1 - e^(-amount / quickness)),
-    // so the first revolutions, steps or seconds count most and carrying on adds less and less.
-    spin: [2.0, 3], spinPosition: 1.25, spinCombination: 1.6,      // per revolution
+    // so the first turns or seconds count most and carrying on adds less and less.
     twizzles: [2.0, 2],                                            // per turn
-    steps: [3.9, 5],                                               // per step; x0.6 with one kind of step, full value with three
-    swing: [1.5, 3], spiral: [1.6, 2], eagle: [1.6, 2], hydro: [2.0, 2], dance: [3.0, 6],      // per second
+    spiral: [1.6, 2], eagle: [1.6, 2], hydro: [2.0, 2], dance: [3.0, 6],      // per second
     turn: 0.3, leap: 0.6, stop: 0.8,                               // stop: from full speed; less from slower
     entry: [[4.5, 1.5], [1.6, 1.25]],                              // a jump out of curves and figures (radians turned in the seconds before take-off) beats one from a straight run-up
     repeat: [1, 0.7, 0.5],                                         // the same element again straight away is worth less
