@@ -2,7 +2,7 @@
 //   quick double tap            -> jump; keep the second tap down and circle to rotate
 //   drag (anything longer than a flick) -> choreography (moves/dance.js) for as long as the finger stays down: its strokes set the mood,
 //                                  and circling turns her and brings out the spin positions
-//   rest the finger             -> nothing yet (kept free)
+//   finger held down            -> choreography too: any time it is down and nothing else is happening, including after a jump has landed
 //   flick up                    -> spiral, flick down -> hydroblade (each lasts at least a moment, and for as long as the finger stays down)
 //   NOT REACHABLE at present (the code is kept): the spin as a move of its own (moves/spin.js), toe pick (Flip, Lutz), and after a 'steps ready':
 //       scribble side to side   -> step sequence, one step per stroke
@@ -73,7 +73,11 @@ export function createTricks(game, taps, log) {
     // every frame: a finger that has rested is ready to spin, and a flick is read once the finger stops
     // wait: both thumbs are moving together and their shared gesture has not been read yet, so the finger's own flick holds back
     frame(t, wait) {
+      // The finger is still down with nothing going on: she dances, until it lifts. That covers a finger simply held, one kept down
+      // through a jump and its landing, and one kept down after a flick's move, a held move or a fall has run its course.
+      if (stroke && mode !== 'dance' && (mode !== 'pending' || fired) && S.grounded && !S.move && t - stroke.t0 >= CFG.dance.holdMs && (mode !== 'air' || S.landT >= CFG.dance.afterLand) && game.startMove(createDance(S, game))) { mode = 'dance'; fired = true; outcome = outcome ? outcome + '+dance' : 'dance'; return; }
       if (mode !== 'pending') return;
+      if (!wait && !fired && t >= leapUntil && t - stroke.t0 >= CFG.dance.holdMs && this.canDance() && this.dance()) return;          // a finger held longer than a tap
       // a drag: the finger has kept moving for longer than any flick, and nothing else was read from it. She starts to dance.
       // (Not while both thumbs are still drawing a shared gesture, and not straight after a split leap, when a circle means twizzles.)
       if (!wait && t >= leapUntil && stroke.path >= CFG.dance.dragPx && t - stroke.t0 - (stroke.restMs || 0) >= CFG.dance.dragMs && t - stroke.t < 120 && this.canDance() && this.dance()) return;

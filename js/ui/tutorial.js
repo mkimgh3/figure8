@@ -87,7 +87,7 @@ const MOVES = [
   ] },
   { name: 'Choreography', steps: [
     ['Skate along with your left thumb', moving],
-    ['Drag your right finger about: any stroke longer than a flick', moveIs('dance')],
+    ['Hold your right finger down, or drag it about', moveIs('dance')],
     ['Keep it moving: slow strokes are calm, quick ones sharp. The left thumb still steers', amount('dance', (st) => st.t, 3), moveIs('dance')],
     ['Now circle it: she spins. Slow circles open her out, fast ones pull her in', (c) => moveIs('dance')(c) && c.S.move.state.spin > 0, moveIs('dance')],
     ['Lift your right finger to finish', element('dance')],

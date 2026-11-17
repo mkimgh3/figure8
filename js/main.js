@@ -22,7 +22,7 @@ import { createUpdater } from './update.js';
 import { createPads, createRace } from './modes.js';
 import { createDuet } from './duet.js';
 
-const BUILD = 'v3-look24';
+const BUILD = 'v3-look25';
 let world;
 try { world = createScene(document.getElementById('c')); } catch (e) { document.getElementById('err').style.display = 'flex'; throw e; }
 const saved = save.load();

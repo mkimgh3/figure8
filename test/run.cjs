@@ -6,7 +6,7 @@ const { open } = require('./smoke.cjs');
   await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); await sleep(6000);
   let s = await st(); ok('steering builds speed and draws a line', s.kmh > 25 && s.prints > 50, s);
   await tap(2, 300, 560); await sleep(500); s = await st(); ok('single tap does not jump', s.grounded && s.jumps === 0, s);
-  await ev('pointerdown', 2, 300, 560); await sleep(700); s = await st(); ok('touch and hold does not jump', s.grounded && s.jumps === 0, s); await ev('pointerup', 2, 300, 560); await sleep(500);
+  await ev('pointerdown', 2, 300, 560); await sleep(700); s = await st(); ok('touch and hold does not jump, and starts choreography', s.grounded && s.jumps === 0 && s.move === 'dance', s); await ev('pointerup', 2, 300, 560); await sleep(500);
   await tap(2, 300, 560); await sleep(120); await ev('pointerdown', 2, 336, 560); await sleep(120); s = await st(); ok('double tap jumps', !s.grounded && s.jumps === 1, s);
   const res = await p.evaluate(() => new Promise((res) => { const c = document.getElementById('c'), g = window.__game, t0 = performance.now(); let peak = 0;
     const iv = setInterval(() => { const t = (performance.now() - t0) / 1000, a = Math.min(t * 1.6, 1) * 6.2832; c.dispatchEvent(new PointerEvent('pointermove', { pointerId: 2, clientX: 300 + Math.cos(a) * 36, clientY: 560 + Math.sin(a) * 36, pointerType: 'touch', bubbles: true }));
@@ -86,6 +86,11 @@ const { open } = require('./smoke.cjs');
   ok('each action gets a score card and the best action is tracked', card.cells === 4 && card.name2 === card.name && Math.abs(card.base + card.goe + card.art - card.pts) < 0.11 && /Best jump/.test(card.sub) && card.best >= card.pts, card);
   // spin: rest the finger, then circle
   await ev('pointerup', 1, 160, 640); await sleep(300); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); await sleep(2500);
+  // a finger kept down through a jump: she dances on from the landing until it lifts
+  { await tap(2, 300, 560); await sleep(120); await ev('pointerdown', 2, 336, 560);
+    const al = await p.evaluate(() => new Promise((res) => { const S = window.__game.S; let air = false; const iv = setInterval(() => { if (!S.grounded) air = true; if (air && S.grounded && S.move && S.move.id === 'dance') { clearInterval(iv); res({ air, move: 'dance', landT: +S.landT.toFixed(2) }); } }, 30); setTimeout(() => { clearInterval(iv); res({ air, move: S.move && S.move.id, timeout: true }); }, 9000); }));
+    ok('a finger kept down through a jump starts choreography after the landing', al.air && al.move === 'dance' && !al.timeout, al);
+    await ev('pointerup', 2, 336, 560); await sleep(1500); s = await st(); ok('lifting it ends the choreography', s.move === null, s); await sleep(2500); }
   // bad landing -> fall -> back up
   await ev('pointermove', 1, 220, 590); await sleep(3500);
   await p.evaluate(() => { const g = window.__game; g.game.jump(false); g.game.airRotate(1.25 * 6.2832); }); await sleep(1800); s = await st(); ok('a quarter-turn-off landing is a fall', /fall/i.test(s.pop) && s.move === 'fall', s);
