@@ -1,5 +1,5 @@
 {
- "build": "v3-look28",
+ "build": "v3-look29",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -42,6 +42,7 @@
   "js/render/avatar.js",
   "js/render/hair.js",
   "js/render/ice.js",
+  "js/render/icicles.js",
   "js/render/islands.js",
   "js/render/model.js",
   "js/render/poses.js",

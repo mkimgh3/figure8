@@ -41,16 +41,21 @@ const SPIN_FAST = [
   { lean: 0, fL: 0, lLx: -0.55, lLk: 1.1, lLz: 0.15, aLz: 0.45, aRz: -0.45, aLx: -0.75, aRx: -0.75, aLe: -2.0, aRe: -2.0 },                                         // scratch: arms and free leg pulled in
   { lean: 0, fL: 0, lLx: -0.3, lLk: 1.3, lLz: 0.12, aLz: -2.7, aRz: 2.7, aLx: 0, aRx: 0, aLe: -0.3, aRe: -0.3 },                                                    // arms stretched overhead
 ];
+// Which poses she draws on. Thumbs moving together: the long, open, travelling shapes. Thumbs going their own ways: the twisted, closed, contrasting ones.
+// One thumb alone: any of them. Spinning: counter-clockwise takes the camel and then the scratch spin, clockwise the layback or attitude and then arms overhead.
+const PICK = { calm: { 1: [0, 1, 4, 5, 8], '-1': [2, 3, 4, 6, 7] }, sharp: { 1: [0, 3, 4, 7], '-1': [1, 2, 5, 6, 8] }, slow: { 1: [0], '-1': [1, 2] }, fast: { 1: [0], '-1': [1] } };
 const full = (p) => Object.assign({}, N, p);
 const mirror = (p) => Object.assign({}, p, { roll: -p.roll, yaw: -p.yaw, fL: p.fR, fR: p.fL, aLx: p.aRx, aRx: p.aLx, aLz: -p.aRz, aRz: -p.aLz, aLe: p.aRe, aRe: p.aLe, lLx: p.lRx, lRx: p.lLx, lLz: -p.lRz, lRz: -p.lLz, lLk: p.lRk, lRk: p.lLk });
 
 export function createDance(S, api) {
-  const K = CFG.dance, st = { t: 0, held: true, rel: 0, mood: 0.2, moodSum: 0, idle: 0, poses: 0, rate: 0, spin: 0, turns: 0 };
-  const cur = full({}), from = full({}), out = {}; let to = full({}), u = 1, dur = 1, hold = 0, snap = false, last = -1, facing = 0, begun = false, beat = 0, turnGoal = 0, turned = 0, lastGoal = 0, inSpin = false, spinSet = 0;
+  const K = CFG.dance, st = { t: 0, held: true, rel: 0, mood: 0.2, moodSum: 0, idle: 0, poses: 0, rate: 0, spin: 0, turns: 0, dir: 0, tog: 0, weave: 0 };
+  const cur = full({}), from = full({}), out = {}; let to = full({}), u = 1, dur = 1, hold = 0, snap = false, last = -1, facing = 0, begun = false, beat = 0, turnGoal = 0, turned = 0, lastGoal = 0, inSpin = false, spinSet = 0, dirSet = 1, togSet = 0;
   // the first pose is always a calm one, grown out of her skating
   function next(sharp) {
     for (const k of KEYS) from[k] = cur[k];
-    inSpin = st.spin > 0; snap = !inSpin && st.poses > 0 && (sharp || Math.random() < st.mood); const set = inSpin ? (st.spin > 1 ? SPIN_FAST : SPIN_SLOW) : snap ? SHARP : CALM; spinSet = st.spin; let i = Math.floor(Math.random() * set.length); if (i === last) i = (i + 1) % set.length; last = i;
+    inSpin = st.spin > 0; snap = !inSpin && st.poses > 0 && (sharp || Math.random() < st.mood); const set = inSpin ? (st.spin > 1 ? SPIN_FAST : SPIN_SLOW) : snap ? SHARP : CALM; spinSet = st.spin; dirSet = st.dir >= 0 ? 1 : -1; togSet = st.tog > 0.4 ? 1 : st.tog < -0.4 ? -1 : 0;
+    const ids = (inSpin ? PICK[st.spin > 1 ? 'fast' : 'slow'][dirSet] : PICK[snap ? 'sharp' : 'calm'][togSet]) || set.map((_, k) => k);
+    let i = ids[Math.floor(Math.random() * ids.length)]; if (i === last && ids.length > 1) i = ids[(ids.indexOf(i) + 1) % ids.length]; last = i;
     to = full(set[i]); if (Math.random() < 0.5) to = mirror(to);
     // she keeps turning as she dances: each pose faces a little further round, and now and then she turns right about
     facing += inSpin ? 0 : st.poses === 0 ? to.yaw * 0.4 : to.yaw + (Math.random() < (snap ? 0.15 : 0.25) ? (Math.random() < 0.5 ? -Math.PI : Math.PI) : 0); to.yaw = facing;
@@ -62,8 +67,10 @@ export function createDance(S, api) {
   return { id: 'dance', steer: 1, accel: K.accel, state: st,
     start() {},          // no banner and no jolt: dancing is simply how she skates while the finger is down
     release() { st.held = false; },
-    // called every frame with the right thumb's speed (px/s): slow strokes are calm, quick ones sharp
-    feed(sb, dt) {
+    // called every frame with the right thumb's speed (px/s): slow strokes are calm, quick ones sharp. sa is the left thumb's speed and
+    // cos how alike the two thumbs' directions are; from them, tog drifts toward 1 while they move together, -1 while they move apart, 0 with one alone
+    feed(sb, dt, sa, cos) {
+      st.tog += ((sa > K.moveSpeed && sb > K.moveSpeed ? (cos > 0.3 ? 1 : -1) : 0) - st.tog) * (1 - Math.exp(-2 * dt));
       st.mood += (clamp((sb - K.calmPx) / (K.sharpPx - K.calmPx), 0, 1) - st.mood) * (1 - Math.exp(-1.6 * dt)); },
     // the right thumb circling turns her, as far as it circles; she follows it on a short rubber band
     rotate(d) { turnGoal += d * K.turnRatio; },
@@ -74,9 +81,11 @@ export function createDance(S, api) {
       { const v = api.speed(); if (v < K.glide) { const nv = Math.min(K.glide, v + 2.5 * dt); if (v > 0.05) { S.vx *= nv / v; S.vz *= nv / v; } else { S.vx = Math.sin(S.facing) * nv; S.vz = Math.cos(S.facing) * nv; } } }
       if (S.mag < 0.15) api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt * Math.min(1, st.t / 1.5));
       // how fast the finger is turning her (rad/s): 0 not spinning, 1 a slow spin, 2 a fast one, with a gap between going in and coming out
-      st.rate += (Math.abs(turnGoal - lastGoal) / Math.max(dt, 1e-3) - st.rate) * (1 - Math.exp(-3 * dt)); st.turns += Math.abs(turnGoal - lastGoal); lastGoal = turnGoal;
+      st.rate += (Math.abs(turnGoal - lastGoal) / Math.max(dt, 1e-3) - st.rate) * (1 - Math.exp(-3 * dt)); st.dir += ((turnGoal - lastGoal) / Math.max(dt, 1e-3) - st.dir) * (1 - Math.exp(-3 * dt)); st.turns += Math.abs(turnGoal - lastGoal); lastGoal = turnGoal;
+      // spinning along a straight path, her blade weaves like a twizzle; on a curve the line stays clean
+      st.weave += ((st.spin > 0 ? 1 - clamp(Math.abs(S.turn) / 0.8, 0, 1) : 0) - st.weave) * (1 - Math.exp(-3 * dt));
       st.spin = st.rate > K.spinFast ? 2 : st.rate > (st.spin ? K.spinOut : K.spinIn) ? (st.spin === 2 && st.rate > K.spinFast * 0.75 ? 2 : 1) : 0;
-      if (begun && st.held && st.spin !== spinSet) next();                                           // into a spin, out of one, or from the open shape to the tight one
+      if (begun && st.held && (st.spin !== spinSet || (st.spin > 0 && u >= 1 && (st.dir >= 0 ? 1 : -1) !== dirSet))) next();                                           // into a spin, out of one, or from the open shape to the tight one
       else if (begun && st.held && !inSpin && !snap && st.mood > 0.6) next(true);                                   // the thumbs have turned sharp: she breaks off the slow gesture at once
       else if (u < 1) u = Math.min(1, u + dt / dur); else if (begun && (hold -= dt) <= 0 && st.held) next();
       // calm poses ease in and out; sharp ones hit and stop
@@ -86,7 +95,7 @@ export function createDance(S, api) {
     end() { S.flipYaw = wrap(cur.yaw + turned); S.flipK = 2.6;         // her body eases back round to face the way she is going
       const m = st.t > 0 ? st.moodSum / st.t : 0;
       api.emit('element', { kind: 'dance', name: 'Choreography', detail: st.t.toFixed(1) + ' seconds, ' + (m < 0.33 ? 'flowing' : m > 0.6 ? 'sharp' : 'mixed') + (st.turns > 9 ? ', ' + (st.turns / 6.2832).toFixed(1) + ' turns' : ''), base: dimin(CFG.points.dance[0], st.t, CFG.points.dance[1]), counted: st.t >= K.minScore }); },
-    blade(o) { o.width = 1.3; },
+    blade(o, yaw) { o.width = 1.3; if (st.weave > 0.02) { const r = Math.min(0.45, 0.33 * api.speed() / Math.max(st.rate, 2)) * st.weave; o.x += Math.sin(yaw) * r; o.z += Math.cos(yaw) * r; } },
     pose(T, kit) {
       if (!begun) { begun = true; for (const k of KEYS) if (k in T) cur[k] = T[k]; cur.dy = T.bodyY - kit.HIP; cur.yaw = 0; next(); }      // the first pose grows out of however she was skating
       // on top of the pose: a slow sway when calm, a bounce on the beat when sharp

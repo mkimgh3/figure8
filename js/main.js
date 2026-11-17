@@ -12,6 +12,7 @@ import { createPoser } from './render/poses.js';
 import { createTrace, PALETTES } from './render/trace.js';
 import { createRing } from './render/ring.js';
 import { createSpray } from './render/spray.js';
+import { createIcicles } from './render/icicles.js';
 import { createIslands } from './render/islands.js';
 import { createHud } from './ui/hud.js';
 import { createTutorial } from './ui/tutorial.js';
@@ -22,11 +23,11 @@ import { createUpdater } from './update.js';
 import { createPads, createRace } from './modes.js';
 import { createDuet } from './duet.js';
 
-const BUILD = 'v3-look28';
+const BUILD = 'v3-look29';
 let world;
 try { world = createScene(document.getElementById('c')); } catch (e) { document.getElementById('err').style.display = 'flex'; throw e; }
 const saved = save.load();
-const hud = createHud(world.coarse), log = createLog(BUILD), trace = createTrace(world.scene), ring = createRing(world.scene), spray = createSpray(world.scene), forest = createIslands(world.scene), models = createModels(world.scene);
+const hud = createHud(world.coarse), log = createLog(BUILD), trace = createTrace(world.scene), ring = createRing(world.scene), spray = createSpray(world.scene), icicles = createIcicles(world.scene), forest = createIslands(world.scene), models = createModels(world.scene);
 // Tesa's realistic body loads in the background; until it arrives the simple figure stands in
 // Each skater's realistic body (Microsoft Rocketbox avatars, MIT licence) loads in the background; until it arrives the simple figure stands in.
 const avU = { uTime: { value: 0 }, uSparkle: { value: 1 } }, avatars = [null, null];
@@ -54,7 +55,7 @@ let dirty = false;
 const showScore = () => hud.score(score.state);
 const tutorial = createTutorial();
 let placeIx = 0, lookIx = 0;
-const setLook = (i) => { lookIx = ((i % CFG.looks.length) + CFG.looks.length) % CFG.looks.length; world.setLook(CFG.looks[lookIx]); trace.glow(CFG.looks[lookIx].lineGlow || 1); trace.punch(CFG.looks[lookIx].linePunch || 1, CFG.looks[lookIx].lineWide || 1); avatars.forEach((a) => a && a.night(CFG.looks[lookIx].night ? 1 : 0)); duet.night(CFG.looks[lookIx].night ? 1 : 0); hud.text('timename', CFG.looks[lookIx].name); };
+const setLook = (i) => { lookIx = ((i % CFG.looks.length) + CFG.looks.length) % CFG.looks.length; world.setLook(CFG.looks[lookIx]); trace.glow(CFG.looks[lookIx].lineGlow || 1); trace.punch(CFG.looks[lookIx].linePunch || 1, CFG.looks[lookIx].lineWide || 1); avatars.forEach((a) => a && a.night(CFG.looks[lookIx].night ? 1 : 0)); duet.night(CFG.looks[lookIx].night ? 1 : 0); icicles.strength = CFG.looks[lookIx].night ? 1 : 0.75; hud.text('timename', CFG.looks[lookIx].name); };
 const showGfx = () => hud.text('gfxname', world.qualityName);
 const setPlace = (i) => { placeIx = ((i % CFG.places.length) + CFG.places.length) % CFG.places.length; const p = CFG.places[placeIx]; world.setPlace(p); forest.set(p.trees); hud.text('placename', p.name); };
 
@@ -151,7 +152,7 @@ function frame(now) {
     if (blade.double) { blade.x += px; blade.z += pz; }
     const dashed = !S.grounded || (!blade.pen && S.visY > 0.05);
     trace.follow(S, blade.x, blade.z, blade.width, blade.pen || dashed, dashed);
-    if (trace.count !== before) { dirty = true; if (blade.double) trace.place(S.x - px, S.z - pz, S.facing, trace.colorAt(S.skated), 1); }       // spread eagle: both blades draw
+    if (trace.count !== before) { dirty = true; if (S.grounded && blade.pen) icicles.trail(blade.x, blade.z, trace.colorAt(S.skated)); if (blade.double) trace.place(S.x - px, S.z - pz, S.facing, trace.colorAt(S.skated), 1); }       // spread eagle: both blades draw
     if (!S.grounded) { const r = Math.abs(S.spin) / TAU; if (r > 0.3) hud.say(r.toFixed(1) + '×', game.liveName(), 0.25); }
     hud.combo(score.chainLeft()); tutorial.tick(dt, { S, speed: game.speed(), armed: tricks.armed, rhythm: tricks.rhythm(now)[0], now }); { const r = tricks.rhythm(now); hud.rhythm(r[0], r[1]); }
     // a shore turns her along it: she keeps the speed that runs along the coast and loses what was heading inland
@@ -169,7 +170,7 @@ function frame(now) {
     // drifting snow hangs in the air ahead of her; the faster she goes, the more of it whips past
     if (sp > 6) { const n = (sp - 6) * 5 * dt, ux = S.vx / sp, uz = S.vz / sp; for (let k = Math.floor(n) + (Math.random() < n % 1 ? 1 : 0); k > 0; k--) { const f = 5 + Math.random() * 13, w = (Math.random() - 0.5) * 18; spray.mote(S.x + ux * f - uz * w, 0.3 + Math.random() * 2.6, S.z + uz * f + ux * w, 1.3); }
       if (S.grounded && sp > 9 && Math.random() < dt * 30) spray.emit(blade.x, blade.z, -S.vx, -S.vz, 1, 1.4, 0.8); }
-    spray.update(dt); fAcc += dt; fN++; if (fAcc >= 3) { world.adapt(fN / fAcc); showGfx(); fAcc = 0; fN = 0; }
+    spray.update(dt); icicles.update(dt); fAcc += dt; fN++; if (fAcc >= 3) { world.adapt(fN / fAcc); showGfx(); fAcc = 0; fN = 0; }
     pose(game, dt, now);
     avatar = avatars[models.index];
     if (avatar && avatar.visible) { const spinRate = (S.move && S.move.spinRate ? S.move.spinRate() : 0) + (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20);

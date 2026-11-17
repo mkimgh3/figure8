@@ -31,6 +31,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #joy { position: fixed; left: 0; top: 0; width: 132px; height: 132px; margin: -66px 0 0 -66px; border-radius: 50%; border: 1.5px solid rgba(22,38,63,.35); background: rgba(22,38,63,.06); display: none; pointer-events: none; }
 #knob { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(22,38,63,.45); }
 /* the ring under the trick finger: thin and bright; solid and larger once a spin is ready */
+#pad, #pad.armed { display: none !important; }      /* no ring under the right thumb: whatever it does there is simply her dancing */
 #pad { position: fixed; left: 0; top: 0; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; display: none; pointer-events: none; box-sizing: border-box; border: 1.5px solid rgba(255,255,255,.95); box-shadow: 0 0 10px rgba(120,190,255,.75), inset 0 0 8px rgba(255,255,255,.5); will-change: transform; }
 #pad.armed { width: 84px; height: 84px; margin: -42px 0 0 -42px; border-width: 3px; border-color: #fff; background: rgba(125,240,196,.22); box-shadow: 0 0 18px rgba(125,240,196,.95), inset 0 0 12px rgba(255,255,255,.7); }
 

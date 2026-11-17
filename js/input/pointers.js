@@ -52,6 +52,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     if (e.pointerId === steer.id && view.zoomed) {                                             // zoomed out: one finger drags the view around
       view.px -= (e.clientX - steer.cx) / view.ppm; view.pz -= (e.clientY - steer.cy) / view.ppm; steer.cx = e.clientX; steer.cy = e.clientY; steer.moved = true; return; }
     if (e.pointerId === steer.id) {
+      { const dtv = Math.max(1, now - (steer.mt || now - 16)), kv = 1 - Math.exp(-dtv / 60); steer.vx = (steer.vx || 0) + ((e.clientX - steer.cx) / dtv * 1000 - (steer.vx || 0)) * kv; steer.vy = (steer.vy || 0) + ((e.clientY - steer.cy) / dtv * 1000 - (steer.vy || 0)) * kv; steer.mt = now; }      // how the left thumb is moving, px/s
       steer.cx = e.clientX; steer.cy = e.clientY; if (left) left.add(e.clientX, e.clientY, now);
       if (!steer.frozen) { let dx = e.clientX - steer.ox, dy = e.clientY - steer.oy; const l = Math.hypot(dx, dy);
         if (l > T.maxMovePx) steer.moved = true; if (l > R) { dx *= R / l; dy *= R / l; }
@@ -82,7 +83,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     frame(now) { const fdt = Math.min(100, now - (lastF || now)); lastF = now;
       if (trickId === null) return; if (duo && tricks.canDuo()) duoEvent(duo.settle(now));
       // Choreography (started by resting the right thumb, see tricks.js): the left thumb goes on steering her; the right thumb's motion sets the mood and its circling turns her.
-      if (tricks.stroke && dancing()) game.S.move.feed(tricks.stroke.speedAt(now), fdt / 1000);
+      if (tricks.stroke && dancing()) { const b = tricks.stroke, sb = b.speedAt(now), sa = steer.id !== null && now - (steer.mt || 0) < 110 ? Math.hypot(steer.vx || 0, steer.vy || 0) : 0;
+        game.S.move.feed(sb, fdt / 1000, sa, sa > 1 && sb > 1 ? (steer.vx * b.vx + steer.vy * b.vy) / (sa * sb) : 0); }
       // steering is live again, from where it was, once the left thumb settles, or after a short grace even if it never
       // goes still (a thumb on glass always jitters, and the spiral or hydroblade is held with the right thumb down)
       if (steer.frozen && left && (now - left.t > CFG.duo.settleMs || now - steer.frozenAt > CFG.duo.freezeMs)) unfreeze();
