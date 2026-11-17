@@ -47,29 +47,32 @@ const mirror = (p) => Object.assign({}, p, { roll: -p.roll, yaw: -p.yaw, fL: p.f
 export function createDance(S, api) {
   const K = CFG.dance, st = { t: 0, held: true, rel: 0, mood: 0.2, moodSum: 0, idle: 0, poses: 0, rate: 0, spin: 0, turns: 0 };
   const cur = full({}), from = full({}), out = {}; let to = full({}), u = 1, dur = 1, hold = 0, snap = false, last = -1, facing = 0, begun = false, beat = 0, turnGoal = 0, turned = 0, lastGoal = 0, inSpin = false, spinSet = 0;
+  // the first pose is always a calm one, grown out of her skating
   function next(sharp) {
     for (const k of KEYS) from[k] = cur[k];
-    inSpin = st.spin > 0; snap = !inSpin && (sharp || Math.random() < st.mood); const set = inSpin ? (st.spin > 1 ? SPIN_FAST : SPIN_SLOW) : snap ? SHARP : CALM; spinSet = st.spin; let i = Math.floor(Math.random() * set.length); if (i === last) i = (i + 1) % set.length; last = i;
+    inSpin = st.spin > 0; snap = !inSpin && st.poses > 0 && (sharp || Math.random() < st.mood); const set = inSpin ? (st.spin > 1 ? SPIN_FAST : SPIN_SLOW) : snap ? SHARP : CALM; spinSet = st.spin; let i = Math.floor(Math.random() * set.length); if (i === last) i = (i + 1) % set.length; last = i;
     to = full(set[i]); if (Math.random() < 0.5) to = mirror(to);
     // she keeps turning as she dances: each pose faces a little further round, and now and then she turns right about
-    facing += inSpin ? 0 : to.yaw + (Math.random() < (snap ? 0.15 : 0.25) ? (Math.random() < 0.5 ? -Math.PI : Math.PI) : 0); to.yaw = facing;
+    facing += inSpin ? 0 : st.poses === 0 ? to.yaw * 0.4 : to.yaw + (Math.random() < (snap ? 0.15 : 0.25) ? (Math.random() < 0.5 ? -Math.PI : Math.PI) : 0); to.yaw = facing;
     u = 0; st.poses++;
     if (inSpin) { dur = 0.55 + Math.random() * 0.25; hold = 1.2 + Math.random() * 1.4; }
     else if (snap) { dur = 0.12 + Math.random() * 0.08; hold = (0.2 + Math.random() * 0.3) * (1.4 - 0.6 * st.mood); }
     else { dur = (1.1 + Math.random() * 0.9) * (1.25 - 0.6 * st.mood); hold = 0.25 + Math.random() * 0.8; }
   }
   return { id: 'dance', steer: 1, accel: K.accel, state: st,
-    start() { api.ensureSpeed(3.5); },          // no banner: dancing is simply how she skates while the finger is down
+    start() {},          // no banner and no jolt: dancing is simply how she skates while the finger is down
     release() { st.held = false; },
     // called every frame with the right thumb's speed (px/s): slow strokes are calm, quick ones sharp
     feed(sb, dt) {
       st.mood += (clamp((sb - K.calmPx) / (K.sharpPx - K.calmPx), 0, 1) - st.mood) * (1 - Math.exp(-1.6 * dt)); },
     // the right thumb circling turns her, as far as it circles; she follows it on a short rubber band
-    rotate(d) { turnGoal += d; },
+    rotate(d) { turnGoal += d * K.turnRatio; },
     update(dt) {
-      st.t += dt; st.moodSum += st.mood * dt; api.ensureSpeed(2.6); beat += dt * (2.2 + 3.8 * st.mood) * Math.PI;
+      st.t += dt; st.moodSum += st.mood * dt; beat += dt * (2.2 + 3.8 * st.mood) * Math.PI;
       // she goes where the thumbs steer her and picks up speed as they push, and drifts along a lazy winding path when they don't
-      if (S.mag < 0.15) api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt);
+      // if she is nearly standing she is eased up to a gentle glide, never set moving at a stroke
+      { const v = api.speed(); if (v < K.glide) { const nv = Math.min(K.glide, v + 2.5 * dt); if (v > 0.05) { S.vx *= nv / v; S.vz *= nv / v; } else { S.vx = Math.sin(S.facing) * nv; S.vz = Math.cos(S.facing) * nv; } } }
+      if (S.mag < 0.15) api.rotateVel(Math.sin(st.t * 0.8) * 0.55 * dt * Math.min(1, st.t / 1.5));
       // how fast the finger is turning her (rad/s): 0 not spinning, 1 a slow spin, 2 a fast one, with a gap between going in and coming out
       st.rate += (Math.abs(turnGoal - lastGoal) / Math.max(dt, 1e-3) - st.rate) * (1 - Math.exp(-3 * dt)); st.turns += Math.abs(turnGoal - lastGoal); lastGoal = turnGoal;
       st.spin = st.rate > K.spinFast ? 2 : st.rate > (st.spin ? K.spinOut : K.spinIn) ? (st.spin === 2 && st.rate > K.spinFast * 0.75 ? 2 : 1) : 0;
@@ -78,7 +81,7 @@ export function createDance(S, api) {
       else if (u < 1) u = Math.min(1, u + dt / dur); else if (begun && (hold -= dt) <= 0 && st.held) next();
       // calm poses ease in and out; sharp ones hit and stop
       const e = snap ? 1 - Math.pow(1 - u, 3) : u * u * u * (u * (u * 6 - 15) + 10); for (const k of KEYS) cur[k] = from[k] + (to[k] - from[k]) * e;
-      turned += (turnGoal - turned) * (1 - Math.exp(-7 * dt)); S.yawX = cur.yaw + turned;
+      turned += (turnGoal - turned) * (1 - Math.exp(-K.follow * dt)); S.yawX = cur.yaw + turned;          // the rubber band: she trails the finger a little and eases to a stop after it
       if (!st.held) { st.rel += dt; return st.rel < 0.35; } return true; },
     end() { S.flipYaw = wrap(cur.yaw + turned); S.flipK = 2.6;         // her body eases back round to face the way she is going
       const m = st.t > 0 ? st.moodSum / st.t : 0;
@@ -89,5 +92,5 @@ export function createDance(S, api) {
       // on top of the pose: a slow sway when calm, a bounce on the beat when sharp
       for (const k of KEYS) if (k !== 'dy' && k !== 'yaw') out[k] = cur[k];
       out.bodyY = kit.HIP + cur.dy - 0.04 * st.mood * Math.abs(Math.sin(beat)); out.roll = cur.roll + 0.07 * (1 - st.mood) * Math.sin(st.t * 1.1); out.side = 0;
-      kit.set(out); return 14 + 14 * st.mood; } };
+      kit.set(out); return 4 + (10 + 14 * st.mood) * Math.min(1, st.t / 0.9); } };          // the joints take up the dance gradually over the first moment
 }

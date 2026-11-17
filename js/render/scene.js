@@ -27,9 +27,11 @@ export function createScene(canvas) {
   const composer = new EffectComposer(renderer, rt), bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.5, 1.8);
   composer.addPass(new RenderPass(scene, camera)); composer.addPass(bloom); composer.addPass(new OutputPass());
   let glowOn = false;
-  const resize = () => { const w = window.innerWidth, h = window.innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  // sized from the canvas as it is laid out, which on a phone can be taller than the window reports
+  const resize = () => { const el = renderer.domElement, w = el.clientWidth || window.innerWidth, h = el.clientHeight || window.innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     composer.setPixelRatio(ratio); composer.setSize(w, h); bloom.setSize(Math.round(w * ratio / 2), Math.round(h * ratio / 2)); };
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 300)); if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+  setTimeout(resize, 300); setTimeout(resize, 1200);
 
   const ice = createIce(renderer); scene.add(ice.mesh);
   const sky = createSky(renderer), atmos = createAtmos(scene);

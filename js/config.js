@@ -31,12 +31,12 @@ export const CFG = {
   twirl: { startTurn: 3.1, afterLeapMs: 3000 },      // a circle is twizzles for afterLeapMs after a split leap; any other time it is a spin
   // Choreography: the right thumb dragged, that is, still moving dragMs after it first moved and at least dragPx along (longer than any flick).
   // A thumb simply held for holdMs starts it too, and so does one still down afterLand seconds after a jump lands, or when any other move ends.
-  // It lasts while that thumb stays down. Circling turns her: turned faster than spinIn (rad/s) she takes spin positions until slower than spinOut,
+  // It lasts while that thumb stays down. Circling turns her, turnRatio of a turn for each finger circle, following the finger at `follow` (1/s) like a rubber band: turned faster than spinIn (rad/s) she takes spin positions until slower than spinOut,
   // the open ones (camel, layback, attitude) below spinFast and the tight ones (scratch, arms overhead) above it. Its speed,
   // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street, and its circling turns her. It ends when
   // either thumb lifts, and scores once it has lasted minScore seconds.
   // While she dances the left thumb still steers and speeds her up, at `accel` times the usual rate.
-  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8, dragMs: 280, dragPx: 30, holdMs: 300, afterLand: 0.3, spinIn: 3.5, spinOut: 2, spinFast: 8 },
+  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8, dragMs: 280, dragPx: 30, holdMs: 300, afterLand: 0.3, spinIn: 2.2, spinOut: 1.3, spinFast: 5, turnRatio: 0.5, follow: 3.5, glide: 2.6 },
   steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn

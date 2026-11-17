@@ -4,9 +4,10 @@
 :root { --ink: #16263f; --paper: rgba(255,255,255,.86); --line: rgba(22,38,63,.22); --accent: #1f6fd6; --card: #07090d;
   --st: max(12px, env(safe-area-inset-top)); --sr: max(12px, env(safe-area-inset-right)); --sb: max(12px, env(safe-area-inset-bottom)); --sl: max(12px, env(safe-area-inset-left)); }
 [hidden] { display: none !important; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #dbe9f6; overscroll-behavior: none; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #2c4c88; overscroll-behavior: none; }
 body { font-family: ui-rounded, "Avenir Next", "Segoe UI", system-ui, sans-serif; color: var(--ink); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+/* The ice fills the whole screen, under the status bar and the home indicator too. On a Home Screen copy the page's own height can stop short of the bottom edge, so the canvas is pinned to the screen instead of the page. */
+canvas { display: block; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; height: 100lvh; touch-action: none; }
 .hud { position: fixed; pointer-events: none; }
 button { font: inherit; color: var(--ink); border: 1.5px solid var(--line); background: var(--paper); border-radius: 22px; min-height: 44px; padding: 0 16px; font-size: 13px; font-weight: 650; cursor: pointer; box-shadow: 0 2px 10px rgba(30,60,110,.14); display: flex; align-items: center; gap: 8px; }
 button:active { background: #d6e3f1; }
