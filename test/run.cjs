@@ -26,8 +26,11 @@ const { open } = require('./smoke.cjs');
   const R = (pts) => [{ id: 2, pts, down: true, up: true }];
   const calm = async () => { await sleep(3200); };
   await ev('pointermove', 1, 160, 640); await sleep(2500);
-  let seen = await play(R(circle(300, 560, 36, 2.2, 90))); s = await st(); ok('a circle drawn straight away is twizzles, not a spin', seen.includes('twirl') && !seen.includes('spin'), seen); await sleep(700); { const tb = await p.evaluate(() => [window.__game.S.bonus, window.__game.S.move && window.__game.S.move.id]); ok('finishing a move leaves her a speed bonus', tb[0] > 0.1 && tb[1] === null, tb); } await calm();
-  seen = await play(R(line(300, 560, 380, 556, 6))); ok('flick right is a split leap', seen.includes('leap'), seen); await calm(); await ev('pointermove', 1, 100, 700); await sleep(1500); const b0 = (await st()).back; seen = await play(R(line(380, 560, 300, 556, 6))); await sleep(600); ok('flick left across her travel is a three-turn that swaps direction', seen.includes('turn') && (await st()).back !== b0, seen); await ev('pointermove', 1, 160, 640); await calm();
+  let seen = await play(R(circle(300, 560, 36, 2.2, 90))); s = await st(); ok('a circle is a spin, not twizzles', seen.includes('spin') && !seen.includes('twirl'), seen);
+  { const tb = await p.evaluate(() => new Promise((res) => { const S = window.__game.S, iv = setInterval(() => { if (!S.move) { clearInterval(iv); res([+S.bonus.toFixed(2), null]); } }, 30); setTimeout(() => { clearInterval(iv); res([S.bonus, S.move && S.move.id]); }, 7000); })); ok('finishing a move leaves her a speed bonus', tb[0] > 0.1 && tb[1] === null, tb); }
+  const resteer = async () => { await ev('pointerup', 1, 160, 640); await sleep(100); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); }; await resteer(); await calm();
+  seen = await play(R(line(300, 560, 380, 556, 6))); ok('flick right is a split leap', seen.includes('leap'), seen);
+  seen = await play(R(circle(300, 560, 36, 2.2, 90))); ok('a circle straight after a split leap is twizzles', seen.includes('twirl') && !seen.includes('spin'), seen); await calm(); await ev('pointermove', 1, 100, 700); await sleep(1500); const b0 = (await st()).back; seen = await play(R(line(380, 560, 300, 556, 6))); await sleep(600); ok('flick left across her travel is a three-turn that swaps direction', seen.includes('turn') && (await st()).back !== b0, seen); await ev('pointermove', 1, 160, 640); await calm();
   seen = await play(R(line(300, 600, 296, 500, 6))); await sleep(100); const rd = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rhythm').classList.contains('on'), document.getElementById('rlabel').textContent]); ok('flick up makes a step sequence ready and shows the bar', rd[0] === 1 && rd[1] && rd[2] === 'Steps ready' && !seen.includes('spiral'), { seen, rd });
   seen = await play(R(line(300, 500, 304, 600, 6))); await sleep(100); const toe = await p.evaluate(() => [window.__game.tricks.rhythm(performance.now())[0], document.getElementById('rlabel').textContent]); ok('flick down readies the toe pick and says so', toe[0] === 3 && toe[1] === 'Toe pick ready' && !seen.includes('hydro'), { seen, toe });
   const fl = await p.evaluate(() => new Promise((res) => { const g = window.__game, c = document.getElementById('c'), E = (t, x, y) => c.dispatchEvent(new PointerEvent(t, { pointerId: 2, clientX: x, clientY: y, pointerType: 'touch', bubbles: true }));
@@ -49,7 +52,7 @@ const { open } = require('./smoke.cjs');
   s = await p.evaluate(() => ({ total: window.__game.score.state.total, n: window.__game.score.state.list.length, top: document.getElementById('total').textContent })); ok('moves score points and the score shows them', s.total > 2 && s.n >= 5 && Math.abs(+s.top - s.total) < 0.05, s);
   seen = await play([{ id: 1, pts: line(160, 640, 160, 560, 7) }, { id: 2, pts: line(300, 640, 300, 560, 7), down: true, up: true }]); ok('both thumbs swiping up are a spiral', seen.includes('spiral') && !seen.includes('stop'), { seen, last: await p.evaluate(() => { const l = JSON.parse(window.__game.log.text()).strokes.slice(-1)[0]; return { read: l.read, ms: l.ms, duo: l.duo }; }) }); await calm(); await ev('pointermove', 1, 160, 640); await sleep(500);
   seen = await play([{ id: 1, pts: line(160, 600, 160, 680, 7) }, { id: 2, pts: line(300, 600, 300, 680, 7), down: true, up: false }]); await sleep(500); { const hm = await p.evaluate(() => window.__game.S.move && window.__game.S.move.id); ok('both thumbs swiped down and held are a hydroblade', hm === 'hydro' && !seen.includes('stop'), { seen, hm }); } await ev('pointerup', 2, 300, 680); await calm(); await ev('pointermove', 1, 160, 640);
-  seen = await play([{ id: 1, pts: circle(130, 620, 42, 2.2, 150) }, { id: 2, pts: circle(300, 600, 42, 2.2, 150), down: true, up: true }]); ok('circling both thumbs is no longer a spiral or a hydroblade', !seen.includes('spiral') && !seen.includes('hydro'), seen); await calm(); await ev('pointermove', 1, 160, 640); await sleep(500);
+  seen = await play([{ id: 1, pts: circle(130, 620, 42, 2.2, 150) }, { id: 2, pts: circle(300, 600, 42, 2.2, 150), down: true, up: true }]); ok('circling both thumbs is no longer a spiral or a hydroblade', !seen.includes('spiral') && !seen.includes('hydro'), seen); await sleep(3500); await resteer(); await calm(); await ev('pointermove', 1, 160, 640); await sleep(500);
   // the spiral is held with the right thumb down while the left thumb jitters on the glass: steering must come back anyway
   { const lc = line(160, 640, 160, 560, 7).concat(Array.from({ length: 20 }, () => [160, 560])), e0 = lc[lc.length - 1], jit = Array.from({ length: 50 }, (_, i) => [e0[0] + (i % 2 ? 6 : -6), e0[1]]);
     seen = await play([{ id: 1, pts: lc.concat(jit) }, { id: 2, pts: line(300, 640, 300, 560, 7), down: true, up: false }]);
@@ -72,10 +75,10 @@ const { open } = require('./smoke.cjs');
     ok('both thumbs dragged down and lifted are a hockey stop: she halts and it scores', seen.includes('stop') && hs.name === 'Hockey stop' && hs.pts > 0 && hs.low < 0.3, { seen, w, hs }); await ev('pointermove', 1, 160, 640); await sleep(2500); }
   // choreography: both thumbs kept moving without lifting; slow matching strokes are calm, quick scattered ones sharp
   { await calm(); const wave = (x, y, ax, ay, n, per, ph) => Array.from({ length: n + 1 }, (_, i) => [x + Math.sin(i / per * 6.2832 + ph) * ax, y + Math.cos(i / per * 6.2832 * 0.5 + ph) * ay]);
-    seen = await play([{ id: 1, pts: wave(160, 640, 40, 10, 200, 150, 0) }, { id: 2, pts: wave(300, 620, 40, 10, 200, 150, 0), down: true, up: false }]);
+    seen = await play([{ id: 1, pts: wave(160, 640, 40, 10, 200, 150, 0) }, { id: 2, pts: wave(300, 620, 40, 10, 200, 150, 0), down: true, up: false }], 700);
     const calmMood = await p.evaluate(() => { const m = window.__game.S.move; return m && m.id === 'dance' ? +m.state.mood.toFixed(2) : null; });
-    ok('both thumbs kept moving slowly together start calm choreography', seen.includes('dance') && calmMood !== null && calmMood < 0.4, { seen, calmMood });
-    await play([{ id: 1, pts: wave(160, 640, 55, 45, 150, 14, 0) }, { id: 2, pts: wave(300, 620, 45, 55, 150, 9, 2) }]);
+    ok('resting the right thumb starts choreography, and slow strokes keep it calm', seen.includes('dance') && calmMood !== null && calmMood < 0.4, { seen, calmMood });
+    await play([{ id: 1, pts: wave(160, 640, 55, 45, 150, 14, 0) }, { id: 2, pts: wave(300, 620, 70, 80, 220, 7, 2) }]);
     const sharp = await p.evaluate(() => { const m = window.__game.S.move; return m && m.id === 'dance' ? { mood: +m.state.mood.toFixed(2), poses: m.state.poses } : null; });
     ok('quick scattered strokes turn it sharp, without lifting', !!sharp && sharp.mood > 0.6 && sharp.poses >= 3, sharp);
     const h0 = await p.evaluate(() => { const S = window.__game.S; return Math.atan2(S.vx, S.vz); });
@@ -91,13 +94,15 @@ const { open } = require('./smoke.cjs');
   // spin: rest the finger, then circle
   await ev('pointerup', 1, 160, 640); await sleep(300); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); await sleep(2500);
   const spun = await p.evaluate(() => new Promise((res) => { const c = document.getElementById('c'), g = window.__game, E = (t, x, y) => c.dispatchEvent(new PointerEvent(t, { pointerId: 2, clientX: x, clientY: y, pointerType: 'touch', bubbles: true }));
-    E('pointerdown', 336, 560); let startedAt = null, armedSeen = false;
-    setTimeout(() => { armedSeen = document.getElementById('pad').classList.contains('armed'); const t0 = performance.now();
-    const iv = setInterval(() => { const t = (performance.now() - t0) / 1000, a = t * 1.4 * 6.2832; E('pointermove', 300 + Math.cos(a) * 36, 560 + Math.sin(a) * 36); if (startedAt === null && g.S.move && g.S.move.id === 'spin') startedAt = +(t * 1.4).toFixed(2);
-      if (t > 2.6) { clearInterval(iv); res({ armedSeen, startedAtLoops: startedAt, move: g.S.move ? g.S.move.id : null }); } }, 16); }, 400); }));
-  ok('rest then circle starts a spin, and the ring shows it is ready', spun.move === 'spin' && spun.armedSeen && spun.startedAtLoops < 1.1, spun);
-  await ev('pointermove', 1, 160, 700); await sleep(500); s = await st(); ok('thumb down during a spin is a sit spin', s.spinPos === 'Sit', s);
-  await ev('pointermove', 1, 160, 590); await sleep(500); s = await st(); ok('thumb up during a spin is a camel spin', s.spinPos === 'Camel', s);
+    E('pointerdown', 336, 560); let startedAt = null, slowPos = null, a = 0, last = performance.now(); const t0 = last;
+    const iv = setInterval(() => { const now = performance.now(), t = (now - t0) / 1000; a += (now - last) / 1000 * (t < 3 ? 0.9 : 2.8) * 6.2832; last = now; E('pointermove', 300 + Math.cos(a) * 36, 560 + Math.sin(a) * 36); const m = g.S.move;
+      if (startedAt === null && m && m.id === 'spin') startedAt = +(a / 6.2832).toFixed(2); if (t < 3 && m && m.id === 'spin') slowPos = m.state.pos;
+      if (t > 5.5) { clearInterval(iv); res({ startedAtLoops: startedAt, slowPos, fastPos: m && m.state ? m.state.pos : null, move: m ? m.id : null }); } }, 16); }));
+  ok('a clockwise circle starts a spin: slow is a layback, fast a scratch spin', spun.move === 'spin' && spun.startedAtLoops < 1.1 && spun.slowPos === 'Layback' && spun.fastPos === 'Scratch', spun);
+  const ccw = await p.evaluate(() => new Promise((res) => { const c = document.getElementById('c'), g = window.__game; let a = 0, last = performance.now(), slowPos = null; const t0 = last;
+    const iv = setInterval(() => { const now = performance.now(), t = (now - t0) / 1000; a -= (now - last) / 1000 * (t < 3.5 ? 0.9 : 2.8) * 6.2832; last = now; c.dispatchEvent(new PointerEvent('pointermove', { pointerId: 2, clientX: 300 + Math.cos(a) * 36, clientY: 560 + Math.sin(a) * 36, pointerType: 'touch', bubbles: true })); const m = g.S.move;
+      if (t > 2.5 && t < 3.5 && m && m.id === 'spin') slowPos = m.state.pos; if (t > 6) { clearInterval(iv); res({ slowPos, fastPos: m && m.state ? m.state.pos : null, move: m ? m.id : null }); } }, 16); }));
+  ok('turning the circle counter-clockwise changes it: slow is a camel, fast a sit', ccw.move === 'spin' && ccw.slowPos === 'Camel' && ccw.fastPos === 'Sit', ccw);
   { await ev('pointerup', 1, 160, 590); const so = await p.evaluate(() => new Promise((res) => { const g = window.__game, S = g.S, m = S.move, v0 = m && m.spinRate ? m.spinRate() : -1, t0 = performance.now(); const iv = setInterval(() => { if (!S.move || S.move.id !== 'spin') { clearInterval(iv); const sp0 = Math.hypot(S.vx, S.vz); setTimeout(() => res({ v0: +v0.toFixed(1), ms: Math.round(performance.now() - t0), sp0: +sp0.toFixed(1), sp1: +Math.hypot(S.vx, S.vz).toFixed(1), surge: +S.surge.toFixed(2) }), 1500); } }, 30); setTimeout(() => { clearInterval(iv); res({ timeout: true }); }, 9000); }));
     ok('lifting the left thumb winds the spin down and she swoops out, gathering speed', !so.timeout && so.sp1 > so.sp0 + 1 && so.sp1 > 4, so); await ev('pointerdown', 1, 100, 640); await ev('pointermove', 1, 160, 640); }
   await ev('pointerup', 2, 300, 560); await sleep(2200); s = await st(); ok('spin ends after release and is announced', s.move === null && /spin/.test(s.pop), s);
@@ -138,9 +143,9 @@ const { open } = require('./smoke.cjs');
   let tu = await p.evaluate(() => ({ jumpOn: document.getElementById('tutjump').classList.contains('on'), sel: !document.getElementById('tsel').hidden, single: document.getElementById('tutbtn').hidden, name: document.getElementById('tname').textContent, step: document.getElementById('tstep').textContent }));
   ok('Tutorial splits into Jumps and Spins & steps, with a skill selector and a first step', tu.jumpOn && tu.sel && tu.single && tu.name === 'Waltz jump' && tu.step.length > 10, tu);
   await p.tap('#tnext'); await sleep(150); ok('the arrow moves to the next skill', (await p.evaluate(() => document.getElementById('tname').textContent)) === 'Axel');
-  await p.tap('#tutspin'); await sleep(150); ok('Spins & steps lists spins first', (await p.evaluate(() => document.getElementById('tname').textContent)) === 'Upright spin');
+  await p.tap('#tutspin'); await sleep(150); ok('Spins & steps lists spins first', (await p.evaluate(() => document.getElementById('tname').textContent)) === 'Camel spin');
   await ev('pointerdown', 1, 100, 560); await ev('pointermove', 1, 104, 520); await sleep(500); await ev('pointerdown', 2, 300, 560); await sleep(500);
-  tu = await p.evaluate(() => document.getElementById('tstep').textContent); ok('the first spin step tells you to rest then circle', /rest.*then circle/i.test(tu), tu);
+  tu = await p.evaluate(() => document.getElementById('tstep').textContent); ok('the first spin step tells you how to circle', /circle.*slowly/i.test(tu), tu);
   await ev('pointerup', 2, 300, 560); await ev('pointerup', 1, 104, 520); await sleep(400);
   await p.tap('#tutspin'); await sleep(150); ok('tapping the active category ends tutorial mode', await p.evaluate(() => !document.getElementById('tutbtn').hidden && document.getElementById('tsel').hidden && !window.__game.tutorial.on));
   // the published version file must name the build that is running, or Home Screen copies would keep reloading

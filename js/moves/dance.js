@@ -1,4 +1,4 @@
-// Choreography: the artistic part of a programme. While the right thumb stays down and keeps moving she improvises, one pose
+// Choreography: the artistic part of a programme. It starts when the right thumb rests on the glass, and while it stays down she improvises, one pose
 // flowing into the next. The left thumb goes on steering her and setting her speed. How the right thumb moves sets the mood
 // (0..1): slow strokes give calm, broad, sustained gestures; quick ones give sharp, low, street-dance moves that hit on a
 // beat. Circling it turns her.
@@ -52,7 +52,6 @@ export function createDance(S, api) {
     release() { st.held = false; },
     // called every frame with the right thumb's speed (px/s): slow strokes are calm, quick ones sharp
     feed(sb, dt) {
-      if (sb > K.moveSpeed) st.idle = 0; else { st.idle += dt; if (st.idle > K.idleEnd) st.held = false; return; }
       st.mood += (clamp((sb - K.calmPx) / (K.sharpPx - K.calmPx), 0, 1) - st.mood) * (1 - Math.exp(-1.6 * dt)); },
     // the right thumb circling turns her, as far as it circles; she follows it on a short rubber band
     rotate(d) { turnGoal += d; },

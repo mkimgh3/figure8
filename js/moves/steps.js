@@ -4,7 +4,7 @@
 //   long stroke    -> serpentine (one deep S-shaped edge)
 // The step goes to the side the stroke went. Nothing is random and only one step happens at a time.
 import { CFG } from '../config.js';
-import { sstep, tri, evenness, dimin } from '../core/math.js';
+import { sstep, evenness, dimin } from '../core/math.js';
 const STEPS = { toe: { n: 'Toe steps', sec: 0.36, turn: 0 }, mohawk: { n: 'Mohawk', sec: 0.5, turn: Math.PI }, serp: { n: 'Serpentine', sec: 0.85, turn: 0 } };
 const pick = (px) => (px < CFG.steps.shortPx ? 'toe' : px < CFG.steps.longPx ? 'mohawk' : 'serp');
 export function createSteps(S, api) {
@@ -24,10 +24,11 @@ export function createSteps(S, api) {
     end() { const nk = Object.keys(st.kinds).length, P = CFG.points; if (Math.round(st.base / Math.PI) % 2 !== 0) S.back = !S.back;      // an odd number of half turns leaves her facing the other way
       api.emit('element', { kind: 'steps', name: 'Step sequence', detail: st.done + ' steps, ' + nk + (nk === 1 ? ' kind' : ' kinds'), base: dimin(P.steps[0], st.done, P.steps[1]) * (0.6 + 0.4 * Math.min(1, nk / 3)), counted: st.done > 0,
         quality: +(CFG.steps.qualityMin + (CFG.steps.qualityMax - CFG.steps.qualityMin) * st.stab).toFixed(2), qLabel: st.stab > 0.75 ? 'steady rhythm' : st.stab > 0.4 ? 'fair rhythm' : 'uneven rhythm' }); },
-    blade(out) { if (st.u >= 1) return; const x = st.u, k = st.k; let z = 0;
-      if (k === 'serp') z = 0.8 * Math.sin(Math.PI * x);                                                       // one deep lobe to that side
-      else if (k === 'toe') { z = 0.12 * tri(x * 4) + 0.15; out.pen = (x * 4) % 1 < 0.5; }                     // toe-pick dots
-      else { z = x < 0.5 ? 0 : 0.68 * (1 - x); out.pen = Math.abs(x - 0.5) > 0.06; }                           // step across to the other foot
+    // every step draws one unbroken curve that leaves her line and rejoins it without a corner
+    blade(out) { if (st.u >= 1) return; const x = st.u, k = st.k, bell = Math.sin(Math.PI * x) * Math.sin(Math.PI * x); let z = 0;
+      if (k === 'serp') z = 0.85 * bell;                                                                       // one deep lobe to that side
+      else if (k === 'toe') z = 0.22 * Math.sin(4 * Math.PI * x) * Math.sin(Math.PI * x);                      // quick little ripples
+      else z = 0.5 * bell * (0.6 + 0.8 * x);                                                                   // a curl that swings wider as she steps across
       out.x += Math.cos(S.facing) * z * st.sd; out.z -= Math.sin(S.facing) * z * st.sd; },
     pose(T, kit) { const HIP = kit.HIP; kit.set({ lean: 0.12, bodyY: HIP - 0.03, lLz: 0, lRz: 0 }); if (st.u >= 1) return 12;
       const k = st.k, x = st.u, sd = st.sd, wv = Math.sin(Math.PI * x);

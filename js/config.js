@@ -19,20 +19,21 @@ export const CFG = {
   // her spin takes on the finger's speed, coast (1/s) how fast it fades when the finger stops but stays down. After the finger lifts
   // it eases out at easeOut (1/s) until it is slower than endVel (rad/s), or for endMax seconds at most.
   // exitSpeed: she swoops out of a finished spin at this fraction of top speed. Lifting the left thumb winds the spin down.
-  // camel, sit: in these positions she turns this fraction as far as upright for the same finger circle, so they are slower and easier to place.
-  spin: { exitSpeed: 0.5, camel: 0.55, sit: 0.6, holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 3.6, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
+  // The finger's own circling speed picks the position: faster than fastAbove (rad/s) is the fast one of the pair, and it stays until slower than slowBelow.
+  // camel, sit, layback: in these positions she turns this fraction as far as upright for the same finger circle, so they are slower and easier to place.
+  spin: { fastAbove: 10, slowBelow: 7.5, layback: 0.6, exitSpeed: 0.5, camel: 0.55, sit: 0.6, holdMs: 240, holdMovePx: 12, startTurn: 3.1, landLockout: 0.6, gain: 0.8, decay: 1.5, travel: 3.6, follow: 7, pickup: 0.3, coast: 0.45, easeOut: 0.75, endVel: 1.6, endMax: 3 },
   // Two-finger moves: both thumbs moving together.
   shape: { flickPx: 50, reversalPx: 22, idleMs: 110, eightTurn: 4.2 },      // flicks, scribbles and drawn shapes
   duo: { minSpeed: 110, engageMs: 70, parallelCos: 0.5, spreadPx: 80, spreadEachPx: 25, calmTurn: 3.3, settleMs: 150, freezeMs: 350 },
   // Hockey stop: both thumbs dragged down and lifted, while she moves at minSpeed or more. (The same drag held down is a hydroblade.)
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
   stop: { minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
-  twirl: { startTurn: 3.1 },
-  // Choreography: with the left thumb down, the right thumb kept moving (faster than moveSpeed px/s) for startMs without lifting. Its speed,
+  twirl: { startTurn: 3.1, afterLeapMs: 3000 },      // a circle is twizzles for afterLeapMs after a split leap; any other time it is a spin
+  // Choreography: the right thumb rested on the glass for holdMs. It lasts while that thumb stays down. Its speed,
   // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street, and its circling turns her. It ends when
-  // the right thumb lifts or has been still for idleEnd seconds, and scores once it has lasted minScore seconds.
+  // either thumb lifts, and scores once it has lasted minScore seconds.
   // While she dances the left thumb still steers and speeds her up, at `accel` times the usual rate.
-  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8 },
+  dance: { startMs: 650, moveSpeed: 50, idleEnd: 1.2, calmPx: 200, sharpPx: 700, minScore: 2, accel: 0.8, holdMs: 450 },
   steps: { shortPx: 80, longPx: 170, readyMs: 5000, keepMs: 2500, qualityMin: 0.7, qualityMax: 1.3 },      // flick up makes a step sequence ready for readyMs; an even rhythm earns up to qualityMax                                       // stroke length that picks the step: toe steps / mohawk / serpentine                                                // an immediate circle: finger-driven twizzles
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7, toeReadyMs: 3000 },      // toeReadyMs: how long a flick down keeps the toe pick ready
   grades: [[0.05, 'perfect'], [0.10, 'clean'], [0.16, 'shaky']],      // fraction of a turn off a clean half or whole turn

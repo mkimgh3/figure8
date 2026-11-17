@@ -1,18 +1,18 @@
 // The trick finger. The rules of the control scheme live here and nowhere else:
 //   quick double tap            -> jump; keep the second tap down and circle to rotate
-//   rest the finger, then circle -> spin (the steering thumb picks sit or camel). A circle drawn straight away does nothing.
+//   circle                      -> spin. Counter-clockwise: slow camel, fast sit. Clockwise: slow layback, fast scratch spin.
+//   rest the finger             -> choreography (moves/dance.js) for as long as it stays down: its strokes set the mood, its circles turn her
 //   flick down                  -> toe pick ready for three seconds: the next jump, skating backward, is a Flip (counter-clockwise)
 //                                  or a Lutz (clockwise), and goes a little higher
 //   flick up                    -> a step sequence is ready for a few seconds; then
 //       scribble side to side   -> step sequence, one step per stroke
 //       scribble up and down    -> swing rolls
 //     and an even rhythm scores more (the rhythm bar shows it)
-//   circle straight away        -> twizzles: she turns as far as the finger circles and keeps travelling
+//   circle straight after a split leap -> twizzles: she turns as far as the finger circles and keeps travelling
 //   flick left                  -> three-turn (swaps forward and backward skating)
 //   flick right                 -> split leap
 // Both thumbs together: dragged down and lifted is a hockey stop; swipe up is a spiral and swipe down, held, a hydroblade (both last while the thumbs stay down), spreading the
 // thumbs apart is a spread eagle, and sideways flicks and scribbles do the same as with one finger.
-// Left thumb down and the right thumb kept moving with none of the above read from it: choreography (moves/dance.js), for as long as it stays down.
 // A single touch never jumps.
 import { CFG } from '../config.js';
 import { Stroke, Shape } from './recognizer.js';
@@ -24,13 +24,13 @@ import { createSteps } from '../moves/steps.js';
 import { createDance } from '../moves/dance.js';
 
 export function createTricks(game, taps, log) {
-  let stroke = null, shape = null, mode = null, outcome = '', fired = false, armed = false, stepsUntil = 0, toeUntil = 0;
+  let stroke = null, shape = null, mode = null, outcome = '', fired = false, stepsUntil = 0, toeUntil = 0, leapUntil = 0;
   const stepping = () => S.move && (S.move.id === 'steps' || S.move.id === 'swing');
   const S = game.S;
   // ev is what the recogniser read; src carries its details (.side for a corner, .loopSign for a figure eight)
   // two: the event is the shared motion of both thumbs. lifted: it was read as a thumb left the glass, so the gesture was a drag and release, not a hold
   function perform(ev, src, two, lifted) {
-    if (!ev || ev === 'engage' || mode !== 'pending' || armed) return false;
+    if (!ev || ev === 'engage' || mode !== 'pending') return false;
     if (ev === 'beat') { if (fired && S.move && S.move.beat) { S.move.beat(src.shape || src); stepsUntil = performance.now() + CFG.steps.keepMs; } return false; }      // the stroke's size and tempo go to the move
     if (fired || !S.grounded) return false;
     const inward = S.turn > 0 ? -1 : 1; let m = null;                         // lean the way she is already curving
@@ -41,7 +41,7 @@ export function createTricks(game, taps, log) {
     else if (ev === 'down') { toeUntil = performance.now() + CFG.jump.toeReadyMs; fired = true; outcome = 'toe-ready';
       game.emit('say', { big: 'Toe pick ready', small: S.back ? 'double tap: counter-clockwise Flip, clockwise Lutz' : 'skate backward, then double tap', hold: 1.6 }); return true; }
     if ((ev === 'scribbleX' || ev === 'scribbleY') && performance.now() > stepsUntil && !stepping()) return false;      // scribbles only count once a sequence is ready
-    if (ev === 'left') m = createTurn(S, game); else if (ev === 'right') m = createLeap(S, game);
+    if (ev === 'left') m = createTurn(S, game); else if (ev === 'right') { m = createLeap(S, game); leapUntil = performance.now() + CFG.twirl.afterLeapMs; }
     else if (ev === 'scribbleX') m = createSteps(S, game); else if (ev === 'scribbleY') m = createSwing(S, game);
     else if (ev === 'spread') m = createEagle(S, game, inward);
     if (!m || !game.startMove(m)) return false;
@@ -52,13 +52,13 @@ export function createTricks(game, taps, log) {
     // for the rhythm bar: 0 hidden, 1 a sequence is ready, 2 one is running; and how even the rhythm is, 0..1
     // states: 1 steps ready, 2 steps running, 3 toe pick ready
     rhythm(now) { return stepping() ? [2, S.move.state.stab] : now < toeUntil ? [3, 0] : now < stepsUntil ? [1, 0] : [0, 0]; },
-    get active() { return stroke !== null; }, get stroke() { return stroke; }, get armed() { return armed; },
-    canDuo: () => (mode === 'pending' || mode === 'twirl') && !armed,
-    // the right thumb has kept moving with nothing else read from it: she starts to improvise
-    canDance: () => mode === 'pending' && !fired && !armed && S.grounded && !(S.move && S.move.id === 'fall'),
+    get active() { return stroke !== null; }, get stroke() { return stroke; }, get armed() { return mode === 'dance'; },
+    canDuo: () => mode === 'pending' || mode === 'twirl',
+    // the right thumb has rested on the glass with nothing else read from it: she starts to improvise
+    canDance: () => mode === 'pending' && !fired && S.grounded && !(S.move && S.move.id === 'fall'),
     dance() { if (!game.startMove(createDance(S, game))) return false; mode = 'dance'; fired = true; outcome = 'dance'; return true; },
     down(x, y, t, isDoubleTap) {
-      stroke = new Stroke(x, y, t, CFG.rotate); shape = new Shape(CFG.shape); outcome = ''; fired = false; armed = false;
+      stroke = new Stroke(x, y, t, CFG.rotate); shape = new Shape(CFG.shape); outcome = ''; fired = false;
       if (isDoubleTap && game.jump(t < toeUntil)) { mode = 'air'; outcome = t < toeUntil && S.back ? 'toe-jump' : 'jump'; toeUntil = 0; }
       else if (!S.grounded) { mode = 'air'; outcome = 'air-rotate'; }
       else if (S.move && S.move.id === 'spin') { mode = 'spin'; S.move.hold(); outcome = 'spin-continue'; }
@@ -68,27 +68,29 @@ export function createTricks(game, taps, log) {
       if (!stroke) return; const px = stroke.x, py = stroke.y, d = stroke.add(x, y, t); if (stroke.x === px && stroke.y === py) return;
       if (mode === 'air') game.airRotate(-d);                                             // screen-clockwise = skater clockwise
       else if (mode === 'spin') { if (S.move && S.move.id === 'spin') S.move.rotate(-d); }
-      else if (armed) { if (Math.abs(stroke.turn) >= CFG.spin.startTurn && S.landT > CFG.spin.landLockout && game.startMove(createSpin(S, game, -stroke.turn))) { mode = 'spin'; outcome = 'spin'; game.recentreSteer(); } }
       else if (mode === 'twirl' || mode === 'dance') { if (S.move && S.move.id === mode) S.move.rotate(-d); }
       else { perform(shape.add(stroke.x - px, stroke.y - py, d, t), shape);
-        if (!fired && !shape.decided && Math.abs(stroke.turn) >= CFG.twirl.startTurn && game.startMove(createTwirl(S, game, -stroke.turn))) { mode = 'twirl'; outcome = 'twirl'; } }
+        // a circle: straight after a split leap it is twizzles, otherwise a spin
+        if (!fired && !shape.decided && Math.abs(stroke.turn) >= CFG.twirl.startTurn) {
+          if (t < leapUntil) { if (game.startMove(createTwirl(S, game, -stroke.turn))) { mode = 'twirl'; outcome = 'twirl'; leapUntil = 0; } }
+          else if (S.landT > CFG.spin.landLockout && game.startMove(createSpin(S, game, -stroke.turn))) { mode = 'spin'; outcome = 'spin'; game.recentreSteer(); } } }
     },
     // every frame: a finger that has rested is ready to spin, and a flick is read once the finger stops
     // wait: both thumbs are moving together and their shared gesture has not been read yet, so the finger's own flick holds back
     frame(t, wait) {
       if (mode !== 'pending') return;
-      if (!armed && !fired && t - stroke.t0 >= CFG.spin.holdMs && stroke.path <= CFG.spin.holdMovePx && S.grounded && !(S.move && S.move.id === 'fall')) armed = true;
-      if (!armed && !wait) perform(shape.settle(t), shape);
+      if (t - stroke.t0 >= CFG.dance.holdMs && stroke.path <= CFG.spin.holdMovePx && this.canDance() && this.dance()) return;      // the finger has rested: she starts to dance
+      if (!wait) perform(shape.settle(t), shape);
     },
     up(t, extra) {
       if (!stroke) return;
       if (mode === 'pending') {
         if (stroke.isTap(t, CFG.tap)) { taps.tap(t); outcome = 'tap'; }
-        else { if (!armed) perform(shape.end(), shape); if (!fired) outcome = armed ? 'armed-no-circle' : 'none'; }
+        else { perform(shape.end(), shape); if (!fired) outcome = 'none'; }
         if (fired && S.move && S.move.release) S.move.release();
       }
       if ((mode === 'spin' || mode === 'twirl' || mode === 'dance') && S.move && S.move.id === mode) S.move.release();
-      log.stroke('trick', outcome, stroke, Object.assign({ armed }, extra || {})); stroke = null; shape = null; mode = null; armed = false;
+      log.stroke('trick', outcome, stroke, Object.assign({ armed: mode === 'dance' }, extra || {})); stroke = null; shape = null; mode = null;
     },
   };
 }

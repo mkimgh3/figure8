@@ -81,12 +81,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     keys, setAuto(a) { auto = a; },
     frame(now) { const fdt = Math.min(100, now - (lastF || now)); lastF = now;
       if (trickId === null) return; if (duo && tricks.canDuo()) duoEvent(duo.settle(now));
-      // Choreography: with the left thumb down, a right thumb that keeps moving and is read as nothing else starts her dancing.
-      // The left thumb goes on steering her; the right thumb's motion sets the mood and its circling turns her.
-      if (tricks.stroke) { const sb = tricks.stroke.speedAt(now), D = CFG.dance;
-        if (dancing()) game.S.move.feed(sb, fdt / 1000);
-        else if (steer.id !== null && tricks.canDance()) { dragT = sb > D.moveSpeed ? dragT + fdt : Math.max(0, dragT - fdt * 2); if (dragT >= D.startMs && tricks.dance()) dragT = 0; }
-        else dragT = 0; }
+      // Choreography (started by resting the right thumb, see tricks.js): the left thumb goes on steering her; the right thumb's motion sets the mood and its circling turns her.
+      if (tricks.stroke && dancing()) game.S.move.feed(tricks.stroke.speedAt(now), fdt / 1000);
       // steering is live again, from where it was, once the left thumb settles, or after a short grace even if it never
       // goes still (a thumb on glass always jitters, and the spiral or hydroblade is held with the right thumb down)
       if (steer.frozen && left && (now - left.t > CFG.duo.settleMs || now - steer.frozenAt > CFG.duo.freezeMs)) unfreeze();

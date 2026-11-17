@@ -14,7 +14,7 @@ const landedAny = (c) => c.ev && c.ev.type === 'land';
 const moveIs = (id) => (c) => !!c.S.move && c.S.move.id === id;
 const element = (kind, test) => (c) => !!c.ev && c.ev.type === 'element' && c.ev.d.kind === kind && c.ev.d.counted !== false && (!test || test(c.ev.d));
 const amount = (id, f, n) => (c) => !!c.S.move && c.S.move.id === id && f(c.S.move.state) >= n;
-const spinRevs = (st) => Math.abs(st.angle) / TAU;
+const spinRevs = (st) => st.total / TAU;
 
 const BACK_HINT = 'Skate backward: flick your right finger left for a three-turn, keep some speed';
 const FWD_HINT = 'Skate forward and build speed. Going backward? Flick left first';
@@ -56,31 +56,27 @@ const JUMPS = [
   ] },
 ];
 
+// A spin: the way the finger circles picks it.
+const spin = (name, pos, how) => ({ name, steps: [
+  ['Circle your right finger ' + how, (c) => moveIs('spin')(c) && c.S.move.state.pos === pos],
+  ['Keep circling like that: three revolutions', amount('spin', spinRevs, 3), moveIs('spin')],
+  ['Lift your finger to finish', element('spin')],
+] });
+
 const MOVES = [
-  { name: 'Upright spin', steps: [
-    ['Rest your right finger until its ring turns solid, then circle it', moveIs('spin')],
-    ['Keep circling: three revolutions', amount('spin', spinRevs, 3), moveIs('spin')],
-    ['Lift your finger to finish', element('spin')],
-  ] },
-  { name: 'Sit spin', steps: [
-    ['Rest your right finger until its ring turns solid, then circle it', moveIs('spin')],
-    ['Pull your left thumb down to sit', (c) => moveIs('spin')(c) && c.S.move.state.pos === 'Sit', moveIs('spin')],
-    ['Hold it there and keep circling, then lift', element('spin')],
-  ] },
-  { name: 'Camel spin', steps: [
-    ['Rest your right finger until its ring turns solid, then circle it', moveIs('spin')],
-    ['Push your left thumb up for the camel', (c) => moveIs('spin')(c) && c.S.move.state.pos === 'Camel', moveIs('spin')],
-    ['Hold it there and keep circling, then lift', element('spin')],
-  ] },
+  spin('Camel spin', 'Camel', 'slowly, counter-clockwise'),
+  spin('Sit spin', 'Sit', 'quickly, counter-clockwise'),
+  spin('Layback spin', 'Layback', 'slowly, clockwise'),
+  spin('Scratch spin', 'Scratch', 'quickly, clockwise'),
   { name: 'Combination spin', steps: [
-    ['Rest your right finger until its ring turns solid, then circle it', moveIs('spin')],
-    ['Left thumb down: sit', (c) => moveIs('spin')(c) && !!c.S.move.state.kinds.Sit, moveIs('spin')],
-    ['Left thumb up: camel', (c) => moveIs('spin')(c) && !!c.S.move.state.kinds.Camel, moveIs('spin')],
+    ['Circle your right finger slowly, counter-clockwise: camel', (c) => moveIs('spin')(c) && !!c.S.move.state.kinds.Camel],
+    ['Speed up without lifting: she drops into a sit', (c) => moveIs('spin')(c) && !!c.S.move.state.kinds.Sit, moveIs('spin')],
     ['Lift your finger to finish', element('spin', (d) => d.name === 'Combination spin')],
   ] },
   { name: 'Twizzles', steps: [
     ['Skate along with your left thumb', moving],
-    ['Circle your right finger straight away, without resting it first', moveIs('twirl')],
+    ['Flick your right finger to the right for a split leap', element('leap')],
+    ['Straight after the leap, circle your right finger', moveIs('twirl')],
     ['Keep circling: two turns', amount('twirl', (st) => Math.abs(st.goal) / TAU, 2), moveIs('twirl')],
     ['Lift to finish', element('twizzles')],
   ] },
@@ -124,8 +120,8 @@ const MOVES = [
   ] },
   { name: 'Choreography', steps: [
     ['Skate along with your left thumb', moving],
-    ['Put your right finger down and keep it moving, without lifting', moveIs('dance')],
-    ['Slow strokes are calm, quick ones sharp, circles spin her. The left thumb still steers. Keep going', amount('dance', (st) => st.t, 3), moveIs('dance')],
+    ['Rest your right finger on the glass until its ring turns solid', moveIs('dance')],
+    ['Keep it down and move it: slow strokes are calm, quick ones sharp, circles turn her. The left thumb still steers', amount('dance', (st) => st.t, 3), moveIs('dance')],
     ['Lift your right finger to finish', element('dance')],
   ] },
   { name: 'Spread eagle', steps: [
