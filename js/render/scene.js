@@ -39,14 +39,21 @@ export function createScene(canvas) {
   // A Home Screen copy on iPhone can report a page height short of the screen by the status bar (797 of 844 pt), which
   // left a strip of bare page at the bottom. Measure that gap and let the ice and overlays reach down over it (--fill in
   // app.css). Only a small gap counts, so a phone whose screen size turns with it, or a split screen, is left alone.
+  // The same copy held upright had the score and the front page under the status bar, so the safe area it reports at
+  // the top is not trusted alone: on an iPhone Home Screen copy held upright the top keeps clear of the status bar's
+  // height (that gap, and at least 50 pt), through --sbar. On its side the status bar is hidden.
   const fillScreen = (el) => {
     const root = document.documentElement,
       standalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
     root.style.setProperty('--fill', '0px');
+    root.style.setProperty('--sbar', '0px');
     if (!standalone || !window.screen) return;
-    const full = window.innerHeight > window.innerWidth ? screen.height : screen.width,
+    const upright = window.innerHeight > window.innerWidth,
+      full = upright ? screen.height : screen.width,
       gap = full - el.clientHeight;
     if (gap > 0 && gap < 120) root.style.setProperty('--fill', gap + 'px');
+    if (upright && window.navigator.standalone)
+      root.style.setProperty('--sbar', Math.max(50, gap < 120 ? gap : 0) + 'px');
   };
   const resize = () => {
     fillScreen(renderer.domElement);
@@ -170,6 +177,7 @@ export function createScene(canvas) {
     U.uSunCol.value.setHex(l.sunColor);
     U.uCloud.value = l.cloud;
     U.uAurora.value = l.aurora;
+    U.uGlitter.value = l.glitter || 0;
     scene.environment = sky.set(l, sunDir);
     atmos.look(l);
     spotOn = l.spot || 0;
@@ -185,6 +193,8 @@ export function createScene(canvas) {
     paper.mesh.visible = paper.shade.visible = !!c;
     blob.material.color.setHex(c ? 0x2a2a2e : 0x14284f);
     if (c) paper.set(c);
+    // no diamond dust over a drawing on paper
+    atmos.look(c ? Object.assign({}, look, { dust: 0 }) : look);
     // white light on the black sheet blooms more than the line on the ice does
     if (c && c.bloom) {
       bloom.strength = c.bloom[0];
@@ -211,6 +221,7 @@ export function createScene(canvas) {
     if (isAuto !== undefined) auto = isAuto;
     ratio = Math.min(window.devicePixelRatio || 1, q.dpr);
     renderer.setPixelRatio(ratio);
+    ice.uniforms.uPx.value = ratio;
     resize();
     if (sun.shadow.mapSize.x !== q.shadow) {
       sun.shadow.mapSize.set(q.shadow, q.shadow);
@@ -389,7 +400,8 @@ export function createScene(canvas) {
     const U = ice.uniforms;
     U.uTime.value = time;
     U.uOverview.value = e;
-    atmos.update(dt, time, tgt.x, tgt.z, e);
+    U.uFocus.value.set(S.x, S.z);
+    atmos.update(dt, time, camL.x, camL.z, e, camera.position.distanceTo(camL));
     if (e > 0.5 !== dark) {
       dark = e > 0.5;
       document.body.classList.toggle('dark', dark);

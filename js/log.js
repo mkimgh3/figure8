@@ -16,6 +16,21 @@ export function createLog(build) {
       dpr: window.devicePixelRatio || 1,
       ua: navigator.userAgent,
       coarse: window.matchMedia('(pointer: coarse)').matches,
+      // v3-look41: the screen's height and the safe area the phone reports at the top, for the status bar
+      screenH: window.screen ? screen.height : 0,
+      safeTop: (() => {
+        try {
+          const d = document.createElement('div');
+          d.style.cssText = 'position:fixed;padding-top:env(safe-area-inset-top)';
+          document.body.appendChild(d);
+          const v = parseFloat(getComputedStyle(d).paddingTop) || 0;
+          d.remove();
+          return v;
+        } catch (e) {
+          return -1;
+        }
+      })(),
+      sbar: getComputedStyle(document.documentElement).getPropertyValue('--sbar').trim(),
     },
     strokes: [],
     jumps: [],

@@ -7,7 +7,9 @@
   --line: rgba(22, 38, 63, 0.22);
   --accent: #1f6fd6;
   --card: #07090d;
-  --st: max(12px, env(safe-area-inset-top));
+  /* --sbar: the status bar's height as scene.js measures it on a Home Screen copy held upright, where the safe area
+     reported at the top could leave the score under the status bar (v3-look41) */
+  --st: max(12px, env(safe-area-inset-top), var(--sbar, 0px));
   --sr: max(12px, env(safe-area-inset-right));
   --sb: max(12px, env(safe-area-inset-bottom));
   --sl: max(12px, env(safe-area-inset-left));

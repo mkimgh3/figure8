@@ -174,6 +174,11 @@ export const CFG = {
   // sun: [elevation, azimuth] in degrees (azimuth 0 = from the south, 90 = from the west).
   // linePunch deepens the line's colours (1 = as painted); lineWide draws it wider. spot: the two follow spots.
   // (v3-look37: Golden hour, Blue hour and Night are gone; dusk is a deep blue dark with the follow spots.)
+  // glow: the bloom [strength, radius, threshold]. v3-look41 took dusk's from [0.65, 0.25, 1.3] to a faint one that only
+  // the brightest light passes (it haloed her white fur and blurred the line), and lit the night with sparkle instead:
+  // glitter (frost crystals on the ice winking in the light, mostly round her), dust (diamond dust, ice crystals
+  // hanging in the air round her, each flashing now and then) and sparkle (how brightly the crystals on her clothes
+  // flash, 1 as made).
   looks: [
     {
       name: 'Dawn',
@@ -220,8 +225,11 @@ export const CFG = {
     {
       name: 'Dusk',
       spot: 1,
-      glow: [0.65, 0.25, 1.3],
+      glow: [0.28, 0.18, 1.6],
       lineGlow: 1.8,
+      glitter: 1,
+      dust: 1,
+      sparkle: 1.6,
       night: true,
       sun: [38, -30],
       sunColor: 0xaec2ff,
@@ -273,11 +281,12 @@ export const CFG = {
       night: true,
     },
   },
-  // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop.
+  // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop. dust: how many
+  // crystals of diamond dust hang round her at night.
   quality: {
-    High: { dpr: 3, shadow: 2048, reflection: true, snow: 0, mist: 0, glow: true },
-    Balanced: { dpr: 2, shadow: 1024, reflection: true, snow: 0, mist: 0, glow: true },
-    Low: { dpr: 1.5, shadow: 1024, reflection: false, snow: 0, mist: 0, glow: false },
+    High: { dpr: 3, shadow: 2048, reflection: true, snow: 0, mist: 0, glow: true, dust: 320 },
+    Balanced: { dpr: 2, shadow: 1024, reflection: true, snow: 0, mist: 0, glow: true, dust: 240 },
+    Low: { dpr: 1.5, shadow: 1024, reflection: false, snow: 0, mist: 0, glow: false, dust: 140 },
   },
   // The three modes on the front page. Olympic: falls count, and the total stops at 9999.9. Infinite: she never falls (a
   // bad landing is a stumble), the score card is one big number, and the total has no limit. Tutorial: the lessons, all

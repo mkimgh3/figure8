@@ -179,6 +179,10 @@ export function createIce(renderer) {
     uAur1: { value: new THREE.Color(0x3dffb0) },
     uAur2: { value: new THREE.Color(0x8a5cff) },
     uOverview: { value: 0 },
+    // night glitter (v3-look41): how much (0 off), round where she is (x, z), and the screen's pixel ratio
+    uGlitter: { value: 0 },
+    uFocus: { value: new THREE.Vector2() },
+    uPx: { value: 1 },
   };
   const mat = new THREE.MeshStandardMaterial({
     color: 0xd9e9f8,
@@ -202,7 +206,7 @@ export function createIce(renderer) {
         '#include <common>',
         `#include <common>
 varying vec3 vWPos;
-uniform float uTime, uCloud, uAurora, uOverview;
+uniform float uTime, uCloud, uAurora, uOverview, uGlitter, uPx; uniform vec2 uFocus;
 uniform sampler2D uDeep; uniform vec3 uDepthTint, uSunDir, uSunCol, uAur1, uAur2; uniform vec2 uWind;
 float h21(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
 float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -242,7 +246,26 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
     float w1 = fbm(q * 0.7 + vec2(t, -t * 0.5)) * 5.0, w2 = fbm(q * 0.6 - vec2(t * 0.7, t)) * 5.0;
     float band = pow(1.0 - abs(sin(q.x * 0.9 + q.y * 0.35 + w1)), 6.0) * fbm(q * 2.5 + t);
     float band2 = pow(1.0 - abs(sin(q.y * 0.8 - q.x * 0.3 + w2)), 8.0) * fbm(q * 2.0 - t);
-    totalEmissiveRadiance += (uAur1 * band + uAur2 * band2 * 0.8) * uAurora * 0.5 * (0.5 + 0.5 * near); } }`,
+    totalEmissiveRadiance += (uAur1 * band + uAur2 * band2 * 0.8) * uAurora * 0.5 * (0.5 + 0.5 * near); }
+  // Night glitter: frost crystals on the surface, one in some of the 12.5 cm cells, each winking out a small star of
+  // light on its own beat and as the view moves across it; brightest round her, where the follow spots fall. The
+  // position is wrapped first (64 m, a whole number of cells) so the hash keeps its precision far from the start.
+  // The star is drawn in screen pixels (the cell offset taken through the screen derivatives), so it stays round when
+  // the ice is seen at a low angle; where the cells shrink to a few pixels across, which would only shimmer, it fades.
+  if (uGlitter > 0.0) {
+    vec2 gp = mod(vWPos.xz, 64.0) * 8.0, gi = floor(gp), ga = dFdx(gp), gb = dFdy(gp);
+    float r = h21(gi), fw = max(fwidth(gp.x), fwidth(gp.y)), det = ga.x * gb.y - ga.y * gb.x;
+    if (r > 0.9 && fw < 0.16 && abs(det) > 1e-9) {
+      vec2 d = fract(gp) - (vec2(h21(gi + 3.7), h21(gi + 9.1)) * 0.3 + 0.35);
+      vec2 u = vec2(d.x * gb.y - d.y * gb.x, ga.x * d.y - ga.y * d.x) / (det * uPx);
+      float ph = fract(r * 41.0 + uTime * (0.2 + 0.45 * fract(r * 13.0)) + dot(V.xz, vec2(2.3, 1.7)));
+      float fl = pow(1.0 - abs(ph * 2.0 - 1.0), 16.0);
+      float star = exp(-dot(u, u) / 1.4) + 0.55 * (exp(-abs(u.x) / 0.5 - abs(u.y) / 2.6) + exp(-abs(u.y) / 0.5 - abs(u.x) / 2.6));
+      vec2 f = vWPos.xz - uFocus;
+      float focus = 0.2 + 0.8 * exp(-dot(f, f) / 28.0);
+      totalEmissiveRadiance += vec3(0.85, 0.93, 1.0) * star * fl * focus * uGlitter * 2.4 * near * (1.0 - smoothstep(0.07, 0.16, fw));
+    }
+  } }`,
       );
   };
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), mat);
