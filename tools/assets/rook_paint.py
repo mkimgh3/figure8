@@ -3,8 +3,8 @@
 #   body: a loose navy jersey with a white shoulder yoke, ice-blue piping, striped sleeves and hem, a big 17 on the
 #         back, small 17s on the sleeves and a snowflake crest on the chest; glossy navy hockey pants with a side
 #         stripe; striped socks; black glossy skate boots with a white trim and laces. Hands and neck stay bare skin.
-#   head: Ivor's painted beard and strawberry-blond hair (and his cord necklace) replaced by clean-shaven skin and short
-#         dark-brown hair. The game removes the baked beard volume from the geometry itself, so the GLB is not changed.
+#   head: Ivor's strawberry-blond hair (and his cord necklace) replaced by short dark-brown hair, and his beard
+#         repainted a short brown (v3-look38; v3-look37 had him clean-shaven). The beard volume baked into the GLB stays.
 #   mask: R 0 (no sequins), G the nylon pants (roughness 0.42), B the boots (roughness 0.22).
 # Run from anywhere: python tools/assets/rook_paint.py [scratch_dir]   (previews go to scratch_dir, default a temp dir)
 # Needs numpy and PIL only. All designs are original: no real team's name, logo or crest.
@@ -188,8 +188,9 @@ hand = COV & (np.abs(X) > 0.45) & (sf > SLEEVE_END)
 hand_soft = np.clip(hand.astype(np.float32) * ss(SLEEVE_END, SLEEVE_END + 0.01, sf), 0, 1)
 # neckline: a shallow V at the front, higher at the sides and the back
 phi = np.arctan2(X, -(Y - 0.012))
-collar = np.interp(np.abs(phi), [0, 0.6, 1.4, 2.2, np.pi], [1.462, 1.47, 1.497, 1.512, 1.515])
-collar = collar - 0.028 * np.clip(1 - np.abs(X) / 0.04, 0, 1) * (Y < 0)
+# (v3-look38: raised by about 4 cm, so the jersey covers the tops of his bulked-up shoulders up to the neck)
+collar = np.interp(np.abs(phi), [0, 0.6, 1.4, 2.2, np.pi], [1.5, 1.507, 1.532, 1.548, 1.552])
+collar = collar - 0.02 * np.clip(1 - np.abs(X) / 0.04, 0, 1) * (Y < 0)
 d_collar = collar - Z                     # > 0 below the neckline
 jersey = COV * ss(-0.0012, 0.0012, d_collar) * ss(HEM - 0.0015, HEM + 0.0015, Z) * (1 - hand_soft)
 
@@ -593,11 +594,23 @@ under_jaw = 1 - 0.12 * np.clip(-HNZ, 0, 1) * ss(1.6, 1.55, HZ)    # a soft shado
 skin_new = fill * (pores * blotch * under_jaw)[..., None]
 skin_new = skin_new * (1 - (ear_soft * ear_hollow)[..., None] * np.array([0.42, 0.47, 0.48]))
 comp = head * (1 - remove[..., None]) + skin_new * remove[..., None]
-# a faint shadow of stubble where the beard grew
-bz = np.clip(blur(BEARD * face, 4) * 1.2, 0, 1) * (1 - lips_soft) * (1 - ear_soft)
-speck = blur(rng.random((S, S)).astype(np.float32), 0.6)
-stub = 0.3 * bz * (0.7 + 0.6 * (speck - 0.5))
-comp = comp * (1 - stub[..., None]) + comp * np.array([0.80, 0.81, 0.86]) * stub[..., None]
+# a short brown beard where Ivor's grew (the game keeps the beard volume that is baked into the head), painted the
+# way ivor_head.py painted his: hairs streaked down the face, shaded by the face's own light and dark
+bmask = np.clip(tri_raster(HAIR[:, 0], 5) * 1.3, 0, 1) * face * (1 - lips_soft) * (1 - ear_soft)
+brng = np.random.default_rng(3)
+bn1 = blur(brng.random((S, S)).astype(np.float32), 0.8)
+bstreak = np.asarray(
+    Image.fromarray((brng.random((S, S // 6)) * 255).astype(np.uint8)).resize((S, S), Image.BICUBIC)
+).astype(np.float32) / 255
+bstreak = blur(bstreak, 0.6)
+bn2 = np.asarray(
+    Image.fromarray((brng.random((S // 10, S // 10)) * 255).astype(np.uint8)).resize((S, S), Image.BICUBIC)
+).astype(np.float32) / 255
+bshade = np.clip(hl / max(np.percentile(hl[bmask > 0.5], 60), 1e-3), 0.6, 1.2) if (bmask > 0.5).any() else 1
+bcol = np.array([0.27, 0.17, 0.1])[None, None, :] * (0.55 + 0.55 * bstreak[..., None] + 0.2 * bn1[..., None])
+bcol = np.clip(bcol * (0.85 + 0.3 * bn2[..., None]) * np.asarray(bshade)[..., None], 0, 1)
+stub = np.clip(bmask * 1.1, 0, 1) * (0.8 + 0.2 * bstreak)
+comp = comp * (1 - stub[..., None]) + bcol * stub[..., None]
 # the hair, with the skin under its thinning edge a little shadowed
 shadow = 0.18 * ss(-fade_w - 0.006, 0.0, HZ - zh) * face * (1 - ear_gap)
 comp = comp * (1 - shadow[..., None] * np.array([0.45, 0.5, 0.5]))

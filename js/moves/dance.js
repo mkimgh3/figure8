@@ -57,6 +57,13 @@ const STICK_CALM = [
 // a fast spin with both arms up: the stick turns over his head like a rotor
 // prettier-ignore
 export const STICK_OVERHEAD = { lean: 0, fL: 0, lLx: -0.3, lLk: 1.2, lLz: 0.12, aLz: -3.3, aRz: 3.3, aLx: 0.15, aRx: 0.15, aLe: -0.3, aRe: -0.3 };
+// Tesa spins in deep laybacks (S.layback): leaning far back, the free leg lifted behind, the arms raised and curving
+// back over her head; tighter and higher when the finger circles fast. Never mirrored, so the free leg stays the same.
+// (With an arm raised overhead, a negative x turn swings it back, the opposite of a hanging arm.)
+// prettier-ignore
+export const LAYBACK_SLOW = { lean: -0.95, dy: -0.03, fL: 0, lRx: 0.75, lRk: 0.18, lLx: 1.15, lLk: 1.25, lLz: -0.22, aLz: -2.45, aRz: 2.45, aLx: -0.6, aRx: -0.6, aLe: -0.95, aRe: -0.95 };
+// prettier-ignore
+export const LAYBACK_FAST = { lean: -0.75, dy: -0.02, fL: 0, lRx: 0.6, lRk: 0.14, lLx: 0.95, lLk: 1.45, lLz: -0.1, aLz: -2.85, aRz: 2.85, aLx: -0.5, aRx: -0.5, aLe: -1.2, aRe: -1.2 };
 // Which poses she draws on. Thumbs moving together: the long, open, travelling shapes. Thumbs going their own ways: the twisted, closed, contrasting ones.
 // One thumb alone: any of them. Spinning: counter-clockwise takes the camel and then the scratch spin, clockwise the layback or attitude and then arms overhead.
 const PICK = {
@@ -146,6 +153,7 @@ export function createDance(S, api) {
     // Rook: the overhead stick spin, and about half his calm gestures with the stick (never mirrored: the stick stays in
     // his right hand)
     if (S.hockey && inSpin && st.spin > 1) to = full(STICK_OVERHEAD);
+    else if (S.layback && inSpin) to = full(st.spin > 1 ? LAYBACK_FAST : LAYBACK_SLOW);
     else if (S.hockey && !inSpin && !snap && Math.random() < 0.5)
       to = full(STICK_CALM[Math.floor(Math.random() * STICK_CALM.length)]);
     // she keeps turning as she dances: each pose faces a little further round, and now and then she turns right about
@@ -281,6 +289,9 @@ export function createDance(S, api) {
         counted: st.t >= K.minScore,
       });
     },
+    // how fast she is turning in a spin (rad/s), which flares the skirts and the hair (v3-look38: the spins inside
+    // choreography had not been reporting it since v3-look33, so the skirts barely lifted)
+    spinRate: () => (st.spin > 0 ? st.rate : 0),
     blade(o, yaw) {
       o.width = 1.3;
       if (st.weave > 0.02) {

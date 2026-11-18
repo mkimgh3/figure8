@@ -43,12 +43,12 @@ const ARMS = ['aLz', 'aRz', 'aLx', 'aRx', 'aLe', 'aRe'];
 // rests on the ice ahead of him (stick.js keeps it on the surface).
 // lean, drop, knee, thigh: how much further he leans, how much lower he sits, and how much more his knees and hips bend
 export const STANCE = {
-  aLz: 0.05,
-  aLx: -0.95,
+  aLz: 0.25,
+  aLx: -0.85,
   aLe: -0.05,
-  aRz: -0.45,
-  aRx: 0.55,
-  aRe: -1.8,
+  aRz: -0.65,
+  aRx: 0.5,
+  aRe: -1.7,
   lean: 0.5,
   drop: 0.12,
   knee: 0.45,

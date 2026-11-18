@@ -307,7 +307,7 @@ export function createScene(canvas) {
       const el = renderer.domElement,
         w = el.clientWidth || window.innerWidth,
         hh = el.clientHeight || window.innerHeight;
-      camera.setViewOffset(w, hh, 0, hh * (camera.aspect < 1 ? 0.24 : 0.02) * showK, w, hh);
+      camera.setViewOffset(w, hh, 0, hh * (camera.aspect < 1 ? 0.3 : 0.02) * showK, w, hh);
       if (camera.aspect >= 1) camera.setViewOffset(w, hh, w * 0.2 * showK, 0, w, hh);
       offsetOn = true;
     } else if (offsetOn) {

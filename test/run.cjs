@@ -994,14 +994,15 @@ const { open } = require('./smoke.cjs');
       const el = document.getElementById('pop');
       return {
         inf: el.classList.contains('inf'),
-        big: el.querySelector('.ptotal') && el.querySelector('.ptotal').textContent,
+        desc: el.querySelector('.pdesc') && el.querySelector('.pdesc').textContent,
+        big: !!el.querySelector('.ptotal'),
         cards: [...el.querySelectorAll('.cards span')].map((s) => s.textContent),
         name: !!el.querySelector('.pname'),
       };
     });
     ok(
-      'Infinite: the score card is one big number, no name, over Base, GOE and Art',
-      pop.inf && /^\+\d+\.\d$/.test(pop.big) && pop.cards.join() === 'Base,GOE,Art' && !pop.name,
+      'Infinite: the score card describes the move over Base, GOE and Art, with no big number',
+      pop.inf && pop.desc === 'Three-turn' && pop.cards.join() === 'Base,GOE,Art' && !pop.name && !pop.big,
       pop,
     );
     await p.evaluate(() => {

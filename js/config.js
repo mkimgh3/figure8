@@ -226,7 +226,7 @@ export const CFG = {
   // nib, a hairline along it, thinner the faster she goes) or 'glow' (white light). nib: the pen's angle (radians from
   // screen-up); thin/thick: its stroke as a share of the full width; fast: how much speed thins it; wide: the line's width.
   paper: {
-    Dawn: { surface: 0xe8d9bd, grain: 1, ink: 'pencil', inkColor: 0x46464e, wide: 0.85, night: false },
+    Dawn: { surface: 0xe8d9bd, grain: 1, ink: 'pencil', inkColor: 0x303037, wide: 1.3, night: false },
     Day: {
       surface: 0xffffff,
       grain: 0,
@@ -243,9 +243,9 @@ export const CFG = {
       grain: 0.15,
       ink: 'glow',
       inkColor: 0xffffff,
-      wide: 1.4,
-      glow: 1.5,
-      bloom: [0.5, 0.2, 1.2],
+      wide: 0.75,
+      glow: 1.15,
+      bloom: [0.28, 0.12, 1.05],
       night: true,
     },
   },

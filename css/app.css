@@ -494,13 +494,26 @@ body.paper #vig {
   font-size: 12px;
 }
 
-/* Infinite: each score is one big number, in the Minimal style whatever the Screen, over small Base, GOE and Art */
-#pop.inf .ptotal {
-  font-size: 60px;
-  font-weight: 200;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
+/* Infinite: each score is the move's description, in the Minimal style whatever the Screen, over small Base, GOE and
+   Art (v3-look38: no big number) */
+#pop.inf .pdesc {
+  font-size: 19px;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+#pop.inf small {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  max-width: 210px;
+  margin: 2px auto 0;
+}
+/* upright, the score card sits below the score chip instead of beside it, where the two overlapped */
+@media (orientation: portrait) {
+  .ui-minimal #pop {
+    margin-top: 58px;
+  }
 }
 #pop.inf .cards {
   grid-template-columns: repeat(3, 52px);
@@ -1366,6 +1379,172 @@ body.paused #zoom {
 }
 .ui-minimal.night .cards .dn b {
   color: #ffa3a3;
+}
+
+/* Minimal, since v3-look38, reaches the menu, the front page, the tutorial and the scoreboard too: no white cards. Thin
+   light text over the view, dimmed and softly blurred, with hairlines where the buttons were. */
+.ui-minimal #sheet,
+.ui-minimal #board {
+  background: rgba(6, 12, 26, 0.58);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.ui-minimal #card,
+.ui-minimal #board {
+  box-shadow: none;
+  color: #f2f6ff;
+  text-shadow: 0 1px 8px rgba(0, 0, 20, 0.55);
+}
+.ui-minimal #card {
+  background: none;
+}
+.ui-minimal #card h2 {
+  font-weight: 300;
+  font-size: 24px;
+  letter-spacing: 0.03em;
+}
+.ui-minimal #card button,
+.ui-minimal #fcard .seg button {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0;
+  box-shadow: none;
+  color: #f2f6ff;
+  font-weight: 400;
+  text-shadow: inherit;
+}
+.ui-minimal #card .grid button {
+  justify-content: flex-start;
+  padding: 0 2px;
+  font-size: 14px;
+}
+.ui-minimal #card .grid button span {
+  opacity: 0.6;
+}
+.ui-minimal #card .x {
+  border: 0;
+  font-weight: 200;
+  font-size: 30px;
+}
+.ui-minimal #card .primary {
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 22px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.ui-minimal #card .link {
+  border: 0;
+  color: #a9d0ff;
+}
+.ui-minimal #card p,
+.ui-minimal #moves dd {
+  color: rgba(242, 246, 255, 0.78);
+  opacity: 1;
+}
+.ui-minimal #card button:active,
+.ui-minimal #fcard button:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+/* the front page: the choices straight on the view, over a darkening at the bottom (on the right, on its side) */
+.ui-minimal #front {
+  background: linear-gradient(180deg, rgba(6, 12, 26, 0) 28%, rgba(6, 12, 26, 0.62) 58%, rgba(6, 12, 26, 0.82));
+}
+.ui-minimal #fcard {
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  color: #f2f6ff;
+  text-shadow: 0 1px 8px rgba(0, 0, 20, 0.6);
+}
+.ui-minimal #fcard h1 {
+  font-weight: 200;
+  font-size: 38px;
+  letter-spacing: 0.05em;
+}
+.ui-minimal #fcard .seg button {
+  color: rgba(242, 246, 255, 0.62);
+}
+.ui-minimal #fcard .seg button.on {
+  color: #fff;
+  font-weight: 700;
+  border-bottom: 2px solid #fff;
+}
+.ui-minimal #fabout {
+  color: rgba(242, 246, 255, 0.85);
+  opacity: 1;
+}
+.ui-minimal #fstart {
+  background: none;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  color: #fff;
+  box-shadow: none;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+/* the tutorial: its steps straight on the ice like the score, dark on light ice and paper, light on dark */
+.ui-minimal #tpanel,
+.ui-minimal #tpanel.win,
+.ui-minimal #tpanel.note {
+  background: none;
+  box-shadow: none;
+  padding: 2px 4px;
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.85);
+}
+.ui-minimal.night #tpanel {
+  color: #f2f6ff;
+  text-shadow: 0 1px 8px rgba(0, 0, 20, 0.85);
+}
+.ui-minimal #tlist li {
+  font-weight: 400;
+}
+.ui-minimal #tlist li.now {
+  font-weight: 700;
+  color: inherit;
+}
+.ui-minimal #tlist li.done {
+  opacity: 0.45;
+}
+.ui-minimal #tnote {
+  font-weight: 600;
+}
+.ui-minimal #tpanel.win #tnote {
+  color: #148a4a;
+}
+.ui-minimal.night #tpanel.win #tnote {
+  color: #7cf0ad;
+}
+.ui-minimal #tpanel.note #tnote {
+  color: #b5541a;
+}
+.ui-minimal.night #tpanel.note #tnote {
+  color: #ffc58a;
+}
+/* the scoreboard: light cards on the dimmed view */
+.ui-minimal #board .cards div {
+  color: #f2f6ff;
+  border-left-color: rgba(255, 255, 255, 0.22);
+}
+.ui-minimal #board .cards div:first-child {
+  border-left: 0;
+}
+.ui-minimal #board .cards .up b {
+  color: #7cf0ad;
+}
+.ui-minimal #board .cards .dn b {
+  color: #ffa3a3;
+}
+.ui-minimal #bbest {
+  border-bottom-color: rgba(255, 255, 255, 0.22);
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .ui-minimal #front {
+    background: linear-gradient(90deg, rgba(6, 12, 26, 0) 30%, rgba(6, 12, 26, 0.65) 58%, rgba(6, 12, 26, 0.82));
+  }
 }
 
 /* ---- Arcade: chunky, bright and bold. A big speed dial at the bottom between the thumbs, badges with a pressed edge */

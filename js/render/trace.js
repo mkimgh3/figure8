@@ -108,8 +108,11 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
           `#include <alphamap_fragment>
   if (uInk == 1) diffuseColor.a = smoothstep(0.3, 0.55, diffuseColor.a);
   else if (uInk == 2) {
-    float g = inz(vInkP * 150.0) * 0.55 + inz(vInkP * 41.0) * 0.45;
-    diffuseColor.a *= smoothstep(0.1, 0.55, g) * 0.95;
+    // the grain repeats every 2 m: far from where she started, world positions times 150 were too big for the phone's
+    // floats, the noise went flat and the pencil line vanished (v3-look38)
+    vec2 wp = mod(vInkP, 2.0);
+    float g = inz(wp * 150.0) * 0.55 + inz(wp * 41.0) * 0.45;
+    diffuseColor.a *= (0.5 + 0.5 * smoothstep(0.15, 0.6, g)) * 0.95;
   }`,
         );
   };

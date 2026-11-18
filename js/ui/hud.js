@@ -53,7 +53,7 @@ export function createHud(coarse) {
   const bar = $('cbar'),
     tag = $('padtag');
   let tagT = 0,
-    // Infinite mode: no limit on the total, and the score card is one big number over Base, GOE and Art
+    // Infinite mode: no limit on the total, and the score card is the move's description over small Base, GOE and Art
     totalMax = 9999.9,
     infMode = false;
   // the running total's font shrinks when the number is too wide for the score chip (each Screen style sizes both)
@@ -78,7 +78,9 @@ export function createHud(coarse) {
       pop.textContent = '';
       pop.classList.toggle('inf', !!card && infMode);
       if (card && infMode) {
-        pop.appendChild(el('div', 'ptotal', (card.pts > 0 ? '+' : '') + num(card.pts, Infinity)));
+        // what she did and how (v3-look38: this replaced one big number for the points, which was too big)
+        pop.appendChild(el('div', 'pdesc', big || card.name));
+        if (small) pop.appendChild(el('small', '', small));
         pop.appendChild(cards(card, true, 'inf', true));
       } else if (card) {
         pop.appendChild(el('div', 'pname', card.name));
@@ -90,7 +92,7 @@ export function createHud(coarse) {
       pop.style.opacity = 1;
       popT = hold;
     },
-    // the front page's mode: 'infinite' takes the limit off the total and shows each score as one big number
+    // the front page's mode: 'infinite' takes the limit off the total and shows each score as its description
     mode(name) {
       infMode = name === 'infinite';
       totalMax = infMode ? Infinity : 9999.9;

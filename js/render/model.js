@@ -138,7 +138,7 @@ export function createModels(scene) {
   add(ball(0.11, 0.97, 1.04, 1), mHair, a, 0, 1.606, -0.024);
   add(ball(0.052, 1, 1, 1), mHair, a, 0, 1.69, -0.085);
   const ava = Object.assign(
-    { name: 'Tesa', inner: a, scale: 1, skirt, hair: null },
+    { name: 'Tesa', inner: a, scale: 1, skirt, hair: null, layback: true },
     limbs(a, {
       shoulder: 0.185,
       shoulderY: 1.375,

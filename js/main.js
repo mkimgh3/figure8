@@ -26,7 +26,7 @@ import { createStick } from './render/stick.js';
 import { createFront } from './ui/front.js';
 import * as THREE from './render/three.js';
 
-const BUILD = 'v3-look37';
+const BUILD = 'v3-look38';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -66,9 +66,10 @@ const showAvatar = () =>
       if (o.isMesh) o.visible = !on;
     });
   });
-// Tesa: a Scandinavian princess with white hair in a bun, slender and tall. Her gown: a pearl and lilac satin skirt to
-// the ice, set with mirror crystals, under a white fur overskirt to the knee, and a white fur stole over her shoulders.
-// Both skirts bloom open as she spins.
+// Tesa: a Scandinavian princess with white hair in a bun, slender and tall, dressed after Russian court gowns (v3-look38):
+// a white satin underskirt embroidered with crystals (vines, swags and rows round the hem), under an ice-blue velvet
+// overdress open at the front, trimmed with white fur and bordered with crystals; a white fur stole; a pearl-edged
+// silver kokoshnik. Both skirts lift high as she spins (flareGain, open, lift).
 const AVA_SLIM = {
   Spine: -0.012,
   Spine1: -0.008,
@@ -83,30 +84,36 @@ const AVA_SKIRT = [
     length: 0.95,
     waist: [0.125, 0.095],
     rest: 19,
-    open: 70,
+    open: 86,
+    lift: 0.14,
     bell: 0.8,
     follow: 0.4,
-    colours: [0xf3effc, 0xa996e6],
+    colours: [0xfbfcff, 0xe2e9f8],
     opacity: 1,
-    iridescence: 0.6,
-    sheen: 0.7,
-    sparkle: 0.8,
-    crystals: 1,
+    rough: 0.3,
+    iridescence: 0.35,
+    sheen: 0.6,
+    sparkle: 0.4,
+    embroider: 'under',
   },
   {
-    length: 0.6,
+    length: 0.97,
     waist: [0.137, 0.107],
-    rest: 25,
-    open: 76,
-    bell: 0.85,
+    rest: 22,
+    open: 90,
+    lift: 0.16,
+    bell: 0.82,
     follow: 0.35,
-    colours: [0xffffff, 0xf2eef9],
+    split: 64,
+    colours: [0x8ab1e8, 0x4870bf],
     opacity: 1,
-    rough: 0.95,
+    rough: 0.72,
     iridescence: 0,
     sheen: 1,
-    sparkle: 0.2,
-    fur: { shells: 5, length: 0.03, density: [320, 70], colour: 0xc9c2dc, tip: 0xffffff },
+    sheenColor: 0xd4e6ff,
+    sparkle: 0.15,
+    embroider: 'over',
+    fur: { shells: 5, length: 0.024, density: [260, 60], colour: 0xc9c2dc, tip: 0xffffff, edge: [0.022, 0.05] },
   },
 ];
 const AVA_STOLE = {
@@ -121,8 +128,19 @@ const AV_OPTS = [
     height: 1.72,
     skirt: AVA_SKIRT,
     mantle: AVA_STOLE,
+    tiara: true,
+    flareGain: 1.6,
     inflate: AVA_SLIM,
-    look: { iridescence: 0.8, sheen: 0xd9ccff, sparkle: 1, fabricSheen: true, skinRough: 0.85, crystals: 1 },
+    look: {
+      iridescence: 0.6,
+      sheen: 0xd6e6ff,
+      sparkle: 1,
+      fabricSheen: true,
+      skinRough: 0.85,
+      crystals: 1.3,
+      tint: [0.84, 0.92, 1.06],
+      tintAmt: 0.85,
+    },
   },
   null,
   null,
@@ -173,7 +191,7 @@ AV_OPTS[1] = {
   camera: world.camera,
   look: { iridescence: 0, sheen: 0xffd2b0, sheenAmt: 0.25, rough: 0.46, sparkle: 0 },
 };
-// Rook: a hockey player. The same base body as Ivor, clean-shaven, in a loose navy jersey with shoulder pads, padded
+// Rook: a hockey player. The same base body as Ivor, with a short brown beard, in a loose navy jersey with shoulder pads, padded
 // pants, striped socks, a helmet and gloves, on hockey skates, with his stick (stick.js).
 const ROOK_BULK = {
   Spine2: 0.042,
@@ -201,7 +219,6 @@ AV_OPTS[2] = {
   skirt: false,
   inflate: ROOK_BULK,
   bumps: ROOK_PADS,
-  shave: true,
   hockey: true,
   look: { iridescence: 0, sheen: 0xaab8e0, sheenAmt: 0.2, rough: 0.72, sparkle: 0 },
 };
@@ -262,6 +279,7 @@ const setChar = (i) => {
   ensureAvatar(models.index);
   showAvatar();
   S.hockey = !!models.rig.hockey;
+  S.layback = !!models.rig.layback;
   stick.visible = S.hockey;
   hud.text('charname', models.rig.name);
 };
@@ -407,7 +425,7 @@ const persist = () => {
     pm: playIx,
     rb: bests,
     ui: uiIx,
-    uv: 2,
+    uv: 3,
     gq: world.auto ? 'Auto' : world.qualityName,
     sc: scores[0].serialise(),
     sci: scores[1].serialise(),
@@ -520,7 +538,8 @@ hud.on('modebtn', () => {
 });
 // Screen: the look and layout of everything drawn over the ice
 const UI_STYLES = ['Classic', 'Broadcast', 'Glass', 'Minimal', 'Arcade'];
-let uiIx = saved && saved.uv === 2 && UI_STYLES[saved.ui] ? saved.ui : 3; // Minimal is the standard screen; a style chosen since then is kept
+// Minimal is the standard screen; v3-look38 set everyone back to it once (uv 3), and a style chosen since then is kept
+let uiIx = saved && saved.uv === 3 && UI_STYLES[saved.ui] ? saved.ui : 3;
 const setUi = (i) => {
   uiIx = (i + UI_STYLES.length) % UI_STYLES.length;
   UI_STYLES.forEach((n, k) => document.body.classList.toggle('ui-' + n.toLowerCase(), k === uiIx));

@@ -58,6 +58,14 @@ function costumeMaterial(map, normalMap, mask, U, look) {
       .replace(
         '#include <roughnessmap_fragment>',
         '#include <roughnessmap_fragment>\nvec4 mk = texture2D(uMask, vMapUv);' +
+          // the costume recoloured: its light and shade kept, its colour taken toward look.tint
+          (look.tint
+            ? ' { vec3 tn = vec3(' +
+              look.tint.map((x) => x.toFixed(3)).join(', ') +
+              '); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))) * tn, mk.r * ' +
+              (look.tintAmt ?? 0.85).toFixed(2) +
+              '); }'
+            : '') +
           (look.skinRough
             ? ' roughnessFactor = mix(' +
               look.skinRough.toFixed(2) +
@@ -101,7 +109,8 @@ function costumeMaterial(map, normalMap, mask, U, look) {
 const CRYSTAL = `
 vec3 crystal(vec3 n, vec3 V, float r) {
   vec3 c = vec3(0.0);
-  float tw = 0.55 + 0.45 * sin(uTime * 6.0 + r * 90.0);
+  // each crystal flashes on its own beat, briefly and brightly, and glints whenever it turns to a light
+  float tw = 0.45 + 2.6 * pow(max(0.0, sin(uTime * (1.2 + r * 1.9) + r * 70.0)), 24.0);
   vec3 R = reflect(-V, n);
 #if NUM_HEMI_LIGHTS > 0
   float hy = dot(R, hemisphereLights[0].direction) * 0.5 + 0.5;
@@ -121,7 +130,8 @@ vec3 crystal(vec3 n, vec3 V, float r) {
 
 // Fur: copies of a skinned mesh pushed out along its normals, each one drawing only the cross-sections of the strands at
 // its own height, so the surface grows a soft pile with a fuzzy edge. base must carry a 'furUv' attribute.
-// o: { shells, length (metres), density: [strands across u, strands across v], colour (deep in the pile), tip }
+// o: { shells, length (metres), density: [strands across u, strands across v], colour (deep in the pile), tip,
+//      edge: [u, v] to grow only along the piece's edges: within u of either side and v of the bottom (a fur trim) }
 function furShells(base, o) {
   const out = [],
     deep = new THREE.Color(o.colour),
@@ -136,21 +146,23 @@ function furShells(base, o) {
       });
     m.onBeforeCompile = (sh) => {
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec2 vFur;')
+        .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec2 vFur, vFr;')
         .replace(
           '#include <morphtarget_vertex>',
           `#include <morphtarget_vertex>
 transformed += normal * ${(o.length * h).toFixed(4)};
+vFr = furUv;
 vFur = furUv * vec2(${o.density[0].toFixed(1)}, ${o.density[1].toFixed(1)});`,
         );
       sh.fragmentShader = sh.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying vec2 vFur;\nfloat fh(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }',
+          '#include <common>\nvarying vec2 vFur, vFr;\nfloat fh(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }',
         )
         .replace(
           '#include <clipping_planes_fragment>',
           `#include <clipping_planes_fragment>
+${o.edge ? `if (vFr.x > ${o.edge[0].toFixed(3)} && vFr.x < ${(1 - o.edge[0]).toFixed(3)} && vFr.y < ${(1 - o.edge[1]).toFixed(3)}) discard;` : ''}
 { vec2 c = floor(vFur), f = fract(vFur) - 0.5 + (vec2(fh(c + 3.1), fh(c + 7.7)) - 0.5) * 0.5;
   float len = 0.35 + 0.65 * fh(c);
   if (${h.toFixed(3)} > len || length(f) > 0.62 * (1.0 - ${h.toFixed(3)} / len) + 0.06) discard; }`,
@@ -164,13 +176,44 @@ vFur = furUv * vec2(${o.density[0].toFixed(1)}, ${o.density[1].toFixed(1)});`,
   return out;
 }
 
+// Crystal embroidery on the skirts. The skirt is divided into a grid of tiny cells (EMB_GRID: across, down), and a
+// crystal is stitched into each cell whose centre (u round the skirt from the front, or from one edge of an overdress;
+// t from the waist down) falls on the pattern, plus a few scattered ones. One cell is a crystal's width, so the lines
+// come out as rows of single stones.
+//   under: two rows round the hem, a garland of swags above them, and twelve vines down the skirt with pairs of leaves
+//   over:  a border just inside each front edge and above the hem, and a scatter of six-stone flowers
+const EMB_GRID = [220, 80];
+const EMBROIDERY = {
+  under: `float emb(vec2 c) {
+  float u = c.x, t = c.y, du = 0.5 / ${EMB_GRID[0].toFixed(1)}, dt = 0.5 / ${EMB_GRID[1].toFixed(1)};
+  if (abs(t - 0.905) < dt || abs(t - 0.955) < dt) return 1.0;
+  if (abs(t - (0.845 - 0.05 * abs(sin(u * 3.14159 * 16.0)))) < dt) return 1.0;
+  float k = floor(u * 12.0 + 0.5) / 12.0, d = u - k - 0.006 * sin(t * 26.0);
+  if (t > 0.1 && t < 0.79 && abs(d) < du) return 1.0;
+  float row = floor(t * ${EMB_GRID[1].toFixed(1)});
+  if (t > 0.14 && t < 0.77 && mod(row, 8.0) == 4.0 && abs(abs(d) - 0.011) < du * 1.2) return 1.0;
+  return 0.0;
+}`,
+  over: `float emb(vec2 c) {
+  float u = c.x, t = c.y, du = 0.5 / ${EMB_GRID[0].toFixed(1)}, dt = 0.5 / ${EMB_GRID[1].toFixed(1)};
+  if (t > 0.05 && (abs(u - 0.04) < du || abs(u - 0.96) < du)) return 1.0;
+  if (abs(t - 0.915) < dt) return 1.0;
+  vec2 g = vec2(u * 16.0, t * 7.0), f = (fract(g) - 0.5) / vec2(16.0, 7.0);
+  float ring = abs(length(f * vec2(1.0, 0.45)) - 0.012);
+  if (t > 0.18 && t < 0.86 && mod(floor(g.x) + floor(g.y), 2.0) == 0.0 && ring < du * 1.1) return 1.0;
+  return 0.0;
+}`,
+};
+
 // A long layered skirt from the waist down (to the knee or to the ice), skinned to the hips and thighs so it moves with the legs.
 // Four morphs: 0 half open, 1 fully open (the skirt swung out nearly flat, like a petal), 2 and 3 flutes round the
 // hem. As she spins, update() swings it open along the arc between those shapes and sends the flutes travelling
 // round, so it blooms instead of just stretching.
 // toBind: from where she stands now back into the model's bind space (where its skinning weights were made)
 // o: { length, waist: [rx, rz], rest, open (degrees), bell (below 1: fuller near the waist), follow (how much the hem
-//      follows each leg), colours: [top, hem], opacity, sheen, sparkle }
+//      follows each leg), colours: [top, hem], opacity, sheen, sparkle, rough, sheenColor,
+//      lift (how far the hem rises when it is fully open, metres), split (degrees left open at the front, for an
+//      overdress over an underskirt), embroider ('under' or 'over': rows of crystals stitched in a pattern) }
 function buildSkirt(skeleton, toBind, bone, U, o) {
   const pelvis = bone('Bip01 Pelvis'),
     thighL = bone('Bip01 L Thigh'),
@@ -186,7 +229,10 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
     D = Math.PI / 180;
   const th0 = o.rest * D,
     thH = ((o.rest + o.open) / 2) * D,
-    th1 = o.open * D;
+    th1 = o.open * D,
+    a0 = ((o.split || 0) / 2) * D,
+    a1 = Math.PI * 2 - a0,
+    liftH = o.lift ?? 0.05;
   const pos = [],
     half = [],
     full = [],
@@ -207,7 +253,7 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
     follow = o.follow ?? 0.7;
   const at = (a, t, th, out) => {
     const fold = 0.011 * t * Math.sin(a * 16),
-      lift = th === th1 ? 0.05 * t * t * t : 0,
+      lift = th === th1 ? liftH * t * t * t : 0,
       r = L * Math.pow(t, bell) * Math.sin(th) + fold;
     return out.set(
       P.x + Math.sin(a) * (rx0 + r),
@@ -223,7 +269,7 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
     const t = r / RINGS;
     c.copy(top).lerp(hem, Math.pow(t, 1.3));
     for (let sg = 0; sg <= SEG; sg++) {
-      const a = (sg / SEG) * Math.PI * 2;
+      const a = a0 + (sg / SEG) * (a1 - a0);
       at(a, t, th0, v);
       const w = v.clone().applyMatrix4(toBind);
       pos.push(w.x, w.y, w.z);
@@ -275,12 +321,12 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   const sheer = o.opacity < 1;
   const m = new THREE.MeshPhysicalMaterial({
     vertexColors: true,
-    roughness: sheer ? 0.5 : 0.32,
+    roughness: o.rough ?? (sheer ? 0.5 : 0.32),
     iridescence: o.iridescence ?? 0.6,
     iridescenceIOR: 1.6,
     iridescenceThicknessRange: [260, 620],
     sheen: o.sheen ?? 0.7,
-    sheenColor: new THREE.Color(0xf2ecff),
+    sheenColor: new THREE.Color(o.sheenColor ?? 0xf2ecff),
     sheenRoughness: 0.35,
     side: THREE.DoubleSide,
     transparent: sheer,
@@ -291,12 +337,12 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
     sh.uniforms.uTime = U.uTime;
     sh.uniforms.uSparkle = U.uSparkle;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSk;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSk = position * 160.0;');
+      .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec3 vSk;\nvarying vec2 vFu;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSk = position * 160.0;\nvFu = furUv;');
     sh.fragmentShader = sh.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying vec3 vSk; uniform float uTime, uSparkle;\nfloat sh31(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }',
+        '#include <common>\nvarying vec3 vSk; varying vec2 vFu; uniform float uTime, uSparkle;\nfloat sh31(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }\nfloat sh21(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }',
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -312,9 +358,22 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   if (cr > ${(1 - 0.32 * o.crystals).toFixed(3)} && length(fract(cq) - 0.5) < 0.4) {
     vec3 n3 = normalize(normal + (vec3(sh31(cc + 1.7), sh31(cc + 5.3), sh31(cc + 8.9)) - 0.5) * 1.4);
     totalEmissiveRadiance += crystal(n3, normalize(vViewPosition), cr) * uSparkle; } }`
+            : '') +
+          (o.embroider
+            ? `
+{ vec2 q = vFu * vec2(${EMB_GRID[0].toFixed(1)}, ${EMB_GRID[1].toFixed(1)}), cc = floor(q);
+  float cr = sh21(cc + 4.7);
+  if ((emb((cc + 0.5) / vec2(${EMB_GRID[0].toFixed(1)}, ${EMB_GRID[1].toFixed(1)})) > 0.5 || cr > 0.978) && length(fract(q) - 0.5) < 0.42) {
+    vec3 n3 = normalize(normal + (vec3(sh21(cc + 1.7), sh21(cc + 5.3), sh21(cc + 8.9)) - 0.5) * 1.6);
+    diffuseColor.rgb = vec3(0.82, 0.88, 0.98);
+    totalEmissiveRadiance += crystal(n3, normalize(vViewPosition), cr) * uSparkle * 1.3; } }`
             : ''),
       );
-    if (o.crystals) sh.fragmentShader = sh.fragmentShader.replace('void main() {', CRYSTAL + '\nvoid main() {');
+    if (o.crystals || o.embroider)
+      sh.fragmentShader = sh.fragmentShader.replace(
+        'void main() {',
+        CRYSTAL + '\n' + (o.embroider ? EMBROIDERY[o.embroider] : '') + '\nvoid main() {',
+      );
   };
   const mesh = new THREE.SkinnedMesh(g, m);
   mesh.castShadow = !sheer;
@@ -546,10 +605,10 @@ function buildHelmet(top, c, r) {
   ridge.rotation.set(-0.32, Math.PI / 2, 0);
   ridge.position.y = 0.002;
   grp.add(ridge);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.025, 6, 48), trim);
-  rim.scale.set(r.x * 1.215, r.z * 1.195, 1);
-  rim.rotation.x = Math.PI / 2 - 0.32;
-  rim.position.y = -0.008;
+  // the band round the rim: a slice of the same dome, a hair larger, so it follows the shell's edge exactly
+  const rim = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 3, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.1), trim);
+  rim.scale.set(r.x * 1.235, 0.162, r.z * 1.215);
+  rim.rotation.x = -0.32;
   grp.add(rim);
   // ear guards
   for (const sd of [-1, 1]) {
@@ -581,13 +640,13 @@ function buildGlove(at, dir) {
   const grp = new THREE.Group();
   grp.position.copy(at);
   grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-  const mitt = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.065, 4, 10), navy);
-  mitt.scale.set(1.15, 1, 0.9);
-  mitt.position.y = 0.075;
+  const mitt = new THREE.Mesh(new THREE.CapsuleGeometry(0.066, 0.09, 4, 10), navy);
+  mitt.scale.set(1.4, 1, 1.15);
+  mitt.position.y = 0.09;
   grp.add(mitt);
-  const pad = new THREE.Mesh(new THREE.CapsuleGeometry(0.038, 0.05, 4, 8), palm);
+  const pad = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.07, 4, 8), palm);
   pad.scale.set(1, 1, 0.5);
-  pad.position.set(0, 0.075, -0.018);
+  pad.position.set(0, 0.09, -0.032);
   grp.add(pad);
   const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.064, 0.085, 14), navy);
   cuff.position.y = -0.01;
@@ -598,6 +657,40 @@ function buildGlove(at, dir) {
   grp.traverse((o) => {
     if (o.isMesh) o.castShadow = true;
   });
+  return grp;
+}
+
+// Tesa's kokoshnik: a crescent of silver standing up over her forehead, edged with pearls, built in the world at the rest
+// pose (top: the crown, c: the centre of the cranium, r: its half-widths) and then pinned to the head bone.
+function buildTiara(top, c, r) {
+  const silver = new THREE.MeshStandardMaterial({ color: 0xe6eeff, metalness: 1, roughness: 0.18 }),
+    pearl = new THREE.MeshStandardMaterial({ color: 0xfbf8ff, roughness: 0.25, envMapIntensity: 1.2 }),
+    W = r.x * 0.95,
+    H = 0.075;
+  const sh = new THREE.Shape();
+  sh.absellipse(0, 0, W, H, 0, Math.PI, false);
+  const hole = new THREE.Path();
+  hole.absellipse(0, -0.012, W * 0.62, H * 0.45, Math.PI, 0, true);
+  sh.holes.push(hole);
+  const grp = new THREE.Group();
+  const plate = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(sh, { depth: 0.005, bevelEnabled: false, curveSegments: 24 }),
+    silver,
+  );
+  plate.castShadow = true;
+  grp.add(plate);
+  for (let i = 0; i <= 12; i++) {
+    const a = (i / 12) * Math.PI,
+      p = new THREE.Mesh(new THREE.SphereGeometry(0.0065, 10, 8), pearl);
+    p.position.set(Math.cos(a) * W, Math.sin(a) * H, 0.004);
+    grp.add(p);
+  }
+  // the centre stone
+  const stone = new THREE.Mesh(new THREE.OctahedronGeometry(0.012), silver);
+  stone.position.set(0, H * 0.72, 0.006);
+  grp.add(stone);
+  grp.position.set(c.x, top - 0.055, c.z + r.z * 0.45);
+  grp.rotation.x = -0.45;
   return grp;
 }
 
@@ -853,21 +946,62 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         if (mo.fur) furShells(mt, mo.fur).forEach(attach);
       }
       // Rook's kit: helmet, gloves, and markers in his palms for the stick
+      // the kit is built from positions in the world, so each piece is put into wrap (which is scaled to his height)
+      // with wrap's own transform taken back out
+      wrap.updateMatrixWorld(true);
+      const unwrap = wrap.matrixWorld.clone().invert(),
+        place = (o) => {
+          wrap.add(o);
+          o.applyMatrix4(unwrap);
+          o.updateMatrixWorld(true);
+        };
+      // (Tesa's kokoshnik is placed the same way, from the same measurement of the head)
       const gear = [],
         palms = [];
+      const headTop = () => {
+        const headMesh = skinned.find((m) => m.material === head),
+          v = new THREE.Vector3();
+        if (!headMesh) return null;
+        headMesh.updateMatrixWorld(true);
+        const n = headMesh.geometry.attributes.position.count,
+          at = (i) => headMesh.getVertexPosition(i, v).applyMatrix4(headMesh.matrixWorld);
+        let top = -Infinity;
+        for (let i = 0; i < n; i++) top = Math.max(top, at(i).y);
+        const lo = new THREE.Vector3(Infinity, 0, Infinity),
+          hi = new THREE.Vector3(-Infinity, 0, -Infinity);
+        for (let i = 0; i < n; i++) {
+          at(i);
+          if (v.y < top - 0.12) continue;
+          lo.min(v);
+          hi.max(v);
+        }
+        return { top, c: lo.clone().add(hi).multiplyScalar(0.5), r: hi.clone().sub(lo).multiplyScalar(0.5) };
+      };
+      if (opts.tiara) {
+        const h = headTop();
+        if (h) {
+          const t = buildTiara(h.top, h.c, h.r);
+          place(t);
+          bone('Bip01 Head').attach(t);
+          gear.push(t);
+        }
+      }
       if (opts.hockey) {
-        const headMesh = skinned.find((m) => m.material === head);
-        const fromBind = toBind.clone().invert(),
+        const headMesh = skinned.find((m) => m.material === head),
           v = new THREE.Vector3();
         if (headMesh) {
-          const P = headMesh.geometry.attributes.position;
+          // the head as it stands now, at rest, in the world (the head has its own bind space, not the body's: measured
+          // through the body's, the helmet came out 15 cm low, round his mouth)
+          headMesh.updateMatrixWorld(true);
+          const n = headMesh.geometry.attributes.position.count,
+            at = (i) => headMesh.getVertexPosition(i, v).applyMatrix4(headMesh.matrixWorld);
           let top = -Infinity;
-          for (let i = 0; i < P.count; i++) top = Math.max(top, v.fromBufferAttribute(P, i).applyMatrix4(fromBind).y);
+          for (let i = 0; i < n; i++) top = Math.max(top, at(i).y);
           const lo = new THREE.Vector3(Infinity, 0, Infinity),
             hi = new THREE.Vector3(-Infinity, 0, -Infinity);
-          for (let i = 0; i < P.count; i++) {
-            v.fromBufferAttribute(P, i).applyMatrix4(fromBind);
-            if (v.y < top - 0.13) continue;
+          for (let i = 0; i < n; i++) {
+            at(i);
+            if (v.y < top - 0.12) continue;
             lo.min(v);
             hi.max(v);
           }
@@ -876,8 +1010,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
             lo.clone().add(hi).multiplyScalar(0.5),
             hi.clone().sub(lo).multiplyScalar(0.5),
           );
-          wrap.add(helmet);
-          helmet.updateMatrixWorld(true);
+          place(helmet);
           bone('Bip01 Head').attach(helmet);
           gear.push(helmet);
         }
@@ -891,14 +1024,12 @@ export function loadAvatar(models, ix, opts, U, onReady) {
             F = fn ? bones[fn].getWorldPosition(new THREE.Vector3()) : H.clone().add(new THREE.Vector3(0, -0.08, 0)),
             dir = F.clone().sub(H).normalize();
           const glove = buildGlove(H, dir);
-          wrap.add(glove);
-          glove.updateMatrixWorld(true);
+          place(glove);
           hand.attach(glove);
           gear.push(glove);
           const palm = new THREE.Object3D();
           palm.position.copy(H).addScaledVector(dir, 0.075);
-          wrap.add(palm);
-          palm.updateMatrixWorld(true);
+          place(palm);
           hand.attach(palm);
           palms.push(palm);
         }
@@ -1127,7 +1258,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           const sd = Math.min(dt, 0.05),
             k = 5,
             kc = 2 * Math.sqrt(k);
-          flareV += (k * (spinFlare - flare) - kc * flareV) * sd;
+          flareV += (k * (Math.min(1, spinFlare * (opts.flareGain || 1)) - flare) - kc * flareV) * sd;
           flare = THREE.MathUtils.clamp(flare + flareV * sd, 0, 1);
           spinV += (k * ((spinOnly ?? spinFlare) - spin) - kc * spinV) * sd;
           spin = THREE.MathUtils.clamp(spin + spinV * sd, 0, 1);
