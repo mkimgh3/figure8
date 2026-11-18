@@ -1,4 +1,4 @@
-// Pure gesture maths: no DOM, no game state, so it can be tested against recorded finger traces.
+// Pure gesture maths: no DOM, no game state and no clock (time comes in with every call), so it can be tested against recorded finger traces.
 import { clamp, wrap } from '../core/math.js';
 
 // One finger's stroke. add() returns the rotation (radians, screen-clockwise positive) that this sample contributes.
@@ -115,272 +115,101 @@ export class TapTracker {
   }
 }
 
-// Reads the shape of one stream of motion: a single finger, or the shared motion of two thumbs.
-//   up, down, left, right   a straight flick, reported once the motion stops or the finger lifts
-//   scribbleX / scribbleY   side to side, or up and down (two reversals, or one long out-and-back stroke)
-//   corner                  a sharp L: sideways, then up or down (.side is -1 left / 1 right, .vertical is -1 up / 1 down)
-//   slash                   a straight flick on a diagonal
-// Only the flicks start moves. The other three are read so the gesture counts as decided (see tricks.js).
-export class Shape {
+// Reads one finger's stroke as a flick, or not. A flick is quick and straight: all its motion happens within flickMs, it
+// travels at least flickPx, never turns back on itself (by reversalPx or more) and hardly curves. It is read once, when the
+// finger has been still for idleMs, or when it lifts.
+//   pending()       it could still be a flick: so far it has moved straight and quickly, and it has not been read yet.
+//                   Choreography holds off while it is, so a flick kept down is not taken for a finger held still.
+//   read(t, lifted) once the finger is still (or lifts): { dir, dx, dy, d, straight, smooth }. dir is 'up', 'down', 'left'
+//                   or 'right' for a flick, and null otherwise (too short, diagonal, curved, turned back, or too slow).
+//                   smooth: it never turned back and hardly curved, however long it took. Null until the finger is still,
+//                   and after the one reading. A twitch shorter than restPx followed by stillness is not read: the finger
+//                   is resting, and its next motion starts afresh.
+export class Swipe {
   constructor(cfg) {
     this.c = cfg;
+    this.decided = false;
+    this.reset();
+  }
+  reset() {
     this.x = 0;
     this.y = 0;
     this.path = 0;
+    this.turn = 0;
     this.t0 = null;
     this.lastMove = 0;
-    this.decided = null;
-    this.minX = 0;
-    this.maxX = 0;
-    this.minY = 0;
-    this.maxY = 0;
-    this.revX = 0;
-    this.revY = 0;
+    this.heading = null;
+    this.reversals = 0;
     this.dirX = 0;
     this.dirY = 0;
     this.sx = 0;
     this.sy = 0;
-    this.l1 = 0;
-    this.l2 = 0;
-    this.diag = 0;
-    this.noCorner = false;
-    this.side = 0;
-    this.hx = 0;
-    this.hy = 0;
-    this.vertical = 0;
   }
-  add(dx, dy, dturn, t) {
-    const c = this.c;
+  // dx, dy: how far the finger moved since the last call (px, a step of Stroke.minSegPx or more); t: time (ms)
+  add(dx, dy, t) {
+    if (this.decided) return;
     if (this.t0 === null) this.t0 = t;
     this.lastMove = t;
     this.x += dx;
     this.y += dy;
     this.path += Math.hypot(dx, dy);
-    if (this.x < this.minX) this.minX = this.x;
-    if (this.x > this.maxX) this.maxX = this.x;
-    if (this.y < this.minY) this.minY = this.y;
-    if (this.y > this.maxY) this.maxY = this.y;
+    // how far its heading has turned since this swipe began (a sharp turn back is a reversal, counted below)
+    const h = Math.atan2(dy, dx);
+    if (this.heading !== null) {
+      const dh = wrap(h - this.heading);
+      if (Math.abs(dh) <= 2) this.turn += dh;
+    }
+    this.heading = h;
+    // a reversal: having gone reversalPx or more one way along x (or y), the finger heads back
     if (Math.abs(dx) > Math.abs(dy) * 1.2) {
-      const d = dx > 0 ? 1 : -1;
-      if (this.dirX && d !== this.dirX) {
-        if (Math.abs(this.sx) >= c.reversalPx) this.revX++;
+      const s = dx > 0 ? 1 : -1;
+      if (this.dirX && s !== this.dirX) {
+        if (Math.abs(this.sx) >= this.c.reversalPx) this.reversals++;
         this.sx = 0;
       }
-      this.dirX = d;
+      this.dirX = s;
       this.sx += dx;
     }
     if (Math.abs(dy) > Math.abs(dx) * 1.2) {
-      const d = dy > 0 ? 1 : -1;
-      if (this.dirY && d !== this.dirY) {
-        if (Math.abs(this.sy) >= c.reversalPx) this.revY++;
+      const s = dy > 0 ? 1 : -1;
+      if (this.dirY && s !== this.dirY) {
+        if (Math.abs(this.sy) >= this.c.reversalPx) this.reversals++;
         this.sy = 0;
       }
-      this.dirY = d;
+      this.dirY = s;
       this.sy += dy;
     }
-    // l1: how far the stroke has turned one way; l2: how far it has since turned back (a stroke that turns too much is no flick)
-    if (dturn !== 0) {
-      if (this.l1 === 0 || dturn * this.l1 > 0) {
-        if (Math.abs(this.l2) < 1.5) {
-          this.l1 += dturn;
-          this.l2 = 0;
-        } else this.l2 += dturn;
-      } else this.l2 += dturn;
-    }
-    if (this.decided) return null;
-    // a corner is sharp: a level sideways leg, then little travel on the diagonal before the vertical leg
-    if (Math.abs(dx) <= Math.abs(dy) * 2 && Math.abs(dy) <= Math.abs(dx) * 2) {
-      this.diag += Math.hypot(dx, dy);
-      if (this.diag > 30) {
-        this.noCorner = true;
-        this.side = 0;
-      }
-    }
-    if (!this.noCorner && Math.abs(dx) > Math.abs(dy) * 1.2) {
-      if (Math.abs(this.y) > Math.max(18, Math.abs(this.x) * 0.4)) {
-        this.noCorner = true;
-        this.side = 0;
-      } else if (Math.abs(this.x) >= 40) {
-        this.side = this.x > 0 ? 1 : -1;
-        this.hx = this.x;
-        this.hy = this.y;
-      }
-    }
-    const w = this.maxX - this.minX,
-      h = this.maxY - this.minY;
-    let ev = null;
-    if (this.revX >= 2 && h < Math.max(26, w * 0.45)) ev = 'scribbleX';
-    else if (this.revY >= 2 && w < Math.max(26, h * 0.45)) ev = 'scribbleY';
-    if (ev) this.decided = ev;
-    return ev;
   }
-  flick() {
-    const c = this.c,
-      d = Math.hypot(this.x, this.y);
-    if (this.decided) return null;
-    // an L that stopped: sideways leg, sharp turn, vertical leg, and no more turning than a corner has (a circle keeps turning)
-    if (
-      this.side &&
-      !this.noCorner &&
-      this.revX + this.revY === 0 &&
-      Math.abs(this.l1) < 2.4 &&
-      Math.abs(this.y - this.hy) >= 45 &&
-      Math.abs(this.x - this.hx) < Math.abs(this.y - this.hy) * 0.7
-    ) {
-      this.vertical = this.y < this.hy ? -1 : 1;
-      this.decided = 'corner';
-      return 'corner';
-    }
-    // one out-and-back stroke is a short scribble
-    if (this.revX + this.revY === 1 && this.path >= 100 && Math.abs(this.l1) < 1.5) {
-      const w = this.maxX - this.minX,
-        h = this.maxY - this.minY;
-      if (this.revY === 1 && w < Math.max(26, h * 0.45)) {
-        this.decided = 'scribbleY';
-        return this.decided;
-      }
-      if (this.revX === 1 && h < Math.max(26, w * 0.45)) {
-        this.decided = 'scribbleX';
-        return this.decided;
-      }
-    }
-    if (this.revX + this.revY > 0 || d < c.flickPx || this.path > d * 1.25 || Math.abs(this.l1) > 1.2) return null;
-    this.decided =
-      Math.abs(this.y) > Math.abs(this.x) * 1.2
-        ? this.y < 0
-          ? 'up'
-          : 'down'
-        : Math.abs(this.x) > Math.abs(this.y) * 1.2
-          ? this.x > 0
-            ? 'right'
-            : 'left'
-          : 'slash';
-    return this.decided;
+  get distance() {
+    return Math.hypot(this.x, this.y);
   }
-  // how fast the stroke was drawn, in px/s
-  get speed() {
-    return this.t0 === null ? 0 : (this.path / Math.max(16, this.lastMove - this.t0)) * 1000;
+  get smooth() {
+    return this.reversals === 0 && Math.abs(this.turn) <= 1.2;
   }
-  // call every frame
-  settle(t) {
-    return this.t0 !== null && !this.decided && t - this.lastMove >= this.c.idleMs ? this.flick() : null;
+  // smooth, a path hardly longer than the distance covered, and all of it within flickMs
+  get straight() {
+    return this.smooth && this.path <= this.distance * 1.25 && this.lastMove - this.t0 <= this.c.flickMs;
   }
-  // call when the finger lifts
-  end() {
-    return this.flick();
+  pending() {
+    return !this.decided && this.t0 !== null && this.straight;
   }
-}
-
-// Two thumbs moving together. Feed it both strokes whenever either moves.
-// Reports 'engage' once they are in step, 'spread' when they move apart,
-// and otherwise whatever Shape reads from their shared motion.
-export class Duo {
-  constructor(cfg, shapeCfg) {
-    this.cfg = cfg;
-    this.shape = new Shape(shapeCfg);
-    this.sync = 0;
-    this.peak = 0;
-    this.lastT = null;
-    this.active = false;
-    this.decided = null;
-    this.px = null;
-  }
-  update(a, b, t) {
-    const c = this.cfg,
-      dt = this.lastT === null ? 0 : Math.min(100, t - this.lastT);
-    this.lastT = t;
-    if (this.px === null) {
-      this.sep0 = Math.hypot(a.x - b.x, a.y - b.y);
-      this.ta0 = a.turn;
-      this.tb0 = b.turn;
-      this.ax0 = a.x;
-      this.ay0 = a.y;
-      this.bx0 = b.x;
-      this.by0 = b.y;
-      this.pa0 = a.path;
-      this.pb0 = b.path;
-    }
-    const mx = (a.x + b.x) / 2,
-      my = (a.y + b.y) / 2,
-      ddx = this.px === null ? 0 : mx - this.px,
-      ddy = this.px === null ? 0 : my - this.py;
-    this.px = mx;
-    this.py = my;
-    const sa = a.speedAt(t),
-      sb = b.speedAt(t),
-      moving = sa > c.minSpeed && sb > c.minSpeed,
-      cos = moving ? (a.vx * b.vx + a.vy * b.vy) / (sa * sb) : 0;
-    const mirror =
-      moving && a.vx * b.vx < 0 && Math.abs(a.vx) > Math.abs(a.vy) * 0.8 && Math.abs(b.vx) > Math.abs(b.vy) * 0.8;
-    const ta = a.turn - this.ta0,
-      tb = b.turn - this.tb0,
-      circling = moving && Math.abs(ta) > 1.2 && Math.abs(tb) > 1.2;
-    if (moving && (cos > c.parallelCos || mirror || circling)) this.sync += dt;
-    else if (!this.active) this.sync = Math.max(0, this.sync - dt * 2);
-    if (this.sync > this.peak) this.peak = this.sync;
-    let ev = null;
-    const was = this.active;
-    if (!this.active && this.sync >= c.engageMs) this.active = true;
-    // the shared motion is read from the start of the stroke, so a quick flick is not lost while waiting to engage
-    const se = ddx !== 0 || ddy !== 0 ? this.shape.add(ddx, ddy, 0, t) : null; // a thumb resting on the glass is not motion
-    if (!this.active) {
-      if (se) this.pending = se;
+  read(t, lifted) {
+    if (this.decided || this.t0 === null) return null;
+    if (!lifted && t - this.lastMove < this.c.idleMs) return null;
+    const d = this.distance;
+    if (!lifted && d < this.c.restPx) {
+      this.reset();
       return null;
     }
-    if (!this.decided) {
-      const sep = Math.hypot(a.x - b.x, a.y - b.y) - this.sep0,
-        common = Math.hypot(this.shape.x, this.shape.y);
-      // circling thumbs are steering or rotating, not a shared gesture
-      const calm =
-          Math.abs(ta) < c.calmTurn + 0.005 * (a.path - this.pa0) &&
-          Math.abs(tb) < c.calmTurn + 0.005 * (b.path - this.pb0),
-        da = Math.hypot(a.x - this.ax0, a.y - this.ay0),
-        db = Math.hypot(b.x - this.bx0, b.y - this.by0);
-      if (!calm) {
-        this.pending = null;
-        return was ? null : 'engage';
-      }
-      if (
-        sep >= c.spreadPx &&
-        common < sep * 0.5 &&
-        Math.abs(ta) < 1 &&
-        Math.abs(tb) < 1 &&
-        da >= c.spreadEachPx &&
-        db >= c.spreadEachPx
-      )
-        ev = 'spread';
-      else if (se) ev = se;
-      else if (this.pending) ev = this.pending;
-      if (ev) {
-        this.decided = ev;
-        this.pending = null;
-        return was ? ev : ['engage', ev];
-      }
+    this.decided = true;
+    const x = this.x,
+      y = this.y,
+      straight = this.straight;
+    let dir = null;
+    if (straight && d >= this.c.flickPx) {
+      if (Math.abs(y) > Math.abs(x) * 1.2) dir = y < 0 ? 'up' : 'down';
+      else if (Math.abs(x) > Math.abs(y) * 1.2) dir = x > 0 ? 'right' : 'left';
     }
-    return was ? null : 'engage';
-  }
-  settle(t) {
-    if (!this.active || this.decided) return null;
-    const e = this.shape.settle(t);
-    if (e) this.decided = e;
-    return e;
-  }
-  end() {
-    if (!this.active || this.decided) return null;
-    const e = this.shape.end();
-    if (e) this.decided = e;
-    return e;
-  }
-  summary() {
-    return this.peak > 0
-      ? {
-          sync: Math.round(this.peak),
-          read: this.decided || (this.active ? 'engaged' : 'no'),
-          cx: Math.round(this.shape.x),
-          cy: Math.round(this.shape.y),
-          revX: this.shape.revX,
-          revY: this.shape.revY,
-        }
-      : null;
+    return { dir, dx: x, dy: y, d, straight, smooth: this.smooth };
   }
 }

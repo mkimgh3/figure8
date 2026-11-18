@@ -1,96 +1,183 @@
-// The trick finger. The rules of the control scheme live here and nowhere else:
-//   quick double tap            -> jump; keep the second tap down and circle to rotate
-//   drag (anything longer than a flick) -> choreography (moves/dance.js) for as long as the finger stays down: its strokes set the mood,
-//                                  and circling turns her and brings out the spin positions
-//   finger held down            -> choreography too: any time it is down and nothing else is happening, including after a jump has landed
-//   flick up                    -> spiral, flick down -> hydroblade (each lasts at least a moment, and for as long as the finger stays down)
-//   circle straight after a split leap -> twizzles: she turns as far as the finger circles and keeps travelling
-//   flick left                  -> three-turn (swaps forward and backward skating)
-//   flick right                 -> split leap
-// Both thumbs together: dragged down and lifted is a hockey stop; swipe up is a spiral and swipe down, held, a hydroblade (both last while the thumbs stay down), spreading the
-// thumbs apart is a spread eagle, and sideways flicks do the same as with one finger.
-// The recogniser also reads scribbles, corners and diagonal flicks. They start nothing, but reading one settles a two-thumb gesture, so choreography can begin.
-// A single touch never jumps.
+// The trick finger, the right thumb. The rules of the control scheme live here and nowhere else:
+//   quick double tap   -> jump; keep the second tap down and circle to rotate her in the air
+//   flick up           -> spiral; flick down -> hydroblade (each lasts a moment, and for as long as the finger stays down)
+//   flick left         -> three-turn (swaps forward and backward skating)
+//   flick right        -> split leap; a circle within afterLeapMs of it is twizzles
+//   anything else      -> choreography (moves/dance.js) once the finger has been down holdMs with nothing else going on:
+//                         held still, or dragged further or slower than a flick. It lasts while the finger stays down; the
+//                         finger's strokes set the mood, and circling it turns her and brings out the spin positions.
+// With the left thumb moving the same way (CFG.two):
+//   both swiped down   -> hockey stop if a thumb lifts within stop.liftMs, hydroblade if both stay down
+//   both moving apart  -> spread eagle
+//   both up, left or right -> the same as the right thumb alone
+// A flick has to be quick (CFG.swipe); while a stroke could still be one, choreography waits for it to be read.
+// What the finger does is worked out from the skater on every call, not fixed when it touched down: whenever she is in
+// the air it turns her, and when the move it started or took up is over (finished, a fall, a launch pad) and it is still
+// down, she dances. Time comes in with every call (ms). This file never reads a clock, so it can be tested with a made-up one.
 import { CFG } from '../config.js';
-import { Stroke, Shape } from './recognizer.js';
+import { Stroke, Swipe } from './recognizer.js';
 import { createSpiral, createEagle, createHydro } from '../moves/held.js';
 import { createTwirl } from '../moves/twirl.js';
 import { createTurn, createLeap, createStop } from '../moves/quick.js';
 import { createDance } from '../moves/dance.js';
 
 export function createTricks(game, taps, log) {
+  const S = game.S,
+    K = CFG.two;
+  // the right thumb while it is down: its stroke, and the reading of it as a flick
   let stroke = null,
-    shape = null,
-    mode = null,
-    outcome = '',
-    fired = false,
-    leapUntil = 0;
-  const S = game.S;
-  // ev is what the recogniser read. two: the event is the shared motion of both thumbs.
-  // lifted: it was read as a thumb left the glass, so the gesture was a drag and release, not a hold
-  function perform(ev, two, lifted) {
-    if (!ev || ev === 'engage' || mode !== 'pending') return false;
-    if (fired || !S.grounded) return false;
-    const inward = S.turn > 0 ? -1 : 1;
-    let m = null; // lean the way she is already curving
-    if (ev === 'up') {
-      m = createSpiral(S, game);
-      ev = 'spiral';
-    } else if (two && ev === 'down' && lifted) {
-      if (game.speed() < CFG.stop.minSpeed) return false;
-      m = createStop(S, game, inward);
-      ev = 'stop';
-    } else if (ev === 'down') {
-      m = createHydro(S, game, inward);
-      ev = 'hydro';
-    } else if (ev === 'left') m = createTurn(S, game);
-    else if (ev === 'right') {
-      m = createLeap(S, game);
-      leapUntil = performance.now() + CFG.twirl.afterLeapMs;
-    } else if (ev === 'spread') m = createEagle(S, game, inward);
-    if (!m || !game.startMove(m)) return false;
-    fired = true;
-    outcome = ev;
+    swipe = null;
+  // what it is doing: 'pending' (nothing yet), 'air' (she is or was just airborne), 'held' (it started or took up the
+  // move `own`), 'done' (that move is over and the finger is still down)
+  let role = null,
+    own = null;
+  // it touched down on a dance that was winding down and took it up again. Its first stroke is still read as a flick:
+  // a flick made while a spin winds down starts that flick's move instead.
+  let tookUp = false;
+  // the stroke is still being read as a possible flick
+  const reading = () => role === 'pending' || (tookUp && role === 'held' && own.id === 'dance');
+  // for the log: what the stroke was read as, and whether it was a two-thumb gesture
+  let outcome = '',
+    two = false;
+  // a circle before this time is twizzles
+  let leapUntil = -1e9;
+  // both thumbs swiped down: waiting to see whether one lifts (hockey stop) or both stay (hydroblade)
+  let stopWait = null;
+  // the left thumb while it is down (kept, stilled, until the right thumb lifts if it lifts first), and where it was
+  // when the right thumb's swipe began
+  let left = null,
+    leftLifted = false,
+    leftAt = null;
+  let lastT = null;
+
+  // she is in the air: the finger turns her. The move it held is over: it is free to dance.
+  function sync() {
+    if (!S.grounded) {
+      if (role !== 'air') {
+        role = 'air';
+        own = null;
+      }
+      stopWait = null;
+      return;
+    }
+    if (role === 'held' && S.move !== own) {
+      role = 'done';
+      own = null;
+    }
+    // something new has started (a fall, say) while both thumbs were waiting
+    if (stopWait && S.move && S.move !== stopWait.was) stopWait = null;
+  }
+  function start(m, name, isTwo) {
+    if (!game.startMove(m)) return false;
+    role = 'held';
+    own = m;
+    outcome = name;
+    two = isTwo;
+    if (isTwo && api.onTwoThumb) api.onTwoThumb();
     return true;
   }
-  return {
-    perform,
+  function stop(inward) {
+    if (game.speed() < CFG.stop.minSpeed) {
+      outcome = 'stop-too-slow';
+      return false;
+    }
+    return start(createStop(S, game, inward), 'stop', true);
+  }
+  // A swipe has been read. r: the reading (Swipe.read); lifted: it was read as the right thumb lifted.
+  function act(r, t, lifted) {
+    if (!S.grounded) return false;
+    // how the left thumb moved over the same time; only a fairly straight movement counts (a thumb circling to steer does not)
+    let L = left && leftAt ? { x: left.x - leftAt.x, y: left.y - leftAt.y } : null;
+    const ll = L ? Math.hypot(L.x, L.y) : 0;
+    if (L && (Math.abs(left.turn - leftAt.turn) > 1.2 || left.path - leftAt.path > ll * 1.5)) L = null;
+    const cos = L && ll > 0 && r.d > 0 ? (L.x * r.dx + L.y * r.dy) / (ll * r.d) : 0;
+    // both thumbs moved apart, each by spreadEachPx or more, and the gap between them grew by spreadPx
+    let spread = false;
+    if (L && r.smooth && cos < -0.5 && r.d >= K.spreadEachPx && ll >= K.spreadEachPx) {
+      const gap0 = Math.hypot(stroke.x - r.dx - leftAt.x, stroke.y - r.dy - leftAt.y),
+        gap1 = Math.hypot(stroke.x - left.x, stroke.y - left.y);
+      spread = gap1 - gap0 >= K.spreadPx;
+    }
+    // the left thumb went the same way, about as far: a two-thumb swipe
+    const together = !!L && cos > K.parallelCos && ll >= Math.max(K.sameMinPx, r.d * K.sameShare);
+    // lean the way she is already curving
+    const inward = S.turn > 0 ? -1 : 1;
+    if (spread) return start(createEagle(S, game, inward), 'spread', true);
+    if (r.dir === 'down' && together) {
+      if (lifted || leftLifted) return stop(inward);
+      stopWait = { until: t + CFG.stop.liftMs, inward, was: S.move };
+      outcome = 'both-down';
+      return false;
+    }
+    if (r.dir === 'up') return start(createSpiral(S, game), 'up', together);
+    if (r.dir === 'down') return start(createHydro(S, game, inward), 'down', false);
+    if (r.dir === 'left') return start(createTurn(S, game), 'left', together);
+    if (r.dir === 'right' && start(createLeap(S, game), 'right', together)) {
+      leapUntil = t + CFG.twirl.afterLeapMs;
+      return true;
+    }
+    return false;
+  }
+  // The finger has been down holdMs and nothing else is going on: she dances. That covers a finger held still or dragged
+  // (not a flick), one kept down through a jump and its landing, and one kept down after its move has run its course.
+  function mayDance(t) {
+    if (!S.grounded || S.move || t - stroke.t0 < CFG.dance.holdMs) return false;
+    if (role === 'done') return true;
+    if (role === 'air') return S.landT >= CFG.dance.afterLand;
+    if (role !== 'pending' || stopWait || swipe.pending()) return false;
+    // straight after a split leap a circle means twizzles, so only a finger kept still starts choreography then
+    return !(t < leapUntil && stroke.path >= CFG.swipe.restPx);
+  }
+  // the right thumb's speed sets the dance's mood; with the left thumb, how alike the two thumbs' directions are
+  function feed(dt, t) {
+    const sb = stroke.speedAt(t),
+      sa = left && !leftLifted ? left.speedAt(t) : 0;
+    own.feed(sb, dt, sa, sa > 1 && sb > 1 ? (left.vx * stroke.vx + left.vy * stroke.vy) / (sa * sb) : 0);
+  }
+  const leftPoints = () => {
+    if (!left) return undefined;
+    const p = left.points,
+      k = Math.ceil(p.length / 45);
+    return p.filter((_, i) => i % k === 0).flat();
+  };
+
+  const api = {
+    // called when a two-thumb gesture starts a move, so the left thumb's part in it does not steer her (set by pointers.js)
+    onTwoThumb: null,
     get active() {
       return stroke !== null;
     },
-    get stroke() {
-      return stroke;
+    get role() {
+      return role;
     },
+    // the finger is dancing: the ring under it shows
     get armed() {
-      return mode === 'dance';
-    },
-    canDuo: () => mode === 'pending' || mode === 'twirl',
-    // the right thumb is dragging with nothing else read from it: she starts to improvise
-    canDance: () => mode === 'pending' && !fired && S.grounded && !(S.move && S.move.id === 'fall'),
-    dance() {
-      if (!game.startMove(createDance(S, game))) return false;
-      mode = 'dance';
-      fired = true;
-      outcome = 'dance';
-      return true;
+      return role === 'held' && !!own && own.id === 'dance';
     },
     down(x, y, t, isDoubleTap) {
       stroke = new Stroke(x, y, t, CFG.rotate);
-      shape = new Shape(CFG.shape);
+      swipe = new Swipe(CFG.swipe);
+      role = 'pending';
+      own = null;
       outcome = '';
-      fired = false;
+      two = false;
+      stopWait = null;
+      leftAt = null;
+      tookUp = false;
       if (isDoubleTap && game.jump()) {
-        mode = 'air';
+        role = 'air';
         outcome = 'jump';
       } else if (!S.grounded) {
-        mode = 'air';
+        role = 'air';
         outcome = 'air-rotate';
       } else if (S.move && S.move.id === 'dance' && !S.move.state.held) {
-        mode = 'dance';
+        // a dance winding down: the finger takes it up again (and a circle carries the spin on at once)
         S.move.hold();
-        fired = true;
+        role = 'held';
+        own = S.move;
         outcome = 'dance-continue';
-      } else mode = 'pending';
+        tookUp = true;
+      }
     },
     move(x, y, t) {
       if (!stroke) return;
@@ -98,84 +185,98 @@ export function createTricks(game, taps, log) {
         py = stroke.y,
         d = stroke.add(x, y, t);
       if (stroke.x === px && stroke.y === py) return;
-      if (mode === 'air')
-        game.airRotate(-d); // screen-clockwise = skater clockwise
-      else if (mode === 'twirl') {
-        if (S.move && S.move.id === 'twirl') S.move.rotate(-d);
-      } else if (mode === 'dance') {
-        // dancing, the finger's circling turns her
-        if (S.move && S.move.id === 'dance') S.move.rotate(-d);
-      } else {
-        perform(shape.add(stroke.x - px, stroke.y - py, d, t));
-        // a circle straight after a split leap is twizzles; any other time it is simply part of a drag
-        if (
-          !fired &&
-          !shape.decided &&
-          t < leapUntil &&
-          Math.abs(stroke.turn) >= CFG.twirl.startTurn &&
-          game.startMove(createTwirl(S, game, -stroke.turn))
-        ) {
-          mode = 'twirl';
-          outcome = 'twirl';
-          leapUntil = 0;
-        }
+      sync();
+      // screen-clockwise is skater-clockwise
+      if (role === 'air') return void game.airRotate(-d);
+      // twizzles and choreography: the finger's circling turns her
+      if (role === 'held' && own.rotate) own.rotate(-d);
+      if (!reading()) return;
+      if (swipe.t0 === null)
+        leftAt = left && !leftLifted ? { x: left.x, y: left.y, turn: left.turn, path: left.path } : null;
+      swipe.add(stroke.x - px, stroke.y - py, t);
+      // a circle straight after a split leap is twizzles; any other time it is part of choreography
+      if (role === 'pending' && t < leapUntil && Math.abs(stroke.turn) >= CFG.twirl.startTurn && S.grounded) {
+        if (start(createTwirl(S, game, -stroke.turn), 'twirl', false)) leapUntil = -1e9;
       }
     },
-    // every frame: a finger held still starts choreography, and a flick is read once the finger stops
-    // wait: both thumbs are moving together and their shared gesture has not been read yet, so the finger's own flick holds back
-    frame(t, wait) {
-      // The finger is still down with nothing going on: she dances, until it lifts. That covers a finger simply held, one kept down
-      // through a jump and its landing, and one kept down after a flick's move, a held move or a fall has run its course.
-      if (
-        stroke &&
-        mode !== 'dance' &&
-        (mode !== 'pending' || fired) &&
-        S.grounded &&
-        !S.move &&
-        t - stroke.t0 >= CFG.dance.holdMs &&
-        (mode !== 'air' || S.landT >= CFG.dance.afterLand) &&
-        game.startMove(createDance(S, game))
-      ) {
-        mode = 'dance';
-        fired = true;
-        outcome = outcome ? outcome + '+dance' : 'dance';
-        return;
-      }
-      if (mode !== 'pending') return;
-      if (!wait && !fired && t >= leapUntil && t - stroke.t0 >= CFG.dance.holdMs && this.canDance() && this.dance())
-        return; // a finger held longer than a tap
-      // a drag: the finger has kept moving for longer than any flick, and nothing else was read from it. She starts to dance.
-      // (Not while both thumbs are still drawing a shared gesture, and not straight after a split leap, when a circle means twizzles.)
-      if (
-        !wait &&
-        t >= leapUntil &&
-        stroke.path >= CFG.dance.dragPx &&
-        t - stroke.t0 - (stroke.restMs || 0) >= CFG.dance.dragMs &&
-        t - stroke.t < 120 &&
-        this.canDance() &&
-        this.dance()
-      )
-        return;
-      if (!wait) perform(shape.settle(t));
-    },
-    up(t, extra) {
+    // every frame: a swipe is read once the finger is still, a two-thumb swipe down that stays down becomes a
+    // hydroblade, a dance is fed the thumbs' motion, and a finger with nothing going on starts one
+    frame(t) {
+      const dt = lastT === null ? 0 : Math.min(0.1, (t - lastT) / 1000);
+      lastT = t;
       if (!stroke) return;
-      if (mode === 'pending') {
-        if (stroke.isTap(t, CFG.tap)) {
+      sync();
+      if (stopWait && t >= stopWait.until) {
+        const w = stopWait;
+        stopWait = null;
+        start(createHydro(S, game, w.inward), 'both-down-held', true);
+      }
+      if (reading() && !stopWait) {
+        const r = swipe.read(t, false);
+        if (r) act(r, t, false);
+      }
+      if (role === 'held' && own.id === 'dance') feed(dt, t);
+      if (mayDance(t)) start(createDance(S, game), outcome ? outcome + '+dance' : 'dance', false);
+    },
+    up(t) {
+      if (!stroke) return;
+      sync();
+      const tap = stroke.isTap(t, CFG.tap);
+      if (stopWait) {
+        const w = stopWait;
+        stopWait = null;
+        stop(w.inward);
+      } else if (role === 'pending') {
+        if (tap) {
           taps.tap(t);
           outcome = 'tap';
         } else {
-          perform(shape.end());
-          if (!fired) outcome = 'none';
+          const r = swipe.read(t, true);
+          if (r) act(r, t, true);
+          if (role === 'pending' && !outcome) outcome = 'none';
         }
-        if (fired && S.move && S.move.release) S.move.release();
+      } else if (reading() && !tap) {
+        // a flick that took up a winding-down dance, read as it lifts
+        const r = swipe.read(t, true);
+        if (r) act(r, t, true);
       }
-      if (outcome === 'dance-continue' && stroke.isTap(t, CFG.tap)) taps.tap(t);
-      if ((mode === 'twirl' || mode === 'dance') && S.move && S.move.id === mode) S.move.release();
-      log.stroke('trick', outcome, stroke, Object.assign({ armed: mode === 'dance' }, extra || {}));
+      // a tap that took up a winding-down dance can still be the first half of a double tap
+      if (outcome === 'dance-continue' && tap) taps.tap(t);
+      if (role === 'held' && S.move === own && own.release) own.release();
+      log.stroke('trick', outcome, stroke, { armed: api.armed, two, left: leftPoints() });
       stroke = null;
-      shape = null;
-      mode = null;
+      swipe = null;
+      role = null;
+      own = null;
+      stopWait = null;
+      leftAt = null;
+      if (leftLifted) {
+        left = null;
+        leftLifted = false;
+      }
+    },
+    // the left thumb, which steers (pointers.js); tricks.js only watches it for two-thumb gestures and the dance's mood
+    leftDown(x, y, t) {
+      left = new Stroke(x, y, t, CFG.rotate);
+      leftLifted = false;
+      leftAt = null;
+    },
+    leftMove(x, y, t) {
+      if (left && !leftLifted) left.add(x, y, t);
+    },
+    leftUp(t) {
+      if (!left) return;
+      if (!stroke) {
+        left = null;
+        return;
+      }
+      leftLifted = true;
+      if (stopWait) {
+        const w = stopWait;
+        stopWait = null;
+        stop(w.inward);
+      }
     },
   };
+  return api;
 }

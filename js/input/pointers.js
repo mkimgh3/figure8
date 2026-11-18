@@ -1,40 +1,39 @@
-// Raw touches. Decides which finger is which: a thumb on the left half of the screen steers, one on the right half performs tricks,
-// and while zoomed out (paused) a second finger pinches and pans the view.
-// When both are down it also watches for the two thumbs moving together and holds her course while they do.
+// Raw touches. Decides which finger is which: a thumb on the left half of the screen steers, one on the right half does
+// tricks (tricks.js), and while zoomed out (paused) a second finger pinches and pans the view.
+// The steering thumb's touches go to tricks.js as well, which reads two-thumb gestures from where both thumbs went.
+// When one starts a move, the stick is held where it was when the right thumb touched down, so the left thumb's part in
+// the gesture does not steer her; it is live again once the left thumb settles.
 import { CFG } from '../config.js';
 import { clamp } from '../core/math.js';
-import { Stroke, Duo } from './recognizer.js';
 
 export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose) {
   const R = CFG.steer.stickRadius,
-    T = CFG.tap;
-  const steer = { id: null, ox: 0, oy: 0, cx: 0, cy: 0, x: 0, y: 0, t: 0, moved: false, frozen: false, hx: 0, hy: 0 };
+    T = CFG.tap,
+    K = CFG.two;
+  // the steering thumb: where it touched down (ox, oy), where it is (cx, cy), the stick it makes (x, y, -1..1),
+  // and the stick as it was when the right thumb touched down (hx, hy)
+  const steer = { id: null, ox: 0, oy: 0, cx: 0, cy: 0, x: 0, y: 0, t: 0, mt: 0, moved: false };
+  Object.assign(steer, { frozen: false, frozenAt: 0, hx: 0, hy: 0 });
   const pinch = { on: false, id2: null, d0: 1, zf0: 1, cx0: 0, cy0: 0, px0: 0, pz0: 0, x2: 0, y2: 0 };
   const keys = {};
   let trickId = null,
-    auto = null,
-    duo = null,
-    left = null,
-    dragT = 0,
-    lastF = 0;
-  const dancing = () => !!game.S.move && game.S.move.id === 'dance';
-  // with both thumbs down, their shared motion is watched for two-thumb gestures
-  const pair = (now) => {
-    if (!tricks.canDuo()) return;
-    left = new Stroke(steer.cx, steer.cy, now, CFG.rotate);
-    duo = new Duo(CFG.duo, CFG.shape);
-    steer.hx = steer.x;
-    steer.hy = steer.y;
-  };
+    auto = null;
   const recentre = () => {
-    duo = null;
-    left = null;
     steer.frozen = false;
     if (steer.id === null) return;
     steer.ox = steer.cx;
     steer.oy = steer.cy;
     steer.x = steer.y = 0;
     hud.stick(true, steer.ox, steer.oy, 0, 0);
+  };
+  // a two-thumb gesture has started a move: hold the stick where it was
+  tricks.onTwoThumb = () => {
+    if (steer.id === null) return;
+    steer.frozen = true;
+    steer.frozenAt = performance.now();
+    steer.x = steer.hx;
+    steer.y = steer.hy;
+    hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R);
   };
   // after a two-thumb move the stick carries on from where it was held, wherever the thumb ended up
   const unfreeze = () => {
@@ -46,26 +45,6 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     steer.x = steer.hx;
     steer.y = steer.hy;
     hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R);
-  };
-  const duoEvent = (ev, lifted) => {
-    if (!ev) return;
-    if (Array.isArray(ev)) {
-      ev.forEach((q) => duoEvent(q, lifted));
-      return;
-    }
-    if (ev === 'engage') return;
-    if (tricks.perform(ev, true, lifted === true)) {
-      // the gesture itself must not steer her
-      steer.frozen = true;
-      steer.frozenAt = performance.now();
-      steer.x = steer.hx;
-      steer.y = steer.hy;
-      hud.stick(true, steer.ox, steer.oy, steer.hx * R, steer.hy * R);
-    }
-  };
-  const feedDuo = (now) => {
-    if (!duo || !tricks.canDuo()) return;
-    duoEvent(duo.update(left, tricks.stroke, now));
   };
   const pinchEnd = () => {
     pinch.on = false;
@@ -106,25 +85,17 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
       const dbl = game.S.grounded && taps.isDouble(now);
       if (dbl) taps.clear();
       trickId = e.pointerId;
-      dragT = 0;
+      steer.hx = steer.x;
+      steer.hy = steer.y;
       tricks.down(e.clientX, e.clientY, now, dbl);
       hud.pad(true, e.clientX, e.clientY, false);
-      if (steer.id !== null) pair(now);
     } else if (steer.id === null) {
-      Object.assign(steer, {
-        id: e.pointerId,
-        ox: e.clientX,
-        oy: e.clientY,
-        cx: e.clientX,
-        cy: e.clientY,
-        x: 0,
-        y: 0,
-        t: now,
-        moved: false,
-        frozen: false,
-      });
-      if (!view.zoomed) hud.stick(true, e.clientX, e.clientY, 0, 0);
-      if (trickId !== null && !view.zoomed) pair(now);
+      Object.assign(steer, { id: e.pointerId, ox: e.clientX, oy: e.clientY, cx: e.clientX, cy: e.clientY });
+      Object.assign(steer, { x: 0, y: 0, t: now, mt: now, moved: false, frozen: false });
+      if (!view.zoomed) {
+        hud.stick(true, e.clientX, e.clientY, 0, 0);
+        tricks.leftDown(e.clientX, e.clientY, now);
+      }
     }
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -152,17 +123,10 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
       return;
     }
     if (e.pointerId === steer.id) {
-      // how the left thumb is moving, px/s
-      {
-        const dtv = Math.max(1, now - (steer.mt || now - 16)),
-          kv = 1 - Math.exp(-dtv / 60);
-        steer.vx = (steer.vx || 0) + (((e.clientX - steer.cx) / dtv) * 1000 - (steer.vx || 0)) * kv;
-        steer.vy = (steer.vy || 0) + (((e.clientY - steer.cy) / dtv) * 1000 - (steer.vy || 0)) * kv;
-        steer.mt = now;
-      }
       steer.cx = e.clientX;
       steer.cy = e.clientY;
-      if (left) left.add(e.clientX, e.clientY, now);
+      steer.mt = now;
+      tricks.leftMove(e.clientX, e.clientY, now);
       if (!steer.frozen) {
         let dx = e.clientX - steer.ox,
           dy = e.clientY - steer.oy;
@@ -176,11 +140,10 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
         steer.y = dy / R;
         if (!view.zoomed) hud.stick(true, steer.ox, steer.oy, dx, dy);
       }
-      feedDuo(now);
     } else if (e.pointerId === trickId) {
       tricks.move(e.clientX, e.clientY, now);
-      hud.pad(true, e.clientX, e.clientY, tricks.armed); // the ring sits under the finger, no smoothing
-      feedDuo(now);
+      // the ring sits under the finger, no smoothing
+      hud.pad(true, e.clientX, e.clientY, tricks.armed);
     }
   });
   const end = (e) => {
@@ -201,27 +164,16 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     }
     if (e.pointerId === steer.id) {
       // choreography carries on under the right thumb when the left one lifts: she just coasts
-      if (duo && trickId !== null && tricks.canDuo()) duoEvent(duo.end(), true);
+      tricks.leftUp(now);
       if (!steer.moved && now - steer.t <= T.maxMs && !view.zoomed) taps.tap(now);
       steer.id = null;
       steer.x = steer.y = 0;
       steer.frozen = false;
-      duo = null;
-      left = null;
       hud.stick(false);
     }
     if (e.pointerId === trickId) {
-      let extra = null;
-      if (duo && left) {
-        if (tricks.canDuo()) duoEvent(duo.end(), true);
-        const lp = left.points,
-          k = Math.ceil(lp.length / 45);
-        extra = { duo: duo.summary(), left: lp.filter((_, i) => i % k === 0).flat() };
-      }
-      tricks.up(now, extra);
+      tricks.up(now);
       trickId = null;
-      duo = null;
-      left = null;
       unfreeze();
       hud.pad(false);
     }
@@ -262,24 +214,12 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
       auto = a;
     },
     frame(now) {
-      const fdt = Math.min(100, now - (lastF || now));
-      lastF = now;
-      if (trickId === null) return;
-      if (duo && tricks.canDuo()) duoEvent(duo.settle(now));
-      // Choreography (started by resting the right thumb, see tricks.js): the left thumb goes on steering her; the right thumb's motion sets the mood and its circling turns her.
-      if (tricks.stroke && dancing()) {
-        const b = tricks.stroke,
-          sb = b.speedAt(now),
-          sa = steer.id !== null && now - (steer.mt || 0) < 110 ? Math.hypot(steer.vx || 0, steer.vy || 0) : 0;
-        game.S.move.feed(sb, fdt / 1000, sa, sa > 1 && sb > 1 ? (steer.vx * b.vx + steer.vy * b.vy) / (sa * sb) : 0);
-      }
       // steering is live again, from where it was, once the left thumb settles, or after a short grace even if it never
       // goes still (a thumb on glass always jitters, and the spiral or hydroblade is held with the right thumb down)
-      if (steer.frozen && left && (now - left.t > CFG.duo.settleMs || now - steer.frozenAt > CFG.duo.freezeMs))
-        unfreeze();
+      if (steer.frozen && (now - steer.mt > K.settleMs || now - steer.frozenAt > K.freezeMs)) unfreeze();
       const was = tricks.armed;
-      tricks.frame(now, !!duo && duo.active && !duo.decided);
-      if (tricks.armed !== was) hud.padArmed(true);
+      tricks.frame(now);
+      if (tricks.armed !== was) hud.padArmed(tricks.armed);
     },
     read() {
       if (auto) return auto;

@@ -112,7 +112,8 @@ const MOVES = [
   {
     name: 'Spiral',
     steps: [
-      ['Skate along with your left thumb', moving],
+      // she coasts in a spiral and comes out of it as she slows, so it needs speed to hold for two seconds
+      ['Skate along with your left thumb and build some speed', (c) => moving(c) && c.speed > 7],
       ['Flick your right finger up, and keep it down', moveIs('spiral')],
       ['Keep it down to hold the spiral', amount('spiral', (st) => st.t, 2), moveIs('spiral')],
       ['Lift to finish', element('spiral')],
@@ -121,7 +122,7 @@ const MOVES = [
   {
     name: 'Hydroblade',
     steps: [
-      ['Skate along with your left thumb', moving],
+      ['Skate along with your left thumb and build some speed', (c) => moving(c) && c.speed > 7],
       ['Flick your right finger down, and keep it down', moveIs('hydro')],
       ['Keep it down to stay low', amount('hydro', (st) => st.t, 2), moveIs('hydro')],
       ['Lift to finish', element('hydro')],

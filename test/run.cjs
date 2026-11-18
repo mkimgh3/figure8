@@ -233,7 +233,7 @@ const { open } = require('./smoke.cjs');
     seen,
     last: await p.evaluate(() => {
       const l = JSON.parse(window.__game.log.text()).strokes.slice(-1)[0];
-      return { read: l.read, ms: l.ms, duo: l.duo };
+      return { read: l.read, ms: l.ms, two: l.two };
     }),
   });
   await calm();
@@ -704,7 +704,7 @@ const { open } = require('./smoke.cjs');
       logObj.strokes.some((x) => x.read === 'jump') &&
       logObj.strokes.some((x) => x.read === 'right') &&
       logObj.strokes.some((x) => x.read === 'twirl') &&
-      logObj.strokes.some((x) => x.duo && x.left) &&
+      logObj.strokes.some((x) => x.two && x.left) &&
       logObj.strokes.some((x) => x.read === 'tap'),
     logObj.strokes.map((x) => x.read),
   );

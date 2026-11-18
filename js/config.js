@@ -13,39 +13,47 @@ export const CFG = {
   },
   tap: { maxMs: 260, maxMovePx: 14, doubleMs: 330 },
   rotate: { minRadiusPx: 26, pivotLag: 0.3, minSegPx: 5, bufferCap: 2.5, bufferMs: 500 },
-  shape: { flickPx: 50, reversalPx: 22, idleMs: 110 }, // flicks, and the scribbles that are told apart from them
-  // Two-finger moves: both thumbs moving together.
-  duo: {
-    minSpeed: 110,
-    engageMs: 70,
+  // A flick: the right thumb travels flickPx or more, straight (never turning back by reversalPx), with all its motion
+  // inside flickMs. It is read once the thumb has been still idleMs, or lifts. Anything slower or longer is a drag.
+  // A twitch shorter than restPx followed by stillness counts as resting, not as a stroke.
+  swipe: { flickPx: 50, flickMs: 300, restPx: 20, reversalPx: 22, idleMs: 110 },
+  // Two-thumb gestures, read when the right thumb's swipe is read, from how the left thumb moved over the same time.
+  // Together: the left thumb went the same way (cosine above parallelCos) and at least sameMinPx, and at least sameShare
+  // of the right thumb's distance. Apart (spread eagle): opposite ways, each spreadEachPx or more, the gap growing by spreadPx.
+  // After a two-thumb move starts, steering stays held until the left thumb has been still settleMs, or freezeMs at most.
+  two: {
     parallelCos: 0.5,
+    sameMinPx: 30,
+    sameShare: 0.4,
     spreadPx: 80,
     spreadEachPx: 25,
-    calmTurn: 3.3,
     settleMs: 150,
     freezeMs: 350,
   },
-  // Hockey stop: both thumbs dragged down and lifted, while she moves at minSpeed or more. (The same drag held down is a hydroblade.)
+  // Hockey stop: both thumbs swiped down, and one of them lifted within liftMs of the swipe being read, while she moves at
+  // minSpeed or more. Both kept down past liftMs is a hydroblade.
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
-  stop: { minSpeed: 2.5, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
+  stop: { minSpeed: 2.5, liftMs: 250, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
+  // Spiral and hydroblade: the left thumb steers but cannot push. She slows as she glides (glide, 1/s; the hydroblade drags
+  // a little more), and comes out of the move once her speed is below endSpeed (m/s), even with the finger down. So the
+  // faster she goes in, the longer she can hold it.
+  held: { glide: 0.32, endSpeed: 2.5 },
   twirl: { startTurn: 3.1, afterLeapMs: 3000 }, // a circle is twizzles for afterLeapMs after a split leap; any other time it is part of choreography
-  // Choreography: the right thumb dragged, that is, still moving dragMs after it first moved and at least dragPx along (longer than any flick).
-  // A thumb simply held for holdMs starts it too, and so does one still down afterLand seconds after a jump lands, or when any other move ends.
-  // It lasts while that thumb stays down. Circling turns her, turnRatio of a turn for each finger circle, following the finger at `follow` (1/s) like a rubber band: turned faster than spinIn (rad/s) she takes spin positions until slower than spinOut,
-  // the open ones (camel, layback, attitude) below spinFast and the tight ones (scratch, arms overhead) above it. Its speed,
-  // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street, and its circling turns her. It ends when
-  // either thumb lifts, and scores once it has lasted minScore seconds.
+  // Choreography: the right thumb down holdMs with nothing else going on (held still, or dragged further or slower than a
+  // flick), or still down afterLand seconds after a jump lands, or after the move it started is over. It lasts while that
+  // thumb stays down. Circling turns her, turnRatio of a turn for each finger circle, following the finger at `follow` (1/s)
+  // like a rubber band: turned faster than spinIn (rad/s) she takes spin positions until slower than spinOut, the open ones
+  // (camel, layback, attitude) below spinFast and the tight ones (scratch, arms overhead) above it. The thumb's speed,
+  // between calmPx and sharpPx (px/s), slides the dancing from calm and broad to sharp and street; both thumbs moving faster
+  // than moveSpeed (px/s) the same way bring out open shapes, against each other closed ones. Lifting the right thumb ends
+  // it (a spin winds down first); it scores once it has lasted minScore seconds.
   // While she dances the left thumb still steers and speeds her up, at `accel` times the usual rate.
   dance: {
-    startMs: 650,
     moveSpeed: 50,
-    idleEnd: 1.2,
     calmPx: 200,
     sharpPx: 700,
     minScore: 2,
     accel: 0.8,
-    dragMs: 280,
-    dragPx: 30,
     holdMs: 300,
     afterLand: 0.3,
     spinIn: 2.2,
