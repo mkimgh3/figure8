@@ -1,12 +1,14 @@
-# Rook, the ice-hockey player. He reuses Ivor's mesh (Rocketbox Male_Adult_06), so only new textures are painted here,
-# from the 3D position of every texel (as in ivor_viking.py):
+# Rook, the ice-hockey player, on his own body since v3-look44: Rocketbox Male_Adult_08 (assets/rook_model.js). Until
+# v3-look43 he wore Ivor's mesh (Male_Adult_06) with Ivor's face. The two share the same skeleton in the same bind pose,
+# so the heights below (hem, pants, boots, numbers) hold for both. Painted from the 3D position of every texel:
 #   body: a loose navy jersey with a white shoulder yoke, ice-blue piping, striped sleeves and hem, a big 17 on the
 #         back, small 17s on the sleeves and a snowflake crest on the chest; glossy navy hockey pants with a side
 #         stripe; striped socks; black glossy skate boots with a white trim and laces. Hands and neck stay bare skin.
-#   head: Ivor's strawberry-blond hair (and his cord necklace) replaced by short dark-brown hair, and his beard
-#         repainted a short brown (v3-look38; v3-look37 had him clean-shaven). The beard volume baked into the GLB stays.
+#   head: the model's own face and short brown hair, clean-shaven, as Rocketbox painted it (only resized).
 #   mask: R 0 (no sequins), G the nylon pants (roughness 0.42), B the boots (roughness 0.22).
-# Run from anywhere: python tools/assets/rook_paint.py [scratch_dir]   (previews go to scratch_dir, default a temp dir)
+# Run from anywhere: python tools/assets/rook_paint.py SRC [scratch_dir], where SRC holds Male_Adult_08's textures
+# (m014_body_color.tga, m014_body_normal.tga, m014_head_color.tga, m014_head_normal.tga, from
+# Assets/Avatars/Adults/Male_Adult_08/Textures in github.com/microsoft/Microsoft-Rocketbox); previews go to scratch_dir.
 # Needs numpy and PIL only. All designs are original: no real team's name, logo or crest.
 import os, re, sys, base64, tempfile
 import numpy as np
@@ -18,7 +20,8 @@ from glb import load
 
 ROOT = os.path.dirname(os.path.dirname(HERE))
 ASSETS = os.path.join(ROOT, 'assets')
-SCR = sys.argv[1] if len(sys.argv) > 1 else os.path.join(tempfile.gettempdir(), 'rook_paint')
+SRC = sys.argv[1]
+SCR = sys.argv[2] if len(sys.argv) > 2 else os.path.join(tempfile.gettempdir(), 'rook_paint')
 os.makedirs(SCR, exist_ok=True)
 S = 2048
 
@@ -126,9 +129,9 @@ def save(a, path, size, q=88):
     else:
         im.save(path)
 
-# ---------------------------------------------------------------- the mesh: Ivor's GLB (base64 in max_model.js)
-glb_path = os.path.join(SCR, 'max.glb')
-src = open(os.path.join(ASSETS, 'max_model.js'), encoding='utf8').read()
+# ---------------------------------------------------------------- the mesh: his GLB (base64 in rook_model.js)
+glb_path = os.path.join(SCR, 'rook.glb')
+src = open(os.path.join(ASSETS, 'rook_model.js'), encoding='utf8').read()
 open(glb_path, 'wb').write(base64.b64decode(re.search(r'export default\s*"([^"]+)"', src).group(1)))
 j, acc = load(glb_path)
 joints = [j['nodes'][i]['name'] for i in j['skins'][0]['joints']]
@@ -158,7 +161,7 @@ def group(pat):
     P, UV, IDX, [P[:, 0], P[:, 1], P[:, 2], NB[:, 0], NB[:, 1], NB[:, 2], group(['Hand', 'Finger']),
                  group(['Foot', 'Toe']), group(['UpperArm', 'Forearm'])])
 SG = np.where(X >= 0, 1.0, -1.0)
-base = img(os.path.join(ASSETS, 'max_body.jpg'))        # Ivor: his skin is kept on the hands and neck
+base = img(os.path.join(SRC, 'm014_body_color.tga'))     # the model's own: his skin is kept on the hands and neck
 lum0 = base @ np.array([0.299, 0.587, 0.114])
 rng = np.random.default_rng(17)
 
@@ -207,7 +210,11 @@ def stripes(m):
     return band(m, 0.0, 0.025), band(m, 0.025, 0.05), band(m, 0.05, 0.075)
 forearm = arm_side & (np.abs(X) > 0.3) & (sf > 0) & (ARM > 0.3)
 m_fore = sf * LF
-fw1, fb, fw2 = [forearm * s for s in stripes(m_fore - 0.04)]          # from 4 cm below the elbow
+# the sleeve stripes end just past the elbow (the model's rolled shirt cuff bulges 7 to 12 cm below it, and stripes
+# across it came out ragged): measured along the arm from the elbow, negative above it
+elbow_arm = arm_side & (np.abs(X) > 0.25) & (ARM > 0.3)
+m_elb = np.where(sf > 0, m_fore, (su - 1) * LU)
+fw1, fb, fw2 = [elbow_arm * s for s in stripes(m_elb + 0.062)]        # from 6.2 cm above the elbow
 hw1, hb, hw2 = stripes(Z - (HEM + 0.028))                             # 2.8 cm above the hem
 cuff = forearm * band(m_fore, SLEEVE_END * LF - 0.022, SLEEVE_END * LF + 0.01)
 
@@ -327,6 +334,10 @@ put(jersey, NAVY * d3)
 put(jersey * yoke, WHITE * d3)
 put(jersey * piping, ICE * d3)
 put(jersey * collar_band, NAVY * 0.85 * d3)
+# the model's shirt collar stands round his neck above the jersey's neckline (the body mesh has no bare neck: the head
+# carries it): a navy neck guard, as hockey players wear
+guard = COV * ss(0.0012, -0.0012, d_collar) * (np.abs(X) < 0.2) * (Z > 1.4)
+put(guard, NAVY_D * 1.15 * (fine * knit * (1 + 0.06 * fold))[..., None])
 for w1, bl, w2 in ((hw1, hb, hw2), (fw1, fb, fw2)):
     put(jersey * w1, WHITE * d3)
     put(jersey * bl, ICE * d3)
@@ -357,9 +368,10 @@ LY = np.interp(Z, zs, lys)
 ax_ = np.abs(X)
 legs = COV & ~hand & (ARM < 0.5) & (Z < HEM + 0.01)
 
-# hockey pants, with the shading of Ivor's trousers (the original jeans' folds, which the normal map also has)
-wool = np.array([0.15, 0.115, 0.085]) @ np.array([0.299, 0.587, 0.114])
-psh = np.clip(blur(lum0, 1.0) / wool, 0.6, 1.45)
+# hockey pants, with the shading of the model's jeans (their folds, which the normal map also has), taken as light and
+# dark round the jeans' typical brightness
+thighs = COV & (Z > 0.6) & (Z < 0.85) & (ARM < 0.5) & (HAND < 0.5) & (np.abs(X) < 0.3)
+psh = np.clip(blur(lum0, 1.0) / np.median(lum0[thighs]), 0.6, 1.45)
 psh = np.where((Z > 0.5) & (Z < 0.885), psh, 1.0)
 pants = legs * band(Z, PANTS_BOT, HEM + 0.01, 0.0015)
 pcol = NAVY_D * (psh * fine)[..., None]
@@ -401,7 +413,7 @@ put(lace_col * 0.35, np.array([0.18, 0.18, 0.19]))       # the tongue, a little 
 put(lace_col * lace, np.array([0.86, 0.86, 0.84]))
 B = np.maximum(B, boot)
 
-# the hands and neck keep Ivor's bare skin; his hands are plain skin with a few dark specks left at the wrists
+# the hands and neck keep the model's bare skin, with any dark specks left at the wrists smoothed away
 LUMW = np.array([0.299, 0.587, 0.114])
 skin_m = COV & (jersey < 0.02) & (np.abs(X) > 0.45)
 def smooth_in(m, r):
@@ -419,16 +431,16 @@ save(blur(mk, 1.2), os.path.join(ASSETS, 'rook_mask.png'), 512)
 np.savez_compressed(os.path.join(SCR, 'body_maps.npz'), X=X, Y=Y, Z=Z, NX=NX, NY=NY, NZ=NZ, COV=COV)
 print('body: hem %.3f, pants bottom %.3f, boot top 0.19 (0.235 at the back), arm radius %.3f' % (HEM, PANTS_BOT, R_ARM))
 
-# ---- normal map: Ivor's (whose torso and arms are smooth skin, legs the original jeans' folds) with soft folds
-# and a fine knit on the jersey, and a rib on the socks in place of most of the jeans' folds. Tangent space as
-# three.js builds it for this material (no vertex tangents, normalScale 1): x along +u, y along +v (down the image).
+# ---- normal map: the model's own (his shirt's and jeans' folds) with soft folds and a fine knit on the jersey, and a
+# rib on the socks in place of most of the jeans' folds. Tangent space as three.js builds it for this material (no
+# vertex tangents, normalScale 1): x along +u, y along +v (down the image).
 def slopes(h, cov_, target):
     """height map -> (dh/dx, dh/dy) per pixel, scaled so the steep end (99th percentile) has slope `target`"""
     h = pad(np.repeat(h[..., None], 3, -1), cov_)[..., 0]
     gy, gx = np.gradient(h)
     k = target / max(np.percentile(np.hypot(gx, gy)[cov_], 99), 1e-9)
     return gx * k, gy * k
-nb = img(os.path.join(ASSETS, 'max_body_n.jpg')) * 2 - 1
+nb = img(os.path.join(SRC, 'm014_body_normal.tga')) * 2 - 1
 jm = blur(jersey, 1.0)
 fx, fy = slopes(fold, COV & (jersey > 0.5), 0.2)
 kx, ky = slopes(np.cos(2 * np.pi * xx / 7) * np.cos(2 * np.pi * (yy + 3.5 * (xx // 7 % 2)) / 7), COV, 0.12)
@@ -443,195 +455,8 @@ nn = np.where(COV[..., None], nn, np.array([0.0, 0.0, 1.0]))
 save(nn * 0.5 + 0.5, os.path.join(ASSETS, 'rook_body_n.jpg'), 1024)
 
 # ================================================================ head
-ph = prim('head')
-P = acc(ph['attributes']['POSITION'])
-UV = acc(ph['attributes']['TEXCOORD_0'])
-IDX = acc(ph['indices']).reshape(-1, 3)
-NH_ = acc(ph['attributes']['NORMAL'])
-HAIR = acc(ph['attributes']['_HAIR'])          # x: where Ivor's beard grows, y: his scalp
-# the UV islands (vertices are split at UV seams): the face and scalp are the biggest; teeth, tongue and eyes are
-# small islands of their own, left untouched
-par = np.arange(len(P))
-def find(i):
-    while par[i] != i:
-        par[i] = par[par[i]]
-        i = par[i]
-    return i
-for a_, b_, c_ in IDX:
-    for u_, v_ in ((a_, b_), (b_, c_)):
-        ru_, rv_ = find(u_), find(v_)
-        if ru_ != rv_:
-            par[ru_] = rv_
-root = np.array([find(i) for i in range(len(P))])
-ids, cnt = np.unique(root[IDX[:, 0]], return_counts=True)
-inner_v = ((root != ids[cnt.argmax()]) & (P[:, 1] < -0.04)).astype(np.float32)   # not a 2-triangle piece in the ear
-(HX, HY, HZ, HNX, HNY, HNZ, BEARD, INNER), HC = raster(
-    P, UV, IDX, [P[:, 0], P[:, 1], P[:, 2], NH_[:, 0], NH_[:, 1], NH_[:, 2], HAIR[:, 0], inner_v])
-inner = HC & (INNER > 0.5)
-face = HC & ~inner
-hax = np.abs(HX)
-head1k = np.asarray(Image.open(os.path.join(ASSETS, 'max_head.jpg')).convert('RGB')).astype(np.float32) / 255
-head = img(os.path.join(ASSETS, 'max_head.jpg'))
-hl = head @ LUMW
-
-def tri_raster(val, blur_px):
-    """ivor_head.py's raster(): each triangle filled with its corners' mean value, then blurred"""
-    m = Image.new('L', (S, S), 0)
-    d = ImageDraw.Draw(m)
-    for t in IDX:
-        v = float(val[t].mean())
-        if v >= 0.02:
-            d.polygon([(float(UV[k, 0] * S), float(UV[k, 1] * S)) for k in t], fill=int(v * 255))
-    return blur(np.asarray(m).astype(np.float32) / 255, blur_px)
-
-# where Ivor's beard was painted (ivor_head.py: raster(beard, 5) * 1.3), grown a little to catch its soft edge
-old_beard = np.clip(blur(np.clip(tri_raster(HAIR[:, 0], 5) * 1.3, 0, 1), 3) * 3, 0, 1) * face
-# where his strawberry blond was painted: pixels that sit on the blond ramp, near the old scalp
-d0, d1 = np.array([0.46, 0.26, 0.13]), np.array([0.96, 0.76, 0.52])
-dd = d1 - d0
-nramp = np.clip(((head - d0) @ dd) / (dd @ dd), 0, 1)
-ramp_dist = np.linalg.norm(head - (d0 + nramp[..., None] * dd), axis=-1)
-y_, z_ = P[:, 1], P[:, 2]
-hl_old = np.interp(y_, [-0.15, -0.09, -0.05, -0.01, 0.03, 0.06, 0.09, 0.12],
-                   [1.762, 1.752, 1.738, 1.736, 1.712, 1.66, 1.628, 1.62])
-margin = np.interp(y_, [-0.15, -0.05, 0.0, 0.03, 0.12], [0.0, 0.0, 0.03, 0.09, 0.1])
-near_old = np.clip(tri_raster(ss(-0.01, 0.004, z_ - (hl_old - margin)), 8) * 1.3, 0, 1)
-near_old = np.clip(blur(near_old, 4) * 2, 0, 1) * face
-hsat = (head.max(-1) - head.min(-1)) / np.maximum(head.max(-1), 1e-3)
-blondish = ss(0.06, 0.025, ramp_dist) * ss(0.39, 0.45, hsat)          # skin is less saturated than the blond
-old_blond = blondish * near_old
-# the cord necklace round the base of his neck
-cord = face & (HZ < 1.55) & (hl < 0.42)
-cord = np.clip(blur(cord.astype(np.float32), 2.0) * 4, 0, 1) * face
-# the lips keep their colour (told from the pale, stubbly skin round them by how red they are)
-lipbox = face & (hax < 0.036) & (np.abs(HZ - 1.606) < 0.0135) & (HY < -0.1)
-lip_score = (head[..., 0] - head[..., 1]) - 0.5 * (head[..., 1] - head[..., 2])
-lips = lipbox & (lip_score > 0.235)
-lips_soft = np.clip(blur(lips.astype(np.float32), 1.0) * 1.6, 0, 1)
-
-# ---- new short dark-brown hair: on the scalp, sideburns, cut round the ears and tapering at the nape
-# the ear, seen from the side: a slightly tilted ellipse (Y -0.034..0.007, Z 1.615..1.695)
-ey, ez = HY + 0.013 - 0.2 * (HZ - 1.655), HZ - 1.655
-ear_d = np.sqrt((ey / 0.0215) ** 2 + (ez / 0.041) ** 2)          # < 1 on the ear
-ear_side = face & (hax > 0.06)
-ear = ear_side & (ear_d < 1.0)
-ear_f = ear.astype(np.float32)
-ear_gap = ear_side * ss(1.25, 1.05, ear_d)                       # hair stops a few mm short of the ear
-zh = np.interp(HY, [-0.16, -0.11, -0.08, -0.065, -0.055, -0.05, -0.034, -0.02, 0.01, 0.03, 0.06, 0.09, 0.12],
-               [1.772, 1.765, 1.752, 1.735, 1.70, 1.665, 1.655, 1.65, 1.64, 1.625, 1.61, 1.60, 1.60])
-noise_h = vnoise(HX, HY, HZ, 0.012, 21, HC)
-zh = zh + (noise_h - 0.5) * 0.005
-fade_w = np.interp(HY, [-0.16, -0.06, -0.03, 0.03, 0.12], [0.005, 0.007, 0.01, 0.018, 0.02])
-hair_a = ss(-fade_w, 0.003, HZ - zh) * face * (1 - ear_gap)
-rng = np.random.default_rng(5)
-def streaks(n, k, s_):
-    r = rng.random((S // k, n)).astype(np.float32)
-    r = Image.fromarray((r * 255).astype(np.uint8)).resize((S, S), Image.BICUBIC)
-    return blur(np.asarray(r).astype(np.float32) / 255, s_)
-st1 = streaks(S, 10, 0.6)
-st2 = streaks(S // 2, 6, 0.8)
-strand = np.clip((st1 - 0.5) * 2.2 + (st2 - 0.5) * 1.2 + 0.5, 0, 1)
-hair_dark = np.array([0.045, 0.03, 0.022])
-hair_mid = np.array([0.13, 0.085, 0.055])
-hair_light = np.array([0.30, 0.205, 0.13])
-t_ = strand[..., None]
-hcol = np.where(t_ < 0.5, hair_dark + (hair_mid - hair_dark) * t_ * 2,
-                hair_mid + (hair_light - hair_mid) * (t_ - 0.5) * 2)
-hcol = hcol * (0.85 + 0.3 * vnoise(HX, HY, HZ, 0.03, 22, HC))[..., None]
-# at the hairline the hair thins out, the dark strands last
-fleck = blur(rng.random((S, S)).astype(np.float32), 0.7)
-hair_alpha = np.clip(hair_a * (1 + (1 - hair_a) * ((1 - strand) * 0.6 + (fleck - 0.5) * 0.8 - 0.3)), 0, 1) * face
-
-# ---- clean-shaven skin, grown in from the skin around (a membrane fill, solved coarse to fine)
-def inpaint(img_, known):
-    k = known.astype(np.float32)
-    pyr = [(img_ * k[..., None], k)]
-    while pyr[-1][1].shape[0] > 16:
-        a, k = pyr[-1]
-        h2 = a.shape[0] // 2
-        pyr.append((a.reshape(h2, 2, h2, 2, 3).sum((1, 3)), k.reshape(h2, 2, h2, 2).sum((1, 3))))
-    x = None
-    for a, k in reversed(pyr):
-        val = a / np.maximum(k, 1e-6)[..., None]
-        kn = k > 0
-        if x is None:
-            x = np.where(kn[..., None], val, val[kn].mean(0))
-        else:
-            x = blur(np.repeat(np.repeat(x, 2, 0), 2, 1), 0.8)
-        for _ in range(60 if a.shape[0] <= 512 else 25):
-            p = np.pad(x, ((1, 1), (1, 1), (0, 0)), mode='edge')
-            x = 0.25 * (p[:-2, 1:-1] + p[2:, 1:-1] + p[1:-1, :-2] + p[1:-1, 2:])
-            x[kn] = val[kn]
-    return x
-
-orig_hair = (ramp_dist > 0.12) & (hl < 0.5)                   # the original model's own dark hair, round the ears
-# stray hair left under the new hair's thinning edge and below it (behind the ears, down the nape) goes too
-below = face & ~ear & (HY > -0.06) & (HZ > 1.53) & ((HZ < zh + 0.002) | (ear_side & (ear_d < 1.35)))
-stray = np.clip(blur((below & ((hl < 0.45) | (blondish > 0.5))).astype(np.float32), 2) * 2.5, 0, 1) * below
-# the ears: only their clean pink skin is kept; the beard's speckle and the hair behind them become skin, shaded
-# by how hollow the ear is there (a cavity term from the mesh: how much of the surface round a point lies in front)
-ear_soft = np.clip(blur(ear_f, 1.5) * 1.5, 0, 1) * face
-good_ear = np.clip(blur((ear & (ramp_dist > 0.08) & (hl > 0.5) & (hsat < 0.42)).astype(np.float32), 1.0), 0, 1)
-ear_fix = ear_soft * (1 - good_ear)
-nrm = NH_ / np.linalg.norm(NH_, axis=1, keepdims=True)
-cav = np.zeros(len(P), np.float32)
-for i in np.where((np.abs(P[:, 0]) > 0.06) & (np.abs(P[:, 2] - 1.655) < 0.06))[0]:
-    dv = P - P[i]
-    dl = np.linalg.norm(dv, axis=1)
-    k = (dl > 1e-5) & (dl < 0.012)
-    if k.any():
-        cav[i] = np.clip((dv[k] @ nrm[i]) / dl[k], 0, 1).mean()
-(CAV,), _ = raster(P, UV, IDX, [cav])
-ear_hollow = ss(0.03, 0.3, blur(CAV, 1.5))
-remove = np.maximum.reduce([old_beard * (1 - ear_soft), old_blond * (1 - ear_soft), cord, stray, ear_fix])
-lip_rim = np.clip(blur(lipbox.astype(np.float32), 1.5) * 1.5, 0, 1)       # the pale rim round the lips goes too
-remove = np.clip(np.maximum(remove, lip_rim) * (1 - lips_soft), 0, 1) * face
-known = face & (remove < 0.02) & ~lips & ~orig_hair & (hl > 0.3) & (hair_a < 0.5)
-fill = inpaint(head, known)
-pores = 1 + 0.035 * (blur(rng.random((S, S)).astype(np.float32), 0.9) - 0.5) * 2
-blotch = 1 + 0.05 * (vnoise(HX, HY, HZ, 0.025, 23, HC) - 0.5)
-under_jaw = 1 - 0.12 * np.clip(-HNZ, 0, 1) * ss(1.6, 1.55, HZ)    # a soft shadow under the chin
-skin_new = fill * (pores * blotch * under_jaw)[..., None]
-skin_new = skin_new * (1 - (ear_soft * ear_hollow)[..., None] * np.array([0.42, 0.47, 0.48]))
-comp = head * (1 - remove[..., None]) + skin_new * remove[..., None]
-# a short brown beard where Ivor's grew (the game keeps the beard volume that is baked into the head), painted the
-# way ivor_head.py painted his: hairs streaked down the face, shaded by the face's own light and dark
-bmask = np.clip(tri_raster(HAIR[:, 0], 5) * 1.3, 0, 1) * face * (1 - lips_soft) * (1 - ear_soft)
-brng = np.random.default_rng(3)
-bn1 = blur(brng.random((S, S)).astype(np.float32), 0.8)
-bstreak = np.asarray(
-    Image.fromarray((brng.random((S, S // 6)) * 255).astype(np.uint8)).resize((S, S), Image.BICUBIC)
-).astype(np.float32) / 255
-bstreak = blur(bstreak, 0.6)
-bn2 = np.asarray(
-    Image.fromarray((brng.random((S // 10, S // 10)) * 255).astype(np.uint8)).resize((S, S), Image.BICUBIC)
-).astype(np.float32) / 255
-bshade = np.clip(hl / max(np.percentile(hl[bmask > 0.5], 60), 1e-3), 0.6, 1.2) if (bmask > 0.5).any() else 1
-bcol = np.array([0.27, 0.17, 0.1])[None, None, :] * (0.55 + 0.55 * bstreak[..., None] + 0.2 * bn1[..., None])
-bcol = np.clip(bcol * (0.85 + 0.3 * bn2[..., None]) * np.asarray(bshade)[..., None], 0, 1)
-stub = np.clip(bmask * 1.1, 0, 1) * (0.8 + 0.2 * bstreak)
-comp = comp * (1 - stub[..., None]) + bcol * stub[..., None]
-# the hair, with the skin under its thinning edge a little shadowed
-shadow = 0.18 * ss(-fade_w - 0.006, 0.0, HZ - zh) * face * (1 - ear_gap)
-comp = comp * (1 - shadow[..., None] * np.array([0.45, 0.5, 0.5]))
-comp = comp * (1 - hair_alpha[..., None]) + hcol * hair_alpha[..., None]
-change = np.clip(np.maximum.reduce([remove, stub * 3, hair_alpha, shadow * 5, ear_fix]), 0, 1)
-change = np.clip(blur(change, 2) * 2, 0, 1) * face
-comp = head * (1 - change[..., None]) + comp * change[..., None]
-comp = pad(comp, HC, (2, 6, 16, 40))
-# the empty space just round every piece takes its nearest piece's colour (the old padding had dark streaks)
-pad_w = np.clip(blur((~HC).astype(np.float32), 1.5) * 2, 0, 1) * np.clip(blur(HC.astype(np.float32), 10) * 4, 0, 1)
-# untouched texels (eyes, teeth, brows, nose...) are copied from the 1024 original, not resampled
-w1k = Image.fromarray((np.maximum(change, pad_w) * 255).astype(np.uint8)).resize((1024, 1024), Image.BILINEAR)
-w1k = np.asarray(w1k).astype(np.float32)[..., None] / 255
-c1k = Image.fromarray((np.clip(comp, 0, 1) * 255 + 0.5).astype(np.uint8)).resize((1024, 1024), Image.LANCZOS)
-c1k = np.asarray(c1k).astype(np.float32) / 255
-save(head1k * (1 - w1k) + c1k * w1k, os.path.join(ASSETS, 'rook_head.jpg'), 1024)
-np.savez_compressed(os.path.join(SCR, 'head_maps.npz'), X=HX, Y=HY, Z=HZ, NX=HNX, NY=HNY, NZ=HNZ, COV=HC)
-dbg = head.copy()
-dbg[..., 0] = np.maximum(dbg[..., 0], remove)
-dbg[..., 1] = np.maximum(dbg[..., 1], hair_alpha)
-dbg[..., 2] = np.maximum(dbg[..., 2], known * 0.5)
-save(dbg, os.path.join(SCR, 'head_debug.png'), 1024)
+# his own face and hair, clean-shaven, as Rocketbox painted them: only resized (the game's head textures are 1024 and
+# 512)
+save(img(os.path.join(SRC, 'm014_head_color.tga')), os.path.join(ASSETS, 'rook_head.jpg'), 1024)
+save(img(os.path.join(SRC, 'm014_head_normal.tga')), os.path.join(ASSETS, 'rook_head_n.jpg'), 512)
 print('head: done')
-

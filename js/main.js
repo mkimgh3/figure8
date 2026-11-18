@@ -29,7 +29,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look43';
+const BUILD = 'v3-look44';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -219,8 +219,9 @@ AV_OPTS[1] = {
   camera: world.camera,
   look: { iridescence: 0, sheen: 0xffd2b0, sheenAmt: 0.25, rough: 0.46, sparkle: 0 },
 };
-// Rook: a hockey player. The same base body as Ivor, with a short brown beard, in a loose navy jersey with shoulder pads, padded
-// pants, striped socks, a helmet and gloves, on hockey skates, with his stick (stick.js).
+// Rook: a hockey player, on his own body and face since v3-look44 (Rocketbox Male_Adult_08: short brown hair,
+// clean-shaven), in a loose navy jersey with shoulder pads, padded pants, striped socks, a helmet and gloves, on hockey
+// skates, with his stick (stick.js).
 const ROOK_BULK = {
   Spine2: 0.042,
   Spine1: 0.038,
@@ -238,16 +239,13 @@ const ROOK_PADS = [
   { bone: 'Bip01 R UpperArm', a: 0.045, r: 0.1, out: 0.01, up: 0.025 },
 ];
 AV_OPTS[2] = {
-  url: 'assets/max_model.js',
-  tex: Object.assign(texOf('rook'), {
-    headN: 'assets/max_head_n.jpg',
-    hair: 'assets/max_hair.webp',
-  }),
+  url: 'assets/rook_model.js',
+  // no hair texture: his helmet replaces the model's hair cards
+  tex: Object.assign(texOf('rook'), { hair: null }),
   height: 1.86,
   skirt: false,
   inflate: ROOK_BULK,
   bumps: ROOK_PADS,
-  slimFace: 0.1,
   hockey: true,
   look: { iridescence: 0, sheen: 0xaab8e0, sheenAmt: 0.2, rough: 0.72, sparkle: 0 },
 };

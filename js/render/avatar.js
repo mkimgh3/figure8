@@ -1000,7 +1000,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         envMapIntensity: 0.8,
       });
       const hair = new THREE.MeshStandardMaterial({
-        map: tex(tl, assets.hair, true),
+        map: assets.hair ? tex(tl, assets.hair, true) : null,
         roughness: 0.42,
         alphaTest: 0.35,
         side: THREE.DoubleSide,
