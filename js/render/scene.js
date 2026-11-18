@@ -52,8 +52,10 @@ export function createScene(canvas) {
       full = upright ? screen.height : screen.width,
       gap = full - el.clientHeight;
     if (gap > 0 && gap < 120) root.style.setProperty('--fill', gap + 'px');
+    // v3-look43: 12 pt more, since iOS also shades the page a little way below the status bar (Mark's screenshot: the
+    // score sat in that shading and still read as overlapping the status bar)
     if (upright && window.navigator.standalone)
-      root.style.setProperty('--sbar', Math.max(50, gap < 120 ? gap : 0) + 'px');
+      root.style.setProperty('--sbar', Math.max(50, gap < 120 ? gap : 0) + 12 + 'px');
   };
   const resize = () => {
     fillScreen(renderer.domElement);
@@ -408,6 +410,27 @@ export function createScene(canvas) {
     }
     return h;
   }
+  // The colour of the view along a row of the screen (cssY: CSS pixels from the top), as last drawn: five pixels
+  // read back, the middle value of each channel, so a line or the skater under one of them does not count. Call
+  // straight after render(), in the same frame. Reading back waits for the GPU, so call it rarely.
+  const px = new Uint8Array(4),
+    edge = [0, 0, 0],
+    chan = [[], [], []];
+  function edgeColour(cssY) {
+    const gl = renderer.getContext(),
+      el = renderer.domElement,
+      W = gl.drawingBufferWidth,
+      H = gl.drawingBufferHeight,
+      y = Math.max(0, Math.min(H - 1, Math.round(H - 1 - cssY * (H / (el.clientHeight || window.innerHeight)))));
+    renderer.setRenderTarget(null);
+    chan.forEach((c) => (c.length = 0));
+    for (const f of [0.08, 0.27, 0.5, 0.73, 0.92]) {
+      gl.readPixels(Math.round((W - 1) * f), y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      for (let k = 0; k < 3; k++) chan[k].push(px[k]);
+    }
+    for (let k = 0; k < 3; k++) edge[k] = chan[k].sort((a, b) => a - b)[2];
+    return edge;
+  }
   // on: the front page is open; b: the space left free for her (see frameShowcase), when it is known
   const showcase = (on, b) => {
     showOn = on;
@@ -436,6 +459,7 @@ export function createScene(canvas) {
     update,
     snapTo,
     showcase,
+    edgeColour,
     // how far the view has come round to the front page's (0..1)
     get showing() {
       return showK;

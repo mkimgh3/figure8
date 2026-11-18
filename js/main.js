@@ -29,7 +29,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look42';
+const BUILD = 'v3-look43';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -214,6 +214,8 @@ AV_OPTS[1] = {
   bumps: MAX_BUMPS,
   mantle: true,
   longHair: MAX_HAIR,
+  // the base model's round face, drawn in a little at the cheeks and jaw (v3-look43)
+  slimFace: 0.1,
   camera: world.camera,
   look: { iridescence: 0, sheen: 0xffd2b0, sheenAmt: 0.25, rough: 0.46, sparkle: 0 },
 };
@@ -245,6 +247,7 @@ AV_OPTS[2] = {
   skirt: false,
   inflate: ROOK_BULK,
   bumps: ROOK_PADS,
+  slimFace: 0.1,
   hockey: true,
   look: { iridescence: 0, sheen: 0xaab8e0, sheenAmt: 0.2, rough: 0.72, sparkle: 0 },
 };
@@ -689,6 +692,50 @@ function drawSkater(dt, now, show) {
     stick.update(dt, hB, hT, hE, models.hero.rotation.y);
   }
 }
+// The Home Screen copy on iPhone (v3-look43): the page cannot draw the bottom 47 pt of the screen, which iOS fills with
+// the page's background colour, and iOS shades the top under the status bar with that colour too. So the page's
+// background (and theme colour) follow the colour of the view at the bottom of the screen: read back from the screen
+// soon after anything that changes it (time of day, place, zoom, menu, front page) and every few seconds, with the
+// front page's darkening laid over it as it is on screen. Elsewhere it does nothing.
+const edgeMeta = document.querySelector('meta[name="theme-color"]'),
+  standaloneIOS = !!window.navigator.standalone;
+// times in milliseconds of the page clock (the frame's `now`), so the readings keep to real time however slow the frames
+let edgeAt = 0,
+  edgeAgain = true,
+  edgeKey = '',
+  edgeCss = '';
+function matchEdges(now) {
+  if (!standaloneIOS) return;
+  const key = [lookIx, placeIx, models.index, front.open, world.view.zoomed, menuOpen()].join();
+  if (key !== edgeKey) {
+    edgeKey = key;
+    edgeAt = now + 350;
+    edgeAgain = true;
+  }
+  if (now < edgeAt) return;
+  edgeAt = now + (edgeAgain ? 1200 : 5000);
+  edgeAgain = false;
+  const c = world.edgeColour(window.innerHeight - 2),
+    // the front page darkens the bottom of the screen (Minimal: 82% of a deep navy; other screens: 32%), and the menu
+    // all of it (Minimal: 58%; others: 35% of a slate blue)
+    dk = front.open
+      ? uiIx === 3
+        ? [6, 12, 26, 0.82]
+        : [10, 20, 45, 0.32]
+      : menuOpen()
+        ? uiIx === 3
+          ? [6, 12, 26, 0.58]
+          : [22, 38, 63, 0.35]
+        : null;
+  const rgb = c.map((v, k) => Math.round(dk ? v + (dk[k] - v) * dk[3] : v)),
+    css = `rgb(${rgb.join(',')})`;
+  if (css === edgeCss) return;
+  edgeCss = css;
+  document.documentElement.style.backgroundColor = css;
+  document.body.style.backgroundColor = css;
+  if (edgeMeta) edgeMeta.setAttribute('content', css);
+}
+const menuOpen = () => document.getElementById('sheet').style.display === 'flex';
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
@@ -815,6 +862,7 @@ function frame(now) {
   trace.sharpen(world.view.e);
   hud.update(dt, game.speed(), trace.colorAt(S.skated));
   world.render();
+  matchEdges(now);
   requestAnimationFrame(frame);
 }
 hud.swatch(PALETTES[trace.palette].css, PALETTES[trace.palette].name);

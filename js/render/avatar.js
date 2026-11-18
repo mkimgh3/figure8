@@ -115,6 +115,13 @@ function costumeMaterial(map, normalMap, mask, U, look) {
   return m;
 }
 
+// Never below the ice (v3-look43): cloth that would pass through it in a deep crouch lies on it instead. Goes after
+// skinning. The mirror image is drawn flipped (its model matrix turns it upside down), so there the same rule keeps it
+// below the surface.
+const ABOVE_ICE = `
+{ vec4 wq = modelMatrix * vec4(transformed, 1.0); float fl = sign(determinant(mat3(modelMatrix)));
+  if (wq.y * fl < 0.012) { wq.y = 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; } }`;
+
 // A mirror crystal: a tiny flat facet (n: its normal, tilted at random) that reflects the sky and flashes white when it
 // turns to the sun or a spotlight, twinkling a little as it moves. Used on Tesa's bodice and gown.
 const CRYSTAL = `
@@ -165,7 +172,8 @@ function furShells(base, o) {
 transformed += furN * ${(o.length * h).toFixed(4)};
 vFr = furUv;
 vFur = furUv * vec2(${o.density[0].toFixed(1)}, ${o.density[1].toFixed(1)});`,
-        );
+        )
+        .replace('#include <skinning_vertex>', '#include <skinning_vertex>' + ABOVE_ICE);
       sh.fragmentShader = sh.fragmentShader
         .replace(
           '#include <common>',
@@ -398,7 +406,8 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
     sh.uniforms.uSparkle = U.uSparkle;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec3 vSk;\nvarying vec2 vFu;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSk = position * 160.0;\nvFu = furUv;');
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSk = position * 160.0;\nvFu = furUv;')
+      .replace('#include <skinning_vertex>', '#include <skinning_vertex>' + ABOVE_ICE);
     sh.fragmentShader = sh.fragmentShader
       .replace(
         '#include <common>',
@@ -570,7 +579,8 @@ function buildMantle(skeleton, toBind, bone, body, mo) {
     SEG = 56,
     rc = new THREE.Raycaster(),
     down = new THREE.Vector3(0, -1, 0),
-    o = new THREE.Vector3();
+    o = new THREE.Vector3(),
+    nrm = new THREE.Vector3();
   const hash = (k) => {
     const x = Math.sin(k * 127.1) * 43758.5453;
     return x - Math.floor(x);
@@ -603,16 +613,29 @@ function buildMantle(skeleton, toBind, bone, body, mo) {
       o.set(N.x + x, N.y + 0.45, N.z + z);
       rc.set(o, down);
       const hit = rc.intersectObject(body, false)[0];
-      let y = hit && hit.point.y > N.y - 0.3 ? hit.point.y : N.y - 0.1 - 0.15 * t;
-      y += 0.03 + 0.02 * t + 0.035 * Math.abs(sa) * t * t + dy; // more room over the shoulders, which swell when the arms move
-      pos.push(N.x + x, y, N.z + z);
+      // It lies off the body along the body's own surface, not just above it. Lifted straight up (v3-look42 and
+      // before), it had almost no room where the upper back is steep, and her shoulder blades (and his, with his
+      // arms up) showed through it. More room at the back and over the shoulders, which move most with the arms.
+      const room = 0.03 + 0.02 * t + 0.02 * back * t;
+      if (hit && hit.point.y > N.y - 0.3) {
+        nrm.copy(hit.face.normal).transformDirection(body.matrixWorld);
+        if (nrm.x * x + nrm.z * z + nrm.y * 0.05 < 0) nrm.negate();
+        o.copy(hit.point).addScaledVector(nrm, room);
+      } else o.set(N.x + x, N.y - 0.1 - 0.15 * t + room, N.z + z);
+      // more room over the shoulders, which swell when the arms move
+      o.y += 0.035 * Math.abs(sa) * t * t + dy;
+      pos.push(o.x, o.y, o.z);
       uv.push((a / (Math.PI * 2)) * 5, t * 1.6 + dy * 4);
       // skin: neck at the collar, upper back in the middle, collarbones and a little of the upper arms at the sides
+      // (the upper arms since v3-look43: the outer edge over each shoulder rises with the arm, so the shoulder does
+      // not come up through it)
       const side = Math.abs(sa),
+        sd = sa > 0 ? 'L' : 'R',
         wN = Math.max(0, 0.5 - t) * 0.9,
-        wC = side * t * 0.55;
-      si.push(ix('Bip01 Neck'), ix('Bip01 Spine2'), ix('Bip01 ' + (sa > 0 ? 'L' : 'R') + ' Clavicle'), 0);
-      sw.push(wN, Math.max(0, 1 - wN - wC), wC, 0);
+        wC = side * t * 0.5,
+        wU = side * side * t * t * 0.3;
+      si.push(ix('Bip01 Neck'), ix('Bip01 Spine2'), ix('Bip01 ' + sd + ' Clavicle'), ix('Bip01 ' + sd + ' UpperArm'));
+      sw.push(wN, Math.max(0, 1 - wN - wC - wU), wC, wU);
     }
   };
   ring(0, -0.01, -0.035); // tucked in round the neck
@@ -998,6 +1021,20 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           for (let i = 0; i < P.count; i++) {
             const d = H.getX(i) * H.getX(i) * 0.012;
             if (d) P.setXYZ(i, P.getX(i) - Nn.getX(i) * d, P.getY(i) - Nn.getY(i) * d, P.getZ(i) - Nn.getZ(i) * d);
+          }
+          P.needsUpdate = true;
+        }
+      // A slimmer face (v3-look43; the base model's is round): the cheeks and jaw drawn in across by opts.slimFace (a
+      // share), most at the jaw, fading out by the eyes and above the seam with the body (moving the seam would open a
+      // gap), and only on the face side of the head. In the head's own space: x across, -y forward, z up (metres).
+      if (opts.slimFace)
+        for (const m of skinned.filter((k) => k.material === head)) {
+          const P = m.geometry.attributes.position,
+            ss = THREE.MathUtils.smoothstep;
+          for (let i = 0; i < P.count; i++) {
+            const zz = P.getZ(i),
+              w = ss(zz, 1.53, 1.58) * (1 - ss(zz, 1.64, 1.71)) * ss(-P.getY(i), -0.03, 0.03);
+            if (w > 0) P.setX(i, P.getX(i) * (1 - opts.slimFace * w));
           }
           P.needsUpdate = true;
         }
