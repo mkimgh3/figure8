@@ -23,7 +23,7 @@ import { createUpdater } from './update.js';
 import { createPads, createRace } from './modes.js';
 import { createDuet } from './duet.js';
 
-const BUILD = 'v3-look35';
+const BUILD = 'v3-look36';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -173,6 +173,15 @@ const pose = createPoser(models),
 let dirty = false;
 const showScore = () => hud.score(score.state);
 const tutorial = createTutorial();
+// After the first few plays the Tutorial pill leaves the screen; the menu has a Tutorial button that opens it.
+{
+  let plays = 0;
+  try {
+    plays = (+localStorage.getItem('icedoodle2-plays') || 0) + 1;
+    localStorage.setItem('icedoodle2-plays', String(plays));
+  } catch (e) {}
+  document.body.classList.toggle('tut-quiet', plays > 3);
+}
 let placeIx = 0,
   lookIx = 0;
 const setLook = (i) => {
@@ -245,7 +254,7 @@ const S = game.S,
   tricks = createTricks(game, taps, log);
 const setZoom = () => {
   const z = world.toggleZoom();
-  hud.text('zoom', z ? 'Zoom in' : 'Zoom out');
+  hud.text('zoom', z ? 'Skate' : 'Scores');
   hud.board(z, score.state);
   if (z) {
     hud.stick(false);
@@ -329,7 +338,7 @@ const countText = () => {
     c.strokes +
     ' touches · ' +
     c.jumps +
-    ' jumps recorded. Stays on this device until you send or copy it.'
+    ' jumps recorded. Stays on this device until you copy it.'
   );
 };
 // the build that is running, and bringing a Home Screen copy up to date: checked at launch, on coming back to the game, and from the menu
@@ -367,6 +376,11 @@ hud.on('close', () => {
   last = performance.now();
 });
 hud.on('movesbtn', () => hud.page('moves'));
+hud.on('tutmenu', () => {
+  hud.sheet(false);
+  last = performance.now();
+  if (!tutorial.on) document.getElementById('tutbtn').click();
+});
 hud.on('back', () => hud.page('home'));
 // a tap outside the menu card closes the menu
 document.getElementById('sheet').addEventListener('click', (e) => {
@@ -396,6 +410,7 @@ const setUi = (i) => {
   uiIx = (i + UI_STYLES.length) % UI_STYLES.length;
   UI_STYLES.forEach((n, k) => document.body.classList.toggle('ui-' + n.toLowerCase(), k === uiIx));
   hud.text('uiname', UI_STYLES[uiIx]);
+  hud.refit();
 };
 setUi(uiIx);
 hud.on('uibtn', () => {
@@ -454,15 +469,6 @@ confirmTap('rescore', 'Reset score', 'Tap again to reset', () => {
   dirty = true;
   persist();
   if (world.view.zoomed) hud.board(true, score.state);
-});
-hud.on('send', async () => {
-  hud.text('logstatus', 'Sending…');
-  hud.text(
-    'logstatus',
-    (await log.send())
-      ? 'Sent. Tell Claude the log is in.'
-      : 'Could not send from here. Use Copy log and paste it to Claude.',
-  );
 });
 hud.on('copy', async () => {
   try {

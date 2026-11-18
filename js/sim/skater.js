@@ -249,7 +249,9 @@ export function createSkater(emit) {
             tn = clamp(da, -mt, mt);
           let ns = sp;
           if (tv > sp + 0.4) pushing = true;
-          if (tv > sp)
+          // a coasting move (spiral, hydroblade): the thumb only turns her, it neither pushes nor holds her back
+          if (m && m.coast) ns = sp;
+          else if (tv > sp)
             ns = Math.min(
               tv,
               sp +

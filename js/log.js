@@ -1,5 +1,5 @@
 // Playtest log: what each touch was read as, how each jump went, and how smoothly the game ran.
-// It stays on the device until the player sends or copies it.
+// It stays on the device until the player copies it (Menu > Copy log) and pastes it to Claude.
 import { CFG } from './config.js';
 const KEY = 'icedoodle2-log';
 
@@ -10,7 +10,6 @@ export function createLog(build) {
     build,
     started: new Date().toISOString(),
     standalone: !!(window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches),
-    claude: !!(window.claude && window.claude.use),
     device: {
       w: window.innerWidth,
       h: window.innerHeight,
@@ -114,22 +113,6 @@ export function createLog(build) {
       data.started = new Date().toISOString();
       dirty = true;
       persist();
-    },
-    // Sends the log where Claude can read it. Resolves true on success.
-    async send() {
-      persist();
-      try {
-        if (!window.claude || typeof window.claude.use !== 'function') return false;
-        const db = await window.claude.use('db');
-        if (!db) return false;
-        let body = JSON.parse(this.text());
-        body.sent = new Date().toISOString();
-        while (JSON.stringify(body).length > 200000 && body.strokes.length > 10) body.strokes.splice(0, 10); // stay under the document size limit
-        await db.doc('logs/latest').set(body);
-        return true;
-      } catch (e) {
-        return false;
-      }
     },
   };
 }

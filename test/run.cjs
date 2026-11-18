@@ -168,6 +168,10 @@ const { open } = require('./smoke.cjs');
   await calm();
   seen = await play(R(line(300, 560, 380, 556, 6)));
   ok('flick right is a split leap', seen.includes('leap'), seen);
+  {
+    const tag = await p.evaluate(() => document.getElementById('padtag').textContent);
+    ok('and the thumb shows what it was read as', tag === 'Split leap', tag);
+  }
   seen = await play(R(circle(300, 560, 36, 2.2, 90)));
   ok('a circle straight after a split leap is twizzles', seen.includes('twirl'), seen);
   await calm();
@@ -715,12 +719,16 @@ const { open } = require('./smoke.cjs');
   );
   ok('log recorded frame rate', logObj.fps.length > 0, logObj.fps.slice(0, 3));
   console.log('log size', JSON.stringify(logObj).length, 'bytes');
-  await p.tap('#send');
-  await sleep(600);
-  ok(
-    'send falls back cleanly when Claude storage is absent',
-    /Copy log/.test(await p.evaluate(() => document.getElementById('logstatus').textContent)),
-  );
+  await p.tap('#copy');
+  await sleep(300);
+  {
+    const cp = await p.evaluate(() => ({
+      status: document.getElementById('logstatus').textContent,
+      send: !!document.getElementById('send'),
+    }));
+    // headless Chrome may refuse the clipboard; either answer means the button works
+    ok("Copy log is the menu's log button, and it answers", !cp.send && /Copied|blocked/.test(cp.status), cp);
+  }
   await p.tap('#movesbtn');
   await sleep(200);
   ok(
@@ -904,6 +912,59 @@ const { open } = require('./smoke.cjs');
       'back in Free skate the partner and the course are gone',
       off === false && (await p.evaluate(() => document.getElementById('modeline').textContent)) === '',
       off,
+    );
+  }
+  // the score chip and the buttons
+  {
+    const ui = await p.evaluate(() => ({
+      tlab: document.getElementById('tlab').textContent,
+      zoom: document.getElementById('zoom').textContent,
+    }));
+    ok('the total is labelled, and the pause button says Scores', ui.tlab === 'Total' && ui.zoom === 'Scores', ui);
+    await p.tap('#zoom');
+    await sleep(300);
+    const paused = await p.evaluate(() => document.getElementById('zoom').textContent);
+    await p.tap('#zoom');
+    await sleep(300);
+    ok('paused, it says Skate', paused === 'Skate', paused);
+    await p.tap('#menu');
+    await sleep(200);
+    await p.tap('#tutmenu');
+    await sleep(200);
+    const tu = await p.evaluate(() => ({
+      on: window.__game.tutorial.on,
+      sheet: document.getElementById('sheet').style.display,
+    }));
+    ok('Tutorial in the menu closes the menu and opens the tutorial', tu.on && tu.sheet === 'none', tu);
+    await p.tap('#tutjump');
+    await sleep(200);
+  }
+  // portrait (this page is 390 x 844): the view pulls back as she speeds up, and comes back in as she slows
+  {
+    const height = () => p.evaluate(() => window.__game.world.camera.position.y);
+    const hold = (v) =>
+      p.evaluate((v) => {
+        const g = window.__game,
+          S = g.S,
+          h = Math.atan2(S.vx, S.vz) || 0;
+        g.input.setAuto(v ? { x: Math.sin(h), y: Math.cos(h) } : { x: 0, y: 0 });
+        S.vx = Math.sin(h) * v;
+        S.vz = Math.cos(h) * v;
+      }, v);
+    await hold(0);
+    await sleep(4000);
+    const slow = await height();
+    await hold(14);
+    await sleep(5000);
+    const fast = await height();
+    await hold(0);
+    await sleep(5000);
+    const back = await height();
+    await p.evaluate(() => window.__game.input.setAuto(null));
+    ok(
+      'portrait: the view pulls back at speed and comes back in as she slows',
+      fast > slow * 1.4 && back < fast * 0.8,
+      { slow: +slow.toFixed(1), fast: +fast.toFixed(1), back: +back.toFixed(1) },
     );
   }
   ok('no errors during the run', errs.length === 0, errs);

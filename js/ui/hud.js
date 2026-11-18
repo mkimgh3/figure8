@@ -7,14 +7,15 @@ const el = (tag, cls, text) => {
   if (text !== undefined) e.textContent = text;
   return e;
 };
-// one decimal, a real minus sign, and never wider than the card (-99.9 to 99.9)
-const num = (v) => {
-  const x = Math.max(-99.9, Math.min(99.9, +v || 0));
+// one decimal, a real minus sign, and never wider than a score card (-99.9 to 99.9); the running total goes to 9999.9
+const num = (v, most = 99.9) => {
+  const x = Math.max(-most, Math.min(most, +v || 0));
   return (x < 0 ? '\u2212' : '') + Math.abs(x).toFixed(1);
 };
+const TOTAL_MAX = 9999.9;
 // four equal black cards; with labels for the live score card, without for the scoreboard
 function cards(e, labels, size) {
-  const box = el('div', 'cards' + (labels ? '' : ' ' + (size || 'sm')));
+  const box = el('div', 'cards' + (size ? ' ' + size : labels ? '' : ' sm'));
   [
     ['Base', e.base, ''],
     ['GOE', e.goe, e.goe > 0 ? 'up' : e.goe < 0 ? 'dn' : ''],
@@ -48,7 +49,22 @@ export function createHud(coarse) {
     target = 0,
     barOn = false,
     chipKey = null;
-  const bar = $('cbar');
+  const bar = $('cbar'),
+    tag = $('padtag');
+  let tagT = 0;
+  // the running total's font shrinks when the number is too wide for the score chip (each Screen style sizes both)
+  const totalEl = $('total'),
+    scoreEl = $('score');
+  let totalLen = 0;
+  function fitTotal(len) {
+    totalLen = len;
+    totalEl.style.fontSize = '';
+    const cs = getComputedStyle(scoreEl),
+      room = scoreEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+      w = totalEl.scrollWidth;
+    if (room > 0 && w > room)
+      totalEl.style.fontSize = (parseFloat(getComputedStyle(totalEl).fontSize) * room) / w + 'px';
+  }
   hint.textContent = coarse
     ? 'Left thumb steers. Right finger: double tap to jump. Tap Tutorial to learn each skill step by step.'
     : 'WASD steers. Space jumps, A or D rotates in the air.';
@@ -65,6 +81,10 @@ export function createHud(coarse) {
       }
       pop.style.opacity = 1;
       popT = hold;
+    },
+    // fit the total again, after the Screen style has changed its size
+    refit() {
+      fitTotal(totalEl.textContent.length);
     },
     touched() {
       if (!touched) {
@@ -91,6 +111,16 @@ export function createHud(coarse) {
     padArmed(on) {
       pad.classList.toggle('armed', on);
     },
+    // what the right thumb was just read as, for a moment just above (x, y); faint for a stroke that did nothing
+    padTag(text, x, y, faint) {
+      // kept clear of the screen's edges, however near them the thumb lifted
+      x = Math.max(70, Math.min(window.innerWidth - 70, x));
+      tag.textContent = text;
+      tag.classList.toggle('faint', !!faint);
+      tag.style.transform = 'translate3d(' + x + 'px,' + (y - 46) + 'px,0) translate(-50%,-100%)';
+      tag.style.opacity = faint ? 0.6 : 1;
+      tagT = 0.9;
+    },
     // k: how fast she is spinning, 0..1. The ring goes from a faint blue to a full one.
     padSpin(k) {
       const q = Math.round(k * 20) / 20;
@@ -111,14 +141,14 @@ export function createHud(coarse) {
         $('bjname').textContent = bj ? bj.name : '';
         const c = $('bjcards');
         c.textContent = '';
-        if (bj) c.appendChild(cards(bj, false, 'xs'));
+        if (bj) c.appendChild(cards(bj, true, 'xs'));
       }
     },
     // the scoreboard shown while paused: total, jumps, the highest-scoring element, then every element, newest first
     board(open, st) {
       document.body.classList.toggle('paused', open);
       if (!open) return;
-      $('btotal').textContent = num(st.total);
+      $('btotal').textContent = num(st.total, TOTAL_MAX);
       $('bsum').textContent =
         st.jumps +
         (st.jumps === 1 ? ' jump' : ' jumps') +
@@ -155,11 +185,17 @@ export function createHud(coarse) {
     update(dt, speedMs, colorHex) {
       if (shown !== target) {
         shown = Math.abs(target - shown) < 0.05 ? target : shown + (target - shown) * Math.min(1, dt * 9);
-        $('total').textContent = num(shown);
+        const text = num(shown, TOTAL_MAX);
+        $('total').textContent = text;
+        if (text.length !== totalLen) fitTotal(text.length);
       }
       if (popT > 0) {
         popT -= dt;
         if (popT <= 0) pop.style.opacity = 0;
+      }
+      if (tagT > 0) {
+        tagT -= dt;
+        if (tagT <= 0) tag.style.opacity = 0;
       }
       const v = speedMs * 3.6,
         f = clamp(v / 72, 0, 1);

@@ -11,12 +11,14 @@ function held(S, api, o) {
     {
       id: o.id,
       steer: o.steer,
-      // coasting: the left thumb turns her but does not speed her up
-      accel: o.coast ? 0 : 1,
+      // coasting: the left thumb turns her but neither speeds her up nor slows her (skater.js)
+      coast: !!o.coast,
       state: st,
       leanIntoTurn: o.leanIntoTurn,
       start() {
         api.ensureSpeed(o.minSpeed + 0.5);
+        // going into a coasting move gives her a small push, which arrives over the next moment (skater.js: S.surge)
+        if (o.coast) S.surge += CFG.held.kick;
         api.emit('say', { big: o.name, small: '', hold: 0.7 });
       },
       release() {

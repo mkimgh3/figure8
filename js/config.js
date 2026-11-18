@@ -36,8 +36,8 @@ export const CFG = {
   stop: { minSpeed: 2.5, liftMs: 250, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
   // Spiral and hydroblade: the left thumb steers but cannot push. She slows as she glides (glide, 1/s; the hydroblade drags
   // a little more), and comes out of the move once her speed is below endSpeed (m/s), even with the finger down. So the
-  // faster she goes in, the longer she can hold it.
-  held: { glide: 0.32, endSpeed: 2.5 },
+  // faster she goes in, the longer she can hold it. Going in gives her a small push of `kick` (m/s), over about 0.25 s.
+  held: { glide: 0.32, endSpeed: 2.5, kick: 1.5 },
   twirl: { startTurn: 3.1, afterLeapMs: 3000 }, // a circle is twizzles for afterLeapMs after a split leap; any other time it is part of choreography
   // Choreography: the right thumb down holdMs with nothing else going on (held still, or dragged further or slower than a
   // flick), or still down afterLand seconds after a jump lands, or after the move it started is over. It lasts while that
@@ -55,6 +55,8 @@ export const CFG = {
     minScore: 2,
     accel: 0.8,
     holdMs: 300,
+    // a circling thumb starts it at once, once it has turned this far (radians; about 140 degrees)
+    circleTurn: 2.5,
     afterLand: 0.3,
     spinIn: 2.2,
     spinOut: 1.3,
@@ -118,7 +120,8 @@ export const CFG = {
     repeat: [1, 0.7, 0.5], // the same element again straight away is worth less
   },
   // Icicles: every `spacing` metres of new line sheds perSpot glints that sink (m/s) into the ice and fade over `seconds`.
-  icicles: { seconds: 5, spacing: 0.16, perSpot: 4, sink: 0.6, size: 0.14, bright: 1.5 },
+  // (v3-look36: fewer, smaller and dimmer than before; at 4 glints and brightness 1.5 they read as stitching beside the line)
+  icicles: { seconds: 5, spacing: 0.16, perSpot: 3, sink: 0.6, size: 0.11, bright: 0.85 },
   trace: { width: 0.075, length: 0.2, spacing: 0.13, saveMax: 50000 },
   camera: {
     fov: 38,
@@ -133,6 +136,13 @@ export const CFG = {
     lookMax: 2.2,
     minOverview: 16,
     portrait: 1.2, // how much further back the view sits when the screen is taller than it is wide
+    // In portrait it pulls back further with speed: from portraitFrom (m/s) it eases out, reaching portraitFast more
+    // (0.7: 70% further back) at portraitFrom + portraitSpan (14 m/s, 50 km/h), and eases back in as she slows.
+    // portraitEase (1/s): how quickly it follows her speed.
+    portraitFast: 0.7,
+    portraitFrom: 4,
+    portraitSpan: 10,
+    portraitEase: 1,
   },
   // Times of day. Each is a complete lighting setup; the menu cycles through them. sun: [elevation, azimuth] in degrees (azimuth 0 = from the south, 90 = from the west).
   looks: [

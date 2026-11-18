@@ -36,7 +36,20 @@ export function createScene(canvas) {
   composer.addPass(new OutputPass());
   let glowOn = false;
   // sized from the canvas as it is laid out, which on a phone can be taller than the window reports
+  // A Home Screen copy on iPhone can report a page height short of the screen by the status bar (797 of 844 pt), which
+  // left a strip of bare page at the bottom. Measure that gap and let the ice and overlays reach down over it (--fill in
+  // app.css). Only a small gap counts, so a phone whose screen size turns with it, or a split screen, is left alone.
+  const fillScreen = (el) => {
+    const root = document.documentElement,
+      standalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+    root.style.setProperty('--fill', '0px');
+    if (!standalone || !window.screen) return;
+    const full = window.innerHeight > window.innerWidth ? screen.height : screen.width,
+      gap = full - el.clientHeight;
+    if (gap > 0 && gap < 120) root.style.setProperty('--fill', gap + 'px');
+  };
   const resize = () => {
+    fillScreen(renderer.domElement);
     const el = renderer.domElement,
       w = el.clientWidth || window.innerWidth,
       h = el.clientHeight || window.innerHeight;
@@ -196,6 +209,8 @@ export function createScene(canvas) {
     tgt = new THREE.Vector3(0, 0.9, 0);
   let zoomT = 0,
     camSp = 0,
+    // her speed, smoothed more slowly, for the portrait pull-back (so a push or a landing does not make the view pump)
+    pullSp = 0,
     dark = false,
     lookAhead = 1,
     air = 0,
@@ -240,6 +255,7 @@ export function createScene(canvas) {
     far.z += ((minZ + maxZ) / 2 - far.z) * kf;
     far.h += (needH - far.h) * kf;
     camSp += (sp - camSp) * (1 - Math.exp(-2 * dt));
+    pullSp += (sp - pullSp) * (1 - Math.exp(-C.portraitEase * dt));
     const fov = C.fov + C.fovFast * clamp((camSp - 5) / 8, 0, 1) * (1 - zoomT);
     if (Math.abs(fov - fovNow) > 0.02) {
       fovNow = fov;
@@ -250,8 +266,13 @@ export function createScene(canvas) {
     // tilt: a little more side-on at speed and in the air, so height and pace read; back to the drawing view when slow
     air += ((S.grounded && S.visY < 0.05 ? 0 : 1) - air) * (1 - Math.exp(-(S.grounded ? 2.5 : 6) * dt));
     distK += (distGoal - distK) * (1 - Math.exp(-2 * dt));
+    // portrait: the view sits further back, and further still the faster she goes, easing back in as she slows
+    const portrait =
+      camera.aspect < 1
+        ? C.portrait * (1 + C.portraitFast * clamp((pullSp - C.portraitFrom) / C.portraitSpan, 0, 1))
+        : 1;
     const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
-      dist = (DIST + camSp * C.speedLift) * distK * (camera.aspect < 1 ? C.portrait : 1);
+      dist = (DIST + camSp * C.speedLift) * distK * portrait;
     const closeH = dist * Math.cos(tilt),
       back = dist * Math.sin(tilt);
     view.zMax = Math.max(1.5, far.h / closeH);

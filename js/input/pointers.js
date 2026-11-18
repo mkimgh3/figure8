@@ -27,6 +27,24 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     hud.stick(true, steer.ox, steer.oy, 0, 0);
   };
   // a two-thumb gesture has started a move: hold the stick where it was
+  // what the right thumb was read as, shown for a moment just above where it is (or where it lifted)
+  const READS = {
+    up: 'Spiral',
+    down: 'Hydroblade',
+    left: 'Three-turn',
+    right: 'Split leap',
+    spread: 'Spread eagle',
+    stop: 'Hockey stop',
+    'both-down-held': 'Hydroblade',
+    twirl: 'Twizzles',
+    dance: 'Choreography',
+    jump: 'Jump',
+    none: 'no move',
+    'stop-too-slow': 'too slow to stop',
+  };
+  const trick = { x: 0, y: 0 };
+  tricks.onRead = (name) =>
+    hud.padTag(READS[name] || name, trick.x, trick.y, name === 'none' || name === 'stop-too-slow');
   tricks.onTwoThumb = () => {
     if (steer.id === null) return;
     steer.frozen = true;
@@ -87,6 +105,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
       trickId = e.pointerId;
       steer.hx = steer.x;
       steer.hy = steer.y;
+      trick.x = e.clientX;
+      trick.y = e.clientY;
       tricks.down(e.clientX, e.clientY, now, dbl);
       hud.pad(true, e.clientX, e.clientY, false);
     } else if (steer.id === null) {
@@ -141,6 +161,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
         if (!view.zoomed) hud.stick(true, steer.ox, steer.oy, dx, dy);
       }
     } else if (e.pointerId === trickId) {
+      trick.x = e.clientX;
+      trick.y = e.clientY;
       tricks.move(e.clientX, e.clientY, now);
       // the ring sits under the finger, no smoothing
       hud.pad(true, e.clientX, e.clientY, tricks.armed);

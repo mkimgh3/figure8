@@ -200,6 +200,22 @@ for (const rest of [0, 150, 250]) {
     r.move,
   );
 }
+for (const [name, move] of [
+  ['flickUp', 'spiral'],
+  ['flickDown', 'hydro'],
+]) {
+  const r = rig();
+  r.wait(2500);
+  r.down(real(name)[0]);
+  r.play(real(name));
+  for (let k = 0; k < 30 && r.move !== move; k++) r.wait(16);
+  const v0 = r.game.speed();
+  r.wait(250);
+  ok(`${move}: going into it gives her a small push`, r.move === move && r.game.speed() > v0 + 0.5, {
+    v0: +v0.toFixed(2),
+    after: +r.game.speed().toFixed(2),
+  });
+}
 // --- spiral and hydroblade coast: no push from the left thumb (it stays pushed throughout here), and they end as she slows
 for (const [name, move] of [
   ['flickUp', 'spiral'],
@@ -273,6 +289,35 @@ for (const [label, leftPath] of [
 // Strokes from Mark's 17 Nov playtest (v3-look34) where the right thumb did nothing, replayed at their logged timing.
 {
   const LOG = JSON.parse(fs.readFileSync(new URL('./fixtures/session2.json', import.meta.url)));
+  {
+    // v3-look35: his quick loops after a landing, each loop its own short touch
+    const r = rig();
+    r.stroke(still(300, 560, 2), 40);
+    r.down([300, 560], true);
+    r.up();
+    for (let k = 0; k < 300 && (!r.S.grounded || r.S.move); k++) r.wait(16);
+    r.wait(500);
+    const t0 = r.t,
+      outs = [];
+    for (const s of LOG.loopsAfterJump.strokes) {
+      r.wait(Math.max(0, t0 + s.at - r.t));
+      outs.push(r.replay(s));
+    }
+    const first = outs.findIndex((o) => o.danceAt !== null),
+      spunBy = outs.findIndex((o) => o.spun),
+      reads = r.logged.slice(-outs.length).map((l) => l.read);
+    ok(
+      'his quick loops after a landing (each a separate touch) -> choreography during the first loop',
+      first === 0 && outs[0].danceAt <= 200,
+      { first, at: outs[0].danceAt },
+    );
+    ok('and she is spinning within three loops', spunBy >= 0 && spunBy <= 2, { spunBy });
+    ok(
+      'the loops make one choreography: each new touch takes it up',
+      reads[0] === 'dance' && reads.slice(1).every((x) => x === 'dance-continue'),
+      reads,
+    );
+  }
   for (const name of ['circlingWhileSteering', 'circlingAfterJump']) {
     const r = rig(),
       out = r.replay(LOG[name]);

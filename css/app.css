@@ -40,6 +40,9 @@ canvas {
   width: 100vw;
   height: 100vh;
   height: 100lvh;
+  /* --fill: on a Home Screen copy in portrait the page can report a height short of the screen by the status bar's
+     height, which left a strip at the bottom; scene.js measures the gap and the ice reaches down over it */
+  height: calc(100lvh + var(--fill, 0px));
   touch-action: none;
 }
 .hud {
@@ -105,13 +108,18 @@ button:focus-visible {
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
 }
-#sub {
+#sub,
+#tlab {
   font-size: 9px;
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.6;
   margin-top: 2px;
+}
+/* "Total" under the running total, then a gap before the best jump, so the two do not read as one */
+#tlab {
+  margin: 0 0 7px;
 }
 #bjname {
   font-size: 11px;
@@ -138,6 +146,30 @@ button:focus-visible {
   font-size: 9.5px;
   letter-spacing: -0.04em;
 }
+/* the best jump's cards carry tiny labels, so the four numbers say what they are */
+.cards.xs span {
+  font-size: 6px;
+  letter-spacing: 0.04em;
+  margin-bottom: 1px;
+}
+/* what the right thumb was just read as, shown for a moment above where it lifted (hud.padTag) */
+#padtag {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 750;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 20, 0.85);
+  opacity: 0;
+  transition: opacity 0.35s;
+}
+#padtag.faint {
+  font-weight: 600;
+  opacity: 0.6;
+}
 #cbar {
   position: absolute;
   left: 0;
@@ -154,6 +186,7 @@ button:focus-visible {
 #vig {
   position: fixed;
   inset: 0;
+  bottom: calc(-1 * var(--fill, 0px));
   pointer-events: none;
   background: radial-gradient(ellipse at 50% 55%, rgba(255, 255, 255, 0) 52%, rgba(60, 100, 160, 0.2) 100%);
 }
@@ -254,6 +287,10 @@ button:focus-visible {
 #tut {
   display: flex;
   gap: 6px;
+}
+/* after the first few plays the Tutorial pill leaves the screen (it is in the menu); an open tutorial still shows */
+body.tut-quiet #tut:not(.open) {
+  display: none;
 }
 .pill {
   min-height: 32px;
@@ -542,6 +579,7 @@ body.paused #vig {
 #sheet {
   position: fixed;
   inset: 0;
+  bottom: calc(-1 * var(--fill, 0px));
   display: none;
   align-items: flex-end;
   justify-content: center;
@@ -743,8 +781,12 @@ body.paused #vig {
 #menu {
   --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16' stroke='black' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
 }
+/* Scores: it pauses and shows the scoreboard, so a bar chart; paused, a play mark to skate on */
 #zoom {
-  --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.3' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21M7.5 10.5h6'/%3E%3C/svg%3E");
+  --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M3.5 20.5h17M7 20.5v-6M12 20.5V5.5M17 20.5v-9.5'/%3E%3C/svg%3E");
+}
+body.paused #zoom {
+  --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 5.5v13l10.5-6.5z' fill='black'/%3E%3C/svg%3E");
 }
 .ui-glass #btns button,
 .ui-minimal #btns button,
@@ -781,7 +823,8 @@ body.paused #vig {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
-.ui-broadcast #sub {
+.ui-broadcast #sub,
+.ui-broadcast #tlab {
   color: var(--gold);
   opacity: 1;
   letter-spacing: 0.14em;
@@ -1006,7 +1049,8 @@ body.paused #vig {
   box-shadow: none;
 }
 .ui-minimal #score {
-  padding: 0;
+  /* room at the bottom for the link bar (#cbar), which would otherwise run through the best jump's numbers */
+  padding: 0 0 8px;
   width: 150px;
   text-shadow: 0 1px 8px rgba(255, 255, 255, 0.8);
 }
@@ -1015,7 +1059,8 @@ body.paused #vig {
   font-weight: 300;
   letter-spacing: -0.02em;
 }
-.ui-minimal #sub {
+.ui-minimal #sub,
+.ui-minimal #tlab {
   font-size: 9px;
   letter-spacing: 0.2em;
   opacity: 0.55;
@@ -1118,6 +1163,13 @@ body.paused #vig {
   color: #f2f6ff;
   text-shadow: 0 1px 8px rgba(0, 0, 20, 0.8);
 }
+/* on the dark ice the darker green and red of the light style nearly vanish */
+.ui-minimal.night .cards .up b {
+  color: #7cf0ad;
+}
+.ui-minimal.night .cards .dn b {
+  color: #ffa3a3;
+}
 
 /* ---- Arcade: chunky, bright and bold. A big speed dial at the bottom between the thumbs, badges with a pressed edge */
 .ui-arcade button,
@@ -1139,7 +1191,8 @@ body.paused #vig {
   font-size: 30px;
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
 }
-.ui-arcade #sub {
+.ui-arcade #sub,
+.ui-arcade #tlab {
   opacity: 0.85;
 }
 .ui-arcade .cards div {

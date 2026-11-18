@@ -74,8 +74,13 @@ export function createTricks(game, taps, log) {
     outcome = name;
     two = isTwo;
     if (isTwo && api.onTwoThumb) api.onTwoThumb();
+    told(name.endsWith('dance') ? 'dance' : name);
     return true;
   }
+  // what the stroke was read as, for the word shown by the thumb (pointers.js)
+  const told = (name) => {
+    if (api.onRead) api.onRead(name);
+  };
   function stop(inward) {
     if (game.speed() < CFG.stop.minSpeed) {
       outcome = 'stop-too-slow';
@@ -120,13 +125,23 @@ export function createTricks(game, taps, log) {
   }
   // The finger has been down holdMs and nothing else is going on: she dances. That covers a finger held still or dragged
   // (not a flick), one kept down through a jump and its landing, and one kept down after its move has run its course.
+  // A finger circling (turned dance.circleTurn or more) starts it at once: quick spinning loops are often separate
+  // touches, each far shorter than holdMs, and each later loop takes up the dance the first one started.
   function mayDance(t) {
-    if (!S.grounded || S.move || t - stroke.t0 < CFG.dance.holdMs) return false;
+    if (!S.grounded || S.move) return false;
+    const circling = role === 'pending' && Math.abs(stroke.turn) >= CFG.dance.circleTurn;
+    if (t - stroke.t0 < CFG.dance.holdMs && !circling) return false;
     if (role === 'done') return true;
     if (role === 'air') return S.landT >= CFG.dance.afterLand;
     if (role !== 'pending' || stopWait || swipe.pending()) return false;
     // straight after a split leap a circle means twizzles, so only a finger kept still starts choreography then
     return !(t < leapUntil && stroke.path >= CFG.swipe.restPx);
+  }
+  function dance() {
+    const circled = role === 'pending' ? stroke.turn : 0;
+    if (!start(createDance(S, game), outcome ? outcome + '+dance' : 'dance', false)) return;
+    // the circling that started it counts: she turns as far as the finger already has
+    if (circled) own.rotate(-circled);
   }
   // the right thumb's speed sets the dance's mood; with the left thumb, how alike the two thumbs' directions are
   function feed(dt, t) {
@@ -144,6 +159,8 @@ export function createTricks(game, taps, log) {
   const api = {
     // called when a two-thumb gesture starts a move, so the left thumb's part in it does not steer her (set by pointers.js)
     onTwoThumb: null,
+    // called with what a stroke was read as ('up', 'dance', 'jump', 'none', ...), to show it by the thumb (set by pointers.js)
+    onRead: null,
     get active() {
       return stroke !== null;
     },
@@ -167,6 +184,7 @@ export function createTricks(game, taps, log) {
       if (isDoubleTap && game.jump()) {
         role = 'air';
         outcome = 'jump';
+        told('jump');
       } else if (!S.grounded) {
         role = 'air';
         outcome = 'air-rotate';
@@ -198,6 +216,8 @@ export function createTricks(game, taps, log) {
       if (role === 'pending' && t < leapUntil && Math.abs(stroke.turn) >= CFG.twirl.startTurn && S.grounded) {
         if (start(createTwirl(S, game, -stroke.turn), 'twirl', false)) leapUntil = -1e9;
       }
+      // a circle starts choreography straight away, without waiting for the next frame
+      if (role === 'pending' && mayDance(t)) dance();
     },
     // every frame: a swipe is read once the finger is still, a two-thumb swipe down that stays down becomes a
     // hydroblade, a dance is fed the thumbs' motion, and a finger with nothing going on starts one
@@ -216,7 +236,7 @@ export function createTricks(game, taps, log) {
         if (r) act(r, t, false);
       }
       if (role === 'held' && own.id === 'dance') feed(dt, t);
-      if (mayDance(t)) start(createDance(S, game), outcome ? outcome + '+dance' : 'dance', false);
+      if (mayDance(t)) dance();
     },
     up(t) {
       if (!stroke) return;
@@ -234,6 +254,8 @@ export function createTricks(game, taps, log) {
           const r = swipe.read(t, true);
           if (r) act(r, t, true);
           if (role === 'pending' && !outcome) outcome = 'none';
+          // a stroke that did nothing says so, faintly, so a misfire is plain to see
+          if (role === 'pending' && (outcome === 'none' || outcome === 'stop-too-slow')) told(outcome);
         }
       } else if (reading() && !tap) {
         // a flick that took up a winding-down dance, read as it lifts

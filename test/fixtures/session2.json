@@ -1,5 +1,18 @@
 {
-  "about": "Right-thumb strokes from Mark's playtest of v3-look34 on 17 Nov 2026 (iPhone, Home Screen copy) where the thumb did nothing. pts and left are [dx, dy, ms] triples from the stroke's start, as the log keeps them (thinned, so about one sample per 50 to 70 ms). left is the steering thumb over the same time, from the moment the right thumb touched down.",
+  "about": "Right-thumb strokes from Mark's playtests on 17 Nov 2026 (iPhone, Home Screen copy) where the thumb did nothing. pts and left are [dx, dy, ms] triples from the stroke's start, as the log keeps them (long strokes are thinned, to about one sample per 50 to 70 ms). left is the steering thumb over the same time, from the moment the right thumb touched down.",
+  "loopsAfterJump": {
+    "note": "v3-look35, 1.4 s after a jump landed: Mark spins with quick loops, each its own touch. The thumb is down for about 0.13 s over most of a circle, lifts for 50 to 100 ms on the way back round, and lands again. at: when each touch began (ms, worked out from the log's lift times, which are to 0.1 s). Each read as nothing: choreography waited for a touch 0.3 s long. 17 such loops in a row in his log.",
+    "strokes": [
+      { "at": 0, "x0": 703, "y0": 246, "pts": [0,0,0,-10,-4,31,-24,-4,47,-43,-4,64,-66,1,81,-86,16,98,-98,40,114,-99,66,131,-84,84,147,-65,95,164,-57,96,181] },
+      { "at": 232, "x0": 680, "y0": 276, "pts": [0,0,0,-3,-20,15,-11,-33,32,-27,-33,49,-47,-19,65,-64,5,82,-71,34,98,-62,55,115,-40,66,132,-18,66,149] },
+      { "at": 450, "x0": 705, "y0": 282, "pts": [0,0,0,-2,-15,7,-11,-44,15,-28,-54,31,-49,-53,48,-75,-33,65,-95,-1,82,-96,24,98,-78,38,115,-65,42,131] },
+      { "at": 666, "x0": 702, "y0": 270, "pts": [0,0,0,-14,-23,15,-37,-32,31,-59,-24,48,-81,1,65,-90,33,81,-80,51,98,-68,55,115] },
+      { "at": 849, "x0": 705, "y0": 293, "pts": [0,0,0,2,-17,6,-3,-45,15,-18,-59,31,-42,-61,48,-67,-50,65,-93,-30,82,-107,-7,98,-96,10,115,-64,25,132] },
+      { "at": 1067, "x0": 704, "y0": 270, "pts": [0,0,0,-5,-12,7,-23,-32,14,-50,-37,31,-74,-25,48,-92,0,64,-96,29,81,-80,45,98,-65,50,114] },
+      { "at": 1282, "x0": 702, "y0": 288, "pts": [0,0,0,-19,-25,15,-49,-38,32,-75,-30,49,-90,-8,65,-90,12,82,-65,27,99] },
+      { "at": 1566, "x0": 700, "y0": 270, "pts": [0,0,0,-23,-20,15,-49,-25,32,-70,-18,49,-86,-2,65,-91,17,82,-77,34,99,-55,50,115] }
+    ]
+  },
   "circlingWhileSteering": {
     "note": "7.1 s of circling while the left thumb steered in a wide arc. v3-look34 read it as nothing: its two-thumb reader engaged and never decided, which held back choreography.",
     "x0": 650,
