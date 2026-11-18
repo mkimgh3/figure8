@@ -1,5 +1,5 @@
 {
- "build": "v3-look39",
+ "build": "v3-look40",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -61,6 +61,7 @@
   "js/sim/skater.js",
   "js/ui/front.js",
   "js/ui/hud.js",
+  "js/ui/showcase.js",
   "js/ui/tutorial.js",
   "js/update.js",
   "js/vendor/BufferGeometryUtils.js",

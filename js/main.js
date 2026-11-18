@@ -24,9 +24,12 @@ import { createPads, createRace } from './modes.js';
 import { createDuet } from './duet.js';
 import { createStick } from './render/stick.js';
 import { createFront } from './ui/front.js';
+import { createShowcase } from './ui/showcase.js';
 import * as THREE from './render/three.js';
 
-const BUILD = 'v3-look39';
+// v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
+// back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
+const BUILD = 'v3-look40';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -459,7 +462,14 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) persist();
 });
 
-// the front page: skater, place, time of day and mode, then Start
+// the front page: skater, place, time of day and mode, then Start. Dragging across the scene turns the skater round.
+const showcase = createShowcase(
+  S,
+  document.getElementById('front'),
+  document.getElementById('fcard'),
+  () => models.index,
+  () => front.turned(),
+);
 const front = createFront(
   [
     { id: 'fchar', names: () => models.chars.map((c) => c.name), get: () => models.index, set: setChar },
@@ -469,6 +479,7 @@ const front = createFront(
   ],
   () => CFG.play.about[playIx],
   () => {
+    showcase.stop();
     dirty = true;
     persist();
     last = performance.now();
@@ -648,13 +659,15 @@ let last = performance.now(),
   lastMove = null,
   fAcc = 0,
   fN = 0;
-// pose the skater, move the realistic body to match, and place Rook's stick
-function drawSkater(dt, now) {
-  pose(game, dt, now);
+// pose the skater, move the realistic body to match, and place Rook's stick. show: the front page's turntable, if open
+function drawSkater(dt, now, show) {
+  pose(game, dt, now, show);
   avatar = avatars[models.index];
   if (avatar && avatar.visible) {
     const spinRate =
-      (S.move && S.move.spinRate ? S.move.spinRate() : 0) + (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20);
+      (S.move && S.move.spinRate ? S.move.spinRate() : 0) +
+      (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20) +
+      (show ? show.spinRate() : 0);
     avU.uTime.value = now / 1000;
     avatar.reflection(world.quality.reflection && !paperOn, 0.26);
     avatar.update(dt, S, Math.min(1, spinRate / 18 + game.speed() * 0.02), Math.min(1, spinRate / 18));
@@ -785,8 +798,13 @@ function frame(now) {
     ring.update(game, models.rig.scale);
     log.tick(dt, game, steer);
   }
-  // on the front page the skater stands for the showcase: posed and drawn, though nothing moves
-  else if (front.open) drawSkater(dt, now);
+  // on the front page the skater stands for the showcase: posed and drawn, turned by the finger, framed in the space
+  // the choices leave free
+  else if (front.open) {
+    showcase.update(dt, now);
+    world.showcase(true, front.band(now));
+    drawSkater(dt, now, showcase);
+  }
   world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
   forest.update(S.x, S.z);
   trace.sharpen(world.view.e);
@@ -809,6 +827,7 @@ window.__game = {
   avatars,
   stick,
   front,
+  showcase,
   setPlay,
   setChar,
   setLook,

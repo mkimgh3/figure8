@@ -101,7 +101,8 @@ export function createPoser(model) {
     flowLen = CARVE.change[0] + Math.random() * (CARVE.change[1] - CARVE.change[0]);
     flowRest = CARVE.hold[0] + Math.random() * (CARVE.hold[1] - CARVE.hold[0]);
   };
-  return function update(game, dt, now) {
+  // show: the front page's turntable (ui/showcase.js), whose gestures go over everything else while it is open
+  return function update(game, dt, now, show) {
     const hockey = !!model.rig.hockey;
     const S = game.S,
       sp = game.speed(),
@@ -250,6 +251,10 @@ export function createPoser(model) {
         rate = 3.2 + 9.8 * u;
       }
     }
+    if (show) {
+      const r = show.pose(T, { HIP });
+      if (r) rate = r;
+    }
     const kp = 1 - Math.exp(-rate * dt);
     for (const k in T) pose[k] += (T[k] - pose[k]) * kp;
     const r = model.rig;
@@ -263,7 +268,10 @@ export function createPoser(model) {
     r.legR.lower.rotation.x = pose.lRk;
     r.legL.foot.rotation.x = -(pose.lean + pose.lLx + pose.lLk) * pose.fL + 0.3 * (1 - pose.fL); // planted blades stay flat, free feet point
     r.legR.foot.rotation.x = -(pose.lean + pose.lRx + pose.lRk) * pose.fR + 0.3 * (1 - pose.fR);
-    const spinRate = (m && m.spinRate ? m.spinRate() : 0) + (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20);
+    const spinRate =
+      (m && m.spinRate ? m.spinRate() : 0) +
+      (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20) +
+      (show ? show.spinRate() : 0);
     if (r.hair) {
       r.hair.rotation.x =
         0.12 + 0.5 * g + Math.min(0.5, spinRate / 30) + Math.sin(now * 0.007) * 0.07 - pose.lean * 0.5;

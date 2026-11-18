@@ -773,10 +773,68 @@ const { open } = require('./smoke.cjs');
     await sleep(400);
     ok('nothing moves on the front page', (await p.evaluate(() => window.__game.S.x)) === x0);
   }
+  {
+    // v3-look40: she is framed whole below the status bar and above the title; a drag across the scene turns her
+    // round and brings out a gesture, a flick spins her
+    await p.waitForFunction(() => window.__game.world.showing > 0.98, null, { timeout: 30000 });
+    await sleep(300);
+    const fp = await p.evaluate(() => {
+      const g = window.__game,
+        c = g.world.camera,
+        V = c.position.constructor,
+        S = g.S,
+        y = (h) => ((1 - new V(S.x, h, S.z).project(c).y) / 2) * innerHeight;
+      return {
+        head: Math.round(y(1.75)),
+        blades: Math.round(y(0)),
+        top: parseFloat(getComputedStyle(document.getElementById('front')).paddingTop),
+        title: Math.round(document.querySelector('#fcard h1').getBoundingClientRect().top),
+      };
+    });
+    ok(
+      'the front page shows her whole, below the status bar and down to the title',
+      fp.head > fp.top + 30 && fp.blades < fp.title + 40 && fp.blades - fp.head > 150,
+      fp,
+    );
+    const tp = (type, x, y) =>
+      p.evaluate(
+        ([type, x, y]) =>
+          document
+            .getElementById('front')
+            .dispatchEvent(
+              new PointerEvent(type, { pointerId: 9, clientX: x, clientY: y, pointerType: 'touch', bubbles: true }),
+            ),
+        [type, x, y],
+      );
+    const f0 = await p.evaluate(() => window.__game.S.facing);
+    await tp('pointerdown', 100, 200);
+    for (let k = 1; k <= 12; k++) {
+      await tp('pointermove', 100 + k * 8, 200);
+      await sleep(60);
+    }
+    await p.waitForFunction(() => window.__game.showcase.state().mode === 'turn', null, { timeout: 5000 });
+    const s1 = await p.evaluate(() => window.__game.showcase.state());
+    await tp('pointerup', 196, 200);
+    ok(
+      'dragging across the scene turns her round, and she starts a gesture',
+      Math.abs(s1.facing - f0 - 96 * 0.012) < 0.05 && s1.mode === 'turn' && s1.gesture === 'wave',
+      s1,
+    );
+    await tp('pointerdown', 60, 200);
+    for (let k = 1; k <= 5; k++) await tp('pointermove', 60 + k * 50, 200);
+    await tp('pointerup', 310, 200);
+    await p.waitForFunction(() => window.__game.showcase.state().mode === 'spin', null, { timeout: 5000 });
+    const s2 = await p.evaluate(() => ({
+      ...window.__game.showcase.state(),
+      hint: document.getElementById('fturn').classList.contains('gone'),
+    }));
+    ok('a flick spins her into a spin position, and the drag hint goes', s2.w > 6 && s2.hint, s2);
+  }
   await p.evaluate(() => [...document.getElementById('fmode').children][2].click());
   await sleep(100);
   await p.tap('#fstart');
   await sleep(250);
+  ok('Start stops the turntable', await p.evaluate(() => window.__game.showcase.state().w === 0));
   let tu = await p.evaluate(() => ({
     front: window.__game.front.open,
     on: window.__game.tutorial.on,
@@ -818,7 +876,11 @@ const { open } = require('./smoke.cjs');
   );
   await ev('pointerdown', 1, 100, 560);
   await ev('pointermove', 1, 104, 520);
-  await sleep(1500);
+  // she has to reach 2.5 m/s, which takes longer in wall time when the headless page draws slowly (a fixed 1.5 s wait
+  // failed now and then), so wait for the tick
+  await p
+    .waitForFunction(() => document.querySelector('#tlist li').className === 'done', null, { timeout: 8000 })
+    .catch(() => {});
   tu = await p.evaluate(() => [...document.getElementById('tlist').children].map((li) => li.className));
   ok('a step passes: it is ticked off and the next one is current', tu[0] === 'done' && tu[1] === 'now', tu);
   await ev('pointerup', 1, 104, 520);

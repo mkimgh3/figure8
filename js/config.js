@@ -145,6 +145,30 @@ export const CFG = {
     portraitFrom: 4,
     portraitSpan: 10,
     portraitEase: 1,
+    // The front page (v3-look40): the view comes round low in front of her, `elev` degrees above level, as close as fits
+    // her from `low` to `high` metres (her blades to her hands overhead) into the space between the status bar and the
+    // choices, and `half` metres either side of her (the coat flying open). `ease` (1/s): how quickly the framing follows
+    // when that space changes.
+    showcase: { elev: 16, low: -0.06, high: 2.25, half: 0.95, ease: 5 },
+  },
+  // The front page's turntable (ui/showcase.js). perPx: radians she turns per pixel the finger drags; maxSpin (rad/s): the
+  // fastest a flick spins her; coast (s): how long a spin takes to die away, and drag (rad/s each second) stops the last of
+  // it. Turned faster than spinIn (rad/s) she takes a spin position, kept until slower than spinOut, then finishes with a
+  // flourish. Turned slowly, she moves to the next gesture each `every` radians, showing each at least minHold seconds;
+  // `hold` (s): how long a gesture or the flourish stays once she has stopped. Left alone `idle` seconds (a range), she
+  // strikes a pose on her own. blend (1/s): how quickly she goes into a gesture and back to her stance.
+  showcase: {
+    perPx: 0.012,
+    maxSpin: 24,
+    coast: 1.6,
+    drag: 0.8,
+    spinIn: 6,
+    spinOut: 2.5,
+    every: 1.3,
+    minHold: 0.9,
+    hold: 2.2,
+    idle: [5, 9],
+    blend: 3,
   },
   // Times of day: dawn, day and dusk. Each is a complete lighting setup; the front page and the menu choose one.
   // sun: [elevation, azimuth] in degrees (azimuth 0 = from the south, 90 = from the west).

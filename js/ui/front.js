@@ -5,7 +5,9 @@ const $ = (id) => document.getElementById(id);
 
 export function createFront(rows, about, onStart, onShow) {
   const root = $('front');
-  let open = false;
+  let open = false,
+    bandC = null,
+    bandT = 0;
   const render = () => {
     for (const r of rows)
       [...$(r.id).children].forEach((b, i) => {
@@ -48,6 +50,31 @@ export function createFront(rows, about, onStart, onShow) {
       root.hidden = true;
       document.body.classList.remove('front');
       if (onShow) onShow(false);
+    },
+    // the space left free for the skater, in CSS pixels from the screen's top left: below the status bar and down to
+    // the title upright, left of the choices on its side. Measured at most twice a second.
+    band(now) {
+      if (bandC && now - bandT < 500) return bandC;
+      bandT = now;
+      const cs = getComputedStyle(root),
+        c = $('fcard').getBoundingClientRect(),
+        h = root.querySelector('h1').getBoundingClientRect(),
+        top = parseFloat(cs.paddingTop) || 0,
+        W = window.innerWidth;
+      bandC =
+        c.left > W * 0.35
+          ? {
+              top: top + 8,
+              bottom: window.innerHeight - (parseFloat(cs.paddingBottom) || 0),
+              left: parseFloat(cs.paddingLeft) || 0,
+              right: c.left - 8,
+            }
+          : { top: top + 12, bottom: h.top + h.height * 0.3, left: 0, right: W };
+      return bandC;
+    },
+    // she has been turned once: the hint has done its job
+    turned() {
+      $('fturn').classList.add('gone');
     },
     render,
   };

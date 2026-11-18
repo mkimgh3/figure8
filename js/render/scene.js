@@ -241,10 +241,45 @@ export function createScene(canvas) {
     air = 0,
     time = 0;
   const DIST = Math.hypot(C.closeHeight, C.closeBack);
-  // the front page: the view comes in close and the skater sits in the upper part of the screen, above the choices
+  // The front page: the view comes round low in front of her and frames her in the space left free by the status bar
+  // and the choices (band: CSS pixels from the screen's top left). v3-look39 and before came in close from above and
+  // set her a fixed share of the screen up, which on an iPhone put her face under the status bar.
   let showK = 0,
     showOn = false,
-    offsetOn = false;
+    offsetOn = false,
+    band = null;
+  const SC = C.showcase,
+    shot = { d: 0, ox: 0, oy: 0 },
+    camP = new THREE.Vector3(),
+    camL = new THREE.Vector3(),
+    shP = new THREE.Vector3(),
+    shL = new THREE.Vector3();
+  // where the showcase camera goes (shP, looking at shL) and how far the view is shifted (shot.ox, shot.oy, pixels)
+  function frameShowcase(S, dt, w, hh) {
+    const b = band || { top: hh * 0.08, bottom: hh * 0.5, left: 0, right: w },
+      el = SC.elev * DEG,
+      sinE = Math.sin(el),
+      cosE = Math.cos(el),
+      mid = (SC.low + SC.high) / 2,
+      hT = SC.high - mid,
+      hB = SC.low - mid,
+      // a point hgt metres above or below the middle of her, in the view's -1..1 from bottom to top, from d metres away
+      ny = (hgt, d) => (hgt * cosE) / ((d - hgt * sinE) * tanHalf),
+      want = Math.max(0.2, (2 * (b.bottom - b.top)) / hh);
+    // as close as lets her whole height fill the space, and her width fit across it
+    let d = ((hT - hB) * cosE) / (tanHalf * want);
+    for (let i = 0; i < 3; i++) d *= (ny(hT, d) - ny(hB, d)) / want;
+    d = Math.max(d, (SC.half * w) / (tanHalf * camera.aspect * Math.max(40, b.right - b.left)));
+    const ox = w / 2 - (b.left + b.right) / 2,
+      k = shot.d ? 1 - Math.exp(-SC.ease * dt) : 1;
+    shot.d += (d - shot.d) * k;
+    // the top of her at the top of the space
+    const oy = ((1 - (2 * b.top) / hh - ny(hT, shot.d)) * hh) / 2;
+    shot.ox += (ox - shot.ox) * k;
+    shot.oy += (oy - shot.oy) * k;
+    shL.set(S.x, mid, S.z);
+    shP.set(S.x, mid + shot.d * sinE, S.z + shot.d * cosE);
+  }
   let distK = 1,
     distGoal = 1; // some places are seen from a little further back
   function toggleZoom() {
@@ -301,19 +336,8 @@ export function createScene(canvas) {
         ? C.portrait * (1 + C.portraitFast * clamp((pullSp - C.portraitFrom) / C.portraitSpan, 0, 1))
         : 1;
     showK += ((showOn ? 1 : 0) - showK) * (1 - Math.exp(-4 * dt));
-    const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air + 14 * showK) * DEG,
-      dist = (DIST + camSp * C.speedLift) * distK * portrait * (1 - 0.55 * showK);
-    if (showK > 0.002) {
-      const el = renderer.domElement,
-        w = el.clientWidth || window.innerWidth,
-        hh = el.clientHeight || window.innerHeight;
-      camera.setViewOffset(w, hh, 0, hh * (camera.aspect < 1 ? 0.3 : 0.02) * showK, w, hh);
-      if (camera.aspect >= 1) camera.setViewOffset(w, hh, w * 0.2 * showK, 0, w, hh);
-      offsetOn = true;
-    } else if (offsetOn) {
-      camera.clearViewOffset();
-      offsetOn = false;
-    }
+    const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
+      dist = (DIST + camSp * C.speedLift) * distK * portrait;
     const closeH = dist * Math.cos(tilt),
       back = dist * Math.sin(tilt);
     view.zMax = Math.max(1.5, far.h / closeH);
@@ -332,8 +356,26 @@ export function createScene(canvas) {
     tgt.x += (tx - tgt.x) * kc;
     tgt.z += (tz - tgt.z) * kc;
     tgt.y = 0.9 * (1 - e);
-    camera.position.set(tgt.x, h, tgt.z + back * (1 - e) + 0.001);
-    camera.lookAt(tgt);
+    camP.set(tgt.x, h, tgt.z + back * (1 - e) + 0.001);
+    camL.copy(tgt);
+    if (showK > 0.002) {
+      // the front page: from the play view round to the showcase view
+      const el = renderer.domElement,
+        w = el.clientWidth || window.innerWidth,
+        hh = el.clientHeight || window.innerHeight,
+        k = showK * showK * (3 - 2 * showK);
+      frameShowcase(S, dt, w, hh);
+      camP.lerp(shP, k);
+      camL.lerp(shL, k);
+      camera.setViewOffset(w, hh, shot.ox * k, shot.oy * k, w, hh);
+      offsetOn = true;
+    } else if (offsetOn) {
+      camera.clearViewOffset();
+      offsetOn = false;
+      shot.d = 0;
+    }
+    camera.position.copy(camP);
+    camera.lookAt(camL);
     view.ppm = window.innerHeight / (2 * h * tanHalf);
     uScale.value = Math.max(1, (4 - 0.8 * e) / (CFG.trace.width * view.ppm)); // from high up the line stays a hairline, about a pixel and a half
     ice.material.color.copy(iceCol).lerp(DARK, e);
@@ -354,8 +396,10 @@ export function createScene(canvas) {
     }
     return h;
   }
-  const showcase = (on) => {
+  // on: the front page is open; b: the space left free for her (see frameShowcase), when it is known
+  const showcase = (on, b) => {
     showOn = on;
+    if (b) band = b;
   };
   const snapTo = (x, z) => {
     tgt.set(x, 0.9, z);
@@ -380,6 +424,10 @@ export function createScene(canvas) {
     update,
     snapTo,
     showcase,
+    // how far the view has come round to the front page's (0..1)
+    get showing() {
+      return showK;
+    },
     setPlace,
     setLook,
     setPaper,
