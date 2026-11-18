@@ -29,7 +29,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look41';
+const BUILD = 'v3-look42';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -143,6 +143,9 @@ const AV_OPTS = [
     tex: texOf('ava'),
     height: 1.72,
     skirt: AVA_SKIRT,
+    // stars of light winking over her coat, skirt and kokoshnik at night (v3-look41)
+    glints: { count: 60, size: 0.22, bright: 3, rate: [0.35, 0.9], coat: 0.75, tiara: 0.12, day: 0 },
+    camera: world.camera,
     mantle: AVA_STOLE,
     cuffs: {
       length: 0.075,

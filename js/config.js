@@ -175,10 +175,10 @@ export const CFG = {
   // linePunch deepens the line's colours (1 = as painted); lineWide draws it wider. spot: the two follow spots.
   // (v3-look37: Golden hour, Blue hour and Night are gone; dusk is a deep blue dark with the follow spots.)
   // glow: the bloom [strength, radius, threshold]. v3-look41 took dusk's from [0.65, 0.25, 1.3] to a faint one that only
-  // the brightest light passes (it haloed her white fur and blurred the line), and lit the night with sparkle instead:
-  // glitter (frost crystals on the ice winking in the light, mostly round her), dust (diamond dust, ice crystals
-  // hanging in the air round her, each flashing now and then) and sparkle (how brightly the crystals on her clothes
-  // flash, 1 as made).
+  // the brightest light passes (it haloed her white fur and blurred the line), and put sparkle on her clothes instead:
+  // stars winking over her coat (`glints` in Tesa's options in main.js) and `sparkle` (how brightly the crystals on her
+  // clothes flash, 1 as made). Two more kinds are built but off (0): glitter (frost crystals on the ice winking, mostly
+  // round her) and dust (diamond dust hanging in the air round her); Mark wanted the sparkle on her, not on the ice.
   looks: [
     {
       name: 'Dawn',
@@ -227,8 +227,8 @@ export const CFG = {
       spot: 1,
       glow: [0.28, 0.18, 1.6],
       lineGlow: 1.8,
-      glitter: 1,
-      dust: 1,
+      glitter: 0,
+      dust: 0,
       sparkle: 1.6,
       night: true,
       sun: [38, -30],

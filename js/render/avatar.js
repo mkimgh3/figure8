@@ -11,6 +11,7 @@ import * as THREE from './three.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { HIP } from './model.js';
 import { createHair } from './hair.js';
+import { starDot } from './atmos.js';
 
 const LIFT = 0.045;
 const WIND = { x: 1.8, y: 0.75 }; // a breeze over the lake, metres per second (same way the snow drifts)                                   // how far the blades raise her above where her shoes were
@@ -1299,6 +1300,95 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           });
       };
 
+      // Glints (v3-look41, at night): small stars of light winking on and off over her coat, skirt and kokoshnik. Each
+      // sits on a point of the cloth, found every frame through its morphs and skinning so it moves with the cloth, and
+      // moves to a new point after each flash. Hidden where the cloth is behind her (depth tested).
+      // opts.glints: { count, size (metres), bright (peak, 1 white; above it the bloom catches it), rate: [slowest,
+      //   fastest] flashes a second, coat (share on the outer layer),
+      //   tiara (share on the kokoshnik), day (how much shows by day; at night all of it) }
+      let glints = null;
+      if (opts.glints && skirts.length) {
+        const G = opts.glints,
+          n = G.count,
+          gPos = new Float32Array(n * 3),
+          gCol = new Float32Array(n * 3),
+          gAt = [],
+          gPh = new Float32Array(n),
+          gRate = new Float32Array(n),
+          tiaraMeshes = [];
+        gear.forEach((g) => g.traverse((o) => o.isMesh && !o.isSkinnedMesh && tiaraMeshes.push(o)));
+        const pick = (i) => {
+          const u = Math.random(),
+            m =
+              tiaraMeshes.length && u < (G.tiara || 0)
+                ? tiaraMeshes[Math.floor(Math.random() * tiaraMeshes.length)]
+                : skirts[u < (G.tiara || 0) + (1 - (G.tiara || 0)) * (G.coat ?? 0.75) ? skirts.length - 1 : 0];
+          gAt[i] = [m, Math.floor(Math.random() * m.geometry.attributes.position.count)];
+        };
+        for (let i = 0; i < n; i++) {
+          pick(i);
+          gPh[i] = Math.random();
+          gRate[i] = G.rate[0] + Math.random() * (G.rate[1] - G.rate[0]);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(gPos, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(gCol, 3));
+        const pts = new THREE.Points(
+          geo,
+          new THREE.PointsMaterial({
+            alphaMap: starDot(64),
+            vertexColors: true,
+            size: G.size,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+          }),
+        );
+        pts.frustumCulled = false;
+        pts.renderOrder = 7;
+        proxy.hero.parent.add(pts);
+        const gv = new THREE.Vector3(),
+          toCam = new THREE.Vector3();
+        glints = {
+          pts,
+          amt: G.day || 0,
+          update(dt) {
+            pts.visible = visible && glints.amt > 0.01;
+            if (!pts.visible) return;
+            // seen from further off (skating, not the front page) they shrink less than she does, so they still show
+            const far = opts.camera ? opts.camera.position.distanceTo(proxy.hero.position) : 5;
+            pts.material.size = G.size * Math.max(1, Math.pow(far / 5, 0.6));
+            for (let i = 0; i < n; i++) {
+              const k = i * 3;
+              gPh[i] += dt * gRate[i];
+              if (gPh[i] >= 1) {
+                gPh[i] -= 1;
+                pick(i);
+              }
+              // a quick flash in the middle of each cycle, bright enough that the night's faint bloom catches it
+              const b = Math.pow(1 - Math.abs(gPh[i] * 2 - 1), 6) * glints.amt * (G.bright || 1);
+              if (b < 0.01) {
+                gCol[k] = gCol[k + 1] = gCol[k + 2] = 0;
+                continue;
+              }
+              const [m, vi] = gAt[i];
+              m.getVertexPosition(vi, gv);
+              m.localToWorld(gv);
+              // a little toward the camera, so the cloth it sits on does not cut it
+              if (opts.camera) gv.addScaledVector(toCam.subVectors(opts.camera.position, gv).normalize(), 0.03);
+              gPos[k] = gv.x;
+              gPos[k + 1] = gv.y;
+              gPos[k + 2] = gv.z;
+              gCol[k] = 0.9 * b;
+              gCol[k + 1] = 0.95 * b;
+              gCol[k + 2] = b;
+            }
+            geo.attributes.position.needsUpdate = true;
+            geo.attributes.color.needsUpdate = true;
+          },
+        };
+      }
+
       let ground = 0,
         visible = true,
         reflect = true,
@@ -1325,11 +1415,13 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         // k: 0 by day, 1 at night
         night(k) {
           if (strands) strands.glow(k);
+          if (glints) glints.amt = k + (1 - k) * (opts.glints.day || 0);
         },
         set visible(v) {
           if (v && !visible && strands) strands.reset();
           visible = v;
           wrap.visible = v;
+          if (glints) glints.pts.visible = v && glints.amt > 0.01;
           strandsShow();
           mirrors.forEach((m) => {
             m.visible = v && reflect;
@@ -1427,6 +1519,10 @@ export function loadAvatar(models, ix, opts, U, onReady) {
             });
           }
           if (strands && opts.camera) strands.update(dt, opts.camera, opts.wind || WIND, spin);
+          if (glints) {
+            wrap.updateMatrixWorld(true);
+            glints.update(dt);
+          }
           if (reflect) {
             mirrors.forEach((r, i) => {
               r.matrix.multiplyMatrices(R, skinned[i].bindMatrix);
