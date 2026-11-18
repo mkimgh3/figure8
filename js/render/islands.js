@@ -2,12 +2,21 @@
 // islets scattered round them, spread out so there is room to skate fast between them and along their shores. Each
 // island is a few overlapping mounds. They are laid out by a fixed rule, so the map is the same every visit and goes
 // on for ever; only the islands near the skater are drawn.
+// Drawing (v3-look45): each map cell has its own mounds and trees, so the cells out of view are skipped, and only the
+// trees near her cast shadows: a copy of them that writes nothing on screen (three.js tests an object's layers against
+// the main camera even for the shadow maps, so a shadow-only layer would not do). Until v3-look44 all 2400 trees were
+// drawn twice every frame, once for the view and once for the sun's shadow, on screen or not.
 import * as THREE from './three.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 const CELL = 120,
   R = 2,
-  MAXLOBES = (2 * R + 1) * (2 * R + 1) * 9,
-  MAXTREES = 2400;
+  CELLS = (2 * R + 1) * (2 * R + 1),
+  CELL_LOBES = 10,
+  CELL_TREES = 640,
+  MAXTREES = 2400,
+  // trees within CAST_R metres of her cast shadows (the sun's shadow covers 18 m round her, but a low sun's are long)
+  CASTERS = 700,
+  CAST_R = 40;
 const hash = (i, j, k) => {
   const s = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453;
   return s - Math.floor(s);
@@ -82,27 +91,43 @@ export function createIslands(scene) {
     col.push(tc.r, tc.g, tc.b);
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  const mesh = new THREE.InstancedMesh(
-    geo,
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, envMapIntensity: 0.5 }),
-    MAXLOBES,
+  const landMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.85,
+      metalness: 0,
+      envMapIntensity: 0.5,
+    }),
+    fir = firGeometry(),
+    treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, envMapIntensity: 0.4 });
+  // per map cell: its mounds and its trees, each culled as a whole by its bounding sphere
+  const cells = [];
+  for (let c = 0; c < CELLS; c++) {
+    const land = new THREE.InstancedMesh(geo, landMat, CELL_LOBES),
+      trees = new THREE.InstancedMesh(fir, treeMat, CELL_TREES);
+    land.count = trees.count = 0;
+    land.visible = trees.visible = false;
+    land.receiveShadow = trees.receiveShadow = true;
+    scene.add(land, trees);
+    cells.push({ land, trees });
+  }
+  // the trees near her, again, for the shadow maps: on screen they write neither colour nor depth
+  const casters = new THREE.InstancedMesh(
+    fir,
+    new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }),
+    CASTERS,
   );
-  mesh.frustumCulled = false;
-  mesh.count = 0;
-  mesh.visible = false;
-  mesh.receiveShadow = true;
-  scene.add(mesh);
-  const trees = new THREE.InstancedMesh(
-    firGeometry(),
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, envMapIntensity: 0.4 }),
-    MAXTREES,
-  );
-  trees.frustumCulled = false;
-  trees.count = 0;
-  trees.visible = false;
-  trees.castShadow = true;
-  trees.receiveShadow = true;
-  scene.add(trees);
+  casters.count = 0;
+  casters.visible = false;
+  casters.castShadow = true;
+  casters.frustumCulled = false;
+  scene.add(casters);
+  // every tree's matrix and place, for picking the casters
+  const allM = new Float32Array(MAXTREES * 16),
+    allX = new Float32Array(MAXTREES),
+    allZ = new Float32Array(MAXTREES);
+  let total = 0,
+    castX = 1e9,
+    castZ = 1e9;
   const M = new THREE.Matrix4(),
     Q = new THREE.Quaternion(),
     V = new THREE.Vector3(),
@@ -112,22 +137,25 @@ export function createIslands(scene) {
     ci = 1e9,
     cj = 1e9,
     lobes = [];
-  // one mound; returns its outline for the shore test
-  const mound = (x, z, rx, rz, rot, n) => {
+  // one mound in cell c (n: its number there); returns its outline for the shore test
+  const mound = (x, z, rx, rz, rot, c, n) => {
     const h = Math.min(4, rx * 0.11);
     Q.setFromAxisAngle(UP, rot);
     M.compose(V.set(x, -0.02, z), Q, SC.set(rx, h, rz));
-    mesh.setMatrixAt(n, M);
-    const l = { x, z, rx, rz, h, c: Math.cos(rot), s: Math.sin(rot) };
+    cells[c].land.setMatrixAt(n, M);
+    const l = { x, z, rx, rz, h, c: Math.cos(rot), s: Math.sin(rot), cell: c };
     lobes.push(l);
     return l;
   };
   function rebuild(i0, j0) {
     lobes = [];
-    let n = 0,
-      t = 0;
+    const nl = new Array(CELLS).fill(0),
+      nt = new Array(CELLS).fill(0);
+    let t = 0,
+      c = -1;
     for (let i = i0 - R; i <= i0 + R; i++)
       for (let j = j0 - R; j <= j0 + R; j++) {
+        c++;
         if (hash(i, j, 1) > 0.78) continue;
         const cx = (i + 0.5 + (hash(i, j, 2) - 0.5) * 0.5) * CELL,
           cz = (j + 0.5 + (hash(i, j, 3) - 0.5) * 0.5) * CELL,
@@ -139,7 +167,7 @@ export function createIslands(scene) {
             d = k ? size * (0.35 + hash(i, j, 20 + k) * 0.5) : 0,
             rx = size * (0.55 + hash(i, j, 30 + k) * 0.6),
             rz = rx * (0.5 + hash(i, j, 40 + k) * 0.4);
-          mound(cx + Math.cos(a) * d, cz + Math.sin(a) * d, rx, rz, hash(i, j, 50 + k) * 3.14, n++);
+          mound(cx + Math.cos(a) * d, cz + Math.sin(a) * d, rx, rz, hash(i, j, 50 + k) * 3.14, c, nl[c]++);
         }
         // islets: small rocks of snow scattered round the island
         const islets = 2 + Math.floor(hash(i, j, 6) * 4.99);
@@ -153,7 +181,8 @@ export function createIslands(scene) {
             r,
             r * (0.6 + hash(i, j, 90 + k) * 0.4),
             hash(i, j, 95 + k) * 3.14,
-            n++,
+            c,
+            nl[c]++,
           );
         }
       }
@@ -175,13 +204,41 @@ export function createIslands(scene) {
           s = 2.6 + hash(li, k, 9) * 4.2;
         Q.setFromAxisAngle(UP, hash(li, k, 11) * 6.28);
         M.compose(V.set(x, y, z), Q, SC.set(s * (0.85 + hash(li, k, 12) * 0.3), s, s));
-        trees.setMatrixAt(t++, M);
+        if (nt[l.cell] < CELL_TREES) cells[l.cell].trees.setMatrixAt(nt[l.cell]++, M);
+        M.toArray(allM, t * 16);
+        allX[t] = x;
+        allZ[t] = z;
+        t++;
       }
     });
-    mesh.count = n;
-    mesh.instanceMatrix.needsUpdate = true;
-    trees.count = t;
-    trees.instanceMatrix.needsUpdate = true;
+    total = t;
+    cells.forEach((cl, k) => {
+      for (const [m, n] of [
+        [cl.land, nl[k]],
+        [cl.trees, nt[k]],
+      ]) {
+        m.count = n;
+        m.instanceMatrix.needsUpdate = true;
+        if (n) m.computeBoundingSphere();
+        m.visible = on && n > 0;
+      }
+    });
+    castX = 1e9;
+  }
+  // the trees within CAST_R of (x, z) become the shadow casters
+  function pickCasters(x, z) {
+    castX = x;
+    castZ = z;
+    let n = 0;
+    for (let t = 0; t < total && n < CASTERS; t++) {
+      const dx = allX[t] - x,
+        dz = allZ[t] - z;
+      if (dx * dx + dz * dz > CAST_R * CAST_R) continue;
+      casters.instanceMatrix.array.set(allM.subarray(t * 16, t * 16 + 16), n * 16);
+      n++;
+    }
+    casters.count = n;
+    casters.instanceMatrix.needsUpdate = true;
   }
   const local = (l, x, z) => {
     const dx = x - l.x,
@@ -199,8 +256,11 @@ export function createIslands(scene) {
   return {
     set(v) {
       on = v;
-      mesh.visible = v;
-      trees.visible = v;
+      cells.forEach((cl) => {
+        cl.land.visible = v && cl.land.count > 0;
+        cl.trees.visible = v && cl.trees.count > 0;
+      });
+      casters.visible = v;
       ci = 1e9;
     },
     update(x, z) {
@@ -212,6 +272,8 @@ export function createIslands(scene) {
         cj = j;
         rebuild(i, j);
       }
+      // the casters are picked again each time she has gone 5 m
+      if ((x - castX) ** 2 + (z - castZ) ** 2 > 25) pickCasters(x, z);
     },
     // If (x, z) is on land: the nearest point back on the ice and the direction away from the shore. Otherwise null.
     hit(x, z) {

@@ -1429,6 +1429,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
       let ground = 0,
         visible = true,
         reflect = true,
+        reflOpacity = -1,
         skirtT = 0,
         flare = 0,
         flareV = 0,
@@ -1470,7 +1471,11 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         get visible() {
           return visible;
         },
+        // called every frame: does the work only when something changed (the visibility setter keeps the mirrors in
+        // step with the skater on its own)
         reflection(on, opacity) {
+          if (on === reflect && opacity === reflOpacity) return;
+          reflOpacity = opacity;
           reflect = on;
           strandsShow();
           if (strands)

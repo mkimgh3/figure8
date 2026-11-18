@@ -18,7 +18,10 @@ export function createRing(scene) {
     return m;
   };
   flat(new THREE.RingGeometry(1.06, 1.085, 72), 0xffffff, 0.55); // hairline guide
-  const arc = flat(new THREE.RingGeometry(1.03, 1.115, 8, 1, 0, 0.01), COLORS.ok, 0.95);
+  // the filling arc: one whole ring built once, of which only the first part is drawn (drawRange), turned to where it
+  // starts (until v3-look44 a new ring was built every frame in the air)
+  const SEGS = 240,
+    arc = flat(new THREE.RingGeometry(1.03, 1.115, SEGS, 1, 0, TAU), COLORS.ok, 0.95);
   const whole = flat(new THREE.CircleGeometry(0.075, 20), 0xffffff, 1),
     half = flat(new THREE.CircleGeometry(0.05, 16), 0xffffff, 0.9);
   let t0 = 0;
@@ -35,8 +38,8 @@ export function createRing(scene) {
       const turns = Math.abs(S.spin) / TAU,
         len = Math.max(0.01, (turns - Math.floor(turns)) * TAU),
         gr = game.liveGrade();
-      arc.geometry.dispose();
-      arc.geometry = new THREE.RingGeometry(1.03, 1.115, 56, 1, S.spin >= 0 ? t0 : t0 - len, len);
+      arc.geometry.setDrawRange(0, 6 * Math.max(1, Math.round((len / TAU) * SEGS)));
+      arc.rotation.z = S.spin >= 0 ? t0 : t0 - len;
       arc.material.color.setHex(!gr ? COLORS.fall : gr === 'shaky' ? COLORS.shaky : COLORS.ok); // mint: lands clean now, gold: shaky, rose: would fall
       group.position.set(S.x, S.y + 0.9, S.z);
       group.scale.set(scale, 1, scale);

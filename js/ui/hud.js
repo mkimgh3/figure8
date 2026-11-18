@@ -49,7 +49,11 @@ export function createHud(coarse) {
     shown = 0,
     target = 0,
     barOn = false,
-    chipKey = null;
+    chipKey = null,
+    // the plain announcement on show (its big and small lines), so one said again every frame in the air only changes
+    // their words; and the speed gauge's last values, written only when they change
+    plain = null,
+    gauge = '';
   const bar = $('cbar'),
     tag = $('padtag');
   let tagT = 0,
@@ -75,6 +79,14 @@ export function createHud(coarse) {
   return {
     // An announcement: a big line and a small one. Or, for a scored element, its name over four black cards: Base, GOE, Art, Total.
     say(big, small, hold, card) {
+      if (!card && plain && plain.small === !!small) {
+        if (plain.b.textContent !== big) plain.b.textContent = big;
+        if (small && plain.s.textContent !== small) plain.s.textContent = small;
+        if (popT <= 0) pop.style.opacity = 1;
+        popT = hold;
+        return;
+      }
+      plain = null;
       pop.textContent = '';
       pop.classList.toggle('inf', !!card && infMode);
       if (card && infMode) {
@@ -86,8 +98,9 @@ export function createHud(coarse) {
         pop.appendChild(el('div', 'pname', card.name));
         pop.appendChild(cards(card, true));
       } else {
-        pop.appendChild(el('div', 'big', big));
-        if (small) pop.appendChild(el('small', '', small));
+        plain = { b: el('div', 'big', big), s: small ? el('small', '', small) : null, small: !!small };
+        pop.appendChild(plain.b);
+        if (small) pop.appendChild(plain.s);
       }
       pop.style.opacity = 1;
       popT = hold;
@@ -217,9 +230,13 @@ export function createHud(coarse) {
         if (tagT <= 0) tag.style.opacity = 0;
       }
       const v = speedMs * 3.6,
-        f = clamp(v / 72, 0, 1);
-      arc.setAttribute('stroke-dashoffset', (169.6 * (1 - f)).toFixed(1));
-      spfill.style.transform = 'scaleX(' + f.toFixed(3) + ')';
+        f = clamp(v / 72, 0, 1),
+        g = f.toFixed(3);
+      if (g !== gauge) {
+        gauge = g;
+        arc.setAttribute('stroke-dashoffset', (169.6 * (1 - f)).toFixed(1));
+        spfill.style.transform = 'scaleX(' + g + ')';
+      }
       hudT += dt;
       if (hudT > 0.25) {
         hudT = 0;

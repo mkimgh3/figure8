@@ -90,10 +90,16 @@ export function createLog(build) {
       data.notes.push({ t: at(), text });
       dirty = true;
     },
-    tick(dt, game, steer) {
-      acc += dt;
-      frames++;
-      if (dt > worst) worst = dt;
+    // dt: the game's step (held to at most 0.05 s); real: the time the frame really took, for the frame rate (until
+    // v3-look45 the rate came from dt, so it could not show anything below 20 fps)
+    tick(dt, game, steer, real) {
+      const f = real === undefined ? dt : real;
+      // a gap of over half a second (the page in the background) is not a frame
+      if (f < 0.5) {
+        acc += f;
+        frames++;
+        if (f > worst) worst = f;
+      }
       const kmh = game.speed() * 3.6;
       data.steer.seconds += dt;
       if (Math.hypot(steer.x, steer.y) > 0.95) data.steer.fullStick += dt;

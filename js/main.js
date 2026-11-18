@@ -29,7 +29,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look44';
+const BUILD = 'v3-look45';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -207,7 +207,8 @@ const MAX_HAIR = {
 };
 AV_OPTS[1] = {
   url: 'assets/max_model.js',
-  tex: texOf('max'),
+  // no hair texture: his dreadlocks replace the model's hair cards
+  tex: Object.assign(texOf('max'), { hair: null }),
   height: 1.92,
   skirt: false,
   inflate: MAX_BULK,
@@ -735,7 +736,9 @@ function matchEdges(now) {
 }
 const menuOpen = () => document.getElementById('sheet').style.display === 'flex';
 function frame(now) {
-  const dt = Math.min((now - last) / 1000, 0.05);
+  // real: the time this frame took; dt: the game's step, held to 0.05 s so a slow frame does not throw her about
+  const real = (now - last) / 1000,
+    dt = Math.min(real, 0.05);
   last = now;
   // zooming out, opening the menu, or the front page pauses the skating
   const paused = world.view.zoomed || document.getElementById('sheet').style.display === 'flex' || front.open;
@@ -835,8 +838,12 @@ function frame(now) {
     }
     spray.update(dt);
     icicles.update(dt);
-    fAcc += dt;
-    fN++;
+    // the frame rate for Auto graphics, from the real frame times (a gap of over half a second is the page coming back
+    // from the background, not a slow frame)
+    if (real < 0.5) {
+      fAcc += real;
+      fN++;
+    }
     if (fAcc >= 3) {
       world.adapt(fN / fAcc);
       showGfx();
@@ -846,7 +853,7 @@ function frame(now) {
     drawSkater(dt, now);
     if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection && !paperOn);
     ring.update(game, models.rig.scale);
-    log.tick(dt, game, steer);
+    log.tick(dt, game, steer, real);
   }
   // on the front page the skater stands for the showcase: posed and drawn, turned by the finger, framed in the space
   // the choices leave free

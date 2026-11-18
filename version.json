@@ -1,5 +1,5 @@
 {
- "build": "v3-look44",
+ "build": "v3-look45",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -14,7 +14,6 @@
   "assets/icon-512.png",
   "assets/max_body.jpg",
   "assets/max_body_n.jpg",
-  "assets/max_hair.webp",
   "assets/max_head.jpg",
   "assets/max_head_n.jpg",
   "assets/max_mask.png",

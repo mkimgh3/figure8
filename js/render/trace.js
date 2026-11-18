@@ -150,8 +150,12 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     blk.setColorAt(k, tmpC.setHex(colorInt));
     const sa = blk.geometry.attributes.aSpd;
     sa.array[k] = spd;
-    sa.needsUpdate = true;
     blk.count = k + 1;
+    // only the new mark goes up to the graphics chip, not the whole block (three.js merges the ranges of a frame)
+    sa.addUpdateRange(k, 1);
+    blk.instanceMatrix.addUpdateRange(k * 16, 16);
+    blk.instanceColor.addUpdateRange(k * 3, 3);
+    sa.needsUpdate = true;
     blk.instanceMatrix.needsUpdate = true;
     blk.instanceColor.needsUpdate = true;
     prints.push(x, z, rot, colorInt, w, Math.round(spd * 100) / 100);
