@@ -26,7 +26,7 @@ import { createStick } from './render/stick.js';
 import { createFront } from './ui/front.js';
 import * as THREE from './render/three.js';
 
-const BUILD = 'v3-look38';
+const BUILD = 'v3-look39';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -66,10 +66,11 @@ const showAvatar = () =>
       if (o.isMesh) o.visible = !on;
     });
   });
-// Tesa: a Scandinavian princess with white hair in a bun, slender and tall, dressed after Russian court gowns (v3-look38):
-// a white satin underskirt embroidered with crystals (vines, swags and rows round the hem), under an ice-blue velvet
-// overdress open at the front, trimmed with white fur and bordered with crystals; a white fur stole; a pearl-edged
-// silver kokoshnik. Both skirts lift high as she spins (flareGain, open, lift).
+// Tesa: a Scandinavian princess with white hair in a bun, slender and tall, in a princess's winter coat (v3-look39):
+// a fitted ice-blue velvet coat, buttoned to the waist and open below it, trimmed with white fur down its front edges,
+// round the hem and at the cuffs, bordered and scattered with crystals, over a short white skating skirt embroidered
+// with crystals; a white fur collar; a pearl-edged silver kokoshnik. As she spins the coat swings open and up and shows
+// her legs; both layers fold and ripple like cloth and trail behind the spin.
 const AVA_SLIM = {
   Spine: -0.012,
   Spine1: -0.008,
@@ -81,13 +82,19 @@ const AVA_SLIM = {
 };
 const AVA_SKIRT = [
   {
-    length: 0.95,
-    waist: [0.125, 0.095],
-    rest: 19,
-    open: 86,
-    lift: 0.14,
+    length: 0.34,
+    waist: [0.12, 0.09],
+    rest: 11,
+    open: 38,
+    lift: 0,
     bell: 0.8,
-    follow: 0.4,
+    follow: 0.45,
+    lobes: 11,
+    godet: 0.3,
+    flute: 0.02,
+    trail: 0.25,
+    k: 5,
+    gain: 1.2,
     colours: [0xfbfcff, 0xe2e9f8],
     opacity: 1,
     rough: 0.3,
@@ -97,14 +104,20 @@ const AVA_SKIRT = [
     embroider: 'under',
   },
   {
-    length: 0.97,
+    length: 0.86,
     waist: [0.137, 0.107],
     rest: 22,
-    open: 90,
-    lift: 0.16,
-    bell: 0.82,
-    follow: 0.35,
-    split: 64,
+    open: 84,
+    lift: 0.08,
+    bell: 0.85,
+    follow: 0.5,
+    split: [6, 44, 150],
+    lobes: 7,
+    godet: 0.32,
+    flute: 0.05,
+    trail: 0.45,
+    k: 4.5,
+    gain: 1.6,
     colours: [0x8ab1e8, 0x4870bf],
     opacity: 1,
     rough: 0.72,
@@ -113,7 +126,7 @@ const AVA_SKIRT = [
     sheenColor: 0xd4e6ff,
     sparkle: 0.15,
     embroider: 'over',
-    fur: { shells: 5, length: 0.024, density: [260, 60], colour: 0xc9c2dc, tip: 0xffffff, edge: [0.022, 0.05] },
+    fur: { shells: 5, length: 0.024, density: [260, 60], colour: 0xc9c2dc, tip: 0xffffff, edge: [0.026, 0.06] },
   },
 ];
 const AVA_STOLE = {
@@ -128,6 +141,12 @@ const AV_OPTS = [
     height: 1.72,
     skirt: AVA_SKIRT,
     mantle: AVA_STOLE,
+    cuffs: {
+      length: 0.075,
+      radius: 0.036,
+      colour: 0xe8e4f0,
+      fur: { shells: 4, length: 0.012, density: [48, 8], colour: 0xc9c2dc, tip: 0xffffff },
+    },
     tiara: true,
     flareGain: 1.6,
     inflate: AVA_SLIM,
@@ -138,8 +157,9 @@ const AV_OPTS = [
       fabricSheen: true,
       skinRough: 0.85,
       crystals: 1.3,
-      tint: [0.84, 0.92, 1.06],
-      tintAmt: 0.85,
+      tint: [0.36, 0.55, 1.0],
+      tintAmt: 0.9,
+      sleeve: 0x7aa3e0,
     },
   },
   null,

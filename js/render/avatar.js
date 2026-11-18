@@ -66,6 +66,16 @@ function costumeMaterial(map, normalMap, mask, U, look) {
               (look.tintAmt ?? 0.85).toFixed(2) +
               '); }'
             : '') +
+          // the sleeves (painted sheer, marked at 0.62 in the mask's red) made opaque in look.sleeve, keeping their glints
+          (look.sleeve
+            ? (() => {
+                const c = new THREE.Color(look.sleeve);
+                return (
+                  ' { float slv = smoothstep(0.45, 0.56, mk.r) * (1.0 - smoothstep(0.72, 0.86, mk.r)) * (1.0 - mk.g) * (1.0 - mk.b);' +
+                  ` diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)}) * (0.8 + 0.35 * dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), slv); }`
+                );
+              })()
+            : '') +
           (look.skinRough
             ? ' roughnessFactor = mix(' +
               look.skinRough.toFixed(2) +
@@ -147,10 +157,11 @@ function furShells(base, o) {
     m.onBeforeCompile = (sh) => {
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec2 vFur, vFr;')
+        .replace('#include <morphnormal_vertex>', '#include <morphnormal_vertex>\nvec3 furN = normalize(objectNormal);')
         .replace(
           '#include <morphtarget_vertex>',
           `#include <morphtarget_vertex>
-transformed += normal * ${(o.length * h).toFixed(4)};
+transformed += furN * ${(o.length * h).toFixed(4)};
 vFr = furUv;
 vFur = furUv * vec2(${o.density[0].toFixed(1)}, ${o.density[1].toFixed(1)});`,
         );
@@ -205,15 +216,19 @@ const EMBROIDERY = {
 }`,
 };
 
-// A long layered skirt from the waist down (to the knee or to the ice), skinned to the hips and thighs so it moves with the legs.
-// Four morphs: 0 half open, 1 fully open (the skirt swung out nearly flat, like a petal), 2 and 3 flutes round the
-// hem. As she spins, update() swings it open along the arc between those shapes and sends the flutes travelling
-// round, so it blooms instead of just stretching.
+// A skirt, or the skirt of a coat, from the waist down, skinned to the hips and thighs so it moves with the legs. It is
+// cut as cloth, not as a cone: as she spins it swings open along a curve (the cloth bends out more and more towards
+// the hem), falls into deep folds (the hem has far less cloth than a flat circle would need), ripples as waves run
+// round it, and trails behind the way she turns. Five morphs, each with its normals so the folds are lit: 0 half
+// open, 1 fully open, 2 and 3 the travelling ripples, 4 the trail (its sign is which way she turns).
 // toBind: from where she stands now back into the model's bind space (where its skinning weights were made)
-// o: { length, waist: [rx, rz], rest, open (degrees), bell (below 1: fuller near the waist), follow (how much the hem
-//      follows each leg), colours: [top, hem], opacity, sheen, sparkle, rough, sheenColor,
-//      lift (how far the hem rises when it is fully open, metres), split (degrees left open at the front, for an
-//      overdress over an underskirt), embroider ('under' or 'over': rows of crystals stitched in a pattern) }
+// o: { length, waist: [rx, rz], rest (degrees from hanging straight down), open (the hem's angle when fully open),
+//      bell (below 1: fuller near the waist), follow (how much the hem follows each leg), colours: [top, hem], opacity,
+//      sheen, sparkle, rough, sheenColor, iridescence, lift (metres the hem rises when fully open),
+//      godet (fold depth, as a share of how far the hem swings out), lobes (folds round it), flute (ripple height,
+//      metres), trail (radians the hem trails in a full spin), split: [at the waist, at the hem, at the hem when fully
+//      open] (degrees left open at the front, for a coat), embroider ('under' or 'over': rows of crystals stitched in
+//      a pattern), gain (how readily it opens), k (its spring: lower is heavier and slower) }
 function buildSkirt(skeleton, toBind, bone, U, o) {
   const pelvis = bone('Bip01 Pelvis'),
     thighL = bone('Bip01 L Thigh'),
@@ -221,23 +236,64 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   const ix = (b) => skeleton.bones.indexOf(b);
   const P = new THREE.Vector3();
   pelvis.getWorldPosition(P);
-  const RINGS = 14,
-    SEG = 72,
+  const RINGS = 16,
+    SEG = 84,
+    SUB = 8,
     waistY = P.y + 0.07,
     L = o.length,
     [rx0, rz0] = o.waist,
-    D = Math.PI / 180;
-  const th0 = o.rest * D,
-    thH = ((o.rest + o.open) / 2) * D,
-    th1 = o.open * D,
-    a0 = ((o.split || 0) / 2) * D,
-    a1 = Math.PI * 2 - a0,
-    liftH = o.lift ?? 0.05;
+    D = Math.PI / 180,
+    thR = o.rest * D,
+    thO = o.open * D,
+    liftH = o.lift ?? 0.05,
+    bell = o.bell || 1,
+    follow = o.follow ?? 0.7,
+    sp = o.split || [0, 0, 0],
+    lobes = o.lobes || 9,
+    godet = o.godet ?? 0.25,
+    flute = o.flute ?? 0.045,
+    trail = o.trail ?? 0.35;
+  // the profile from the waist down for an opening s (0 hanging, 1 fully open): at each ring, how far out from the
+  // waist, how far down, and the cloth's angle from straight down there
+  const profile = (s) => {
+    const ang = (u) => thR + (thO - thR) * s * (0.3 + 0.7 * u),
+      out = [[0, 0, thR]];
+    let rr = 0,
+      yy = 0;
+    for (let r = 1; r <= RINGS; r++) {
+      for (let k = 0; k < SUB; k++) {
+        const th = ang((r - 1 + (k + 0.5) / SUB) / RINGS);
+        rr += (L / RINGS / SUB) * Math.sin(th);
+        yy -= (L / RINGS / SUB) * Math.cos(th);
+      }
+      const t = r / RINGS;
+      out.push([rr * Math.pow(t, (bell - 1) * (1 - s)), yy + liftH * s * t * t * t, ang(t)]);
+    }
+    return out;
+  };
+  const prof = [profile(0), profile(0.5), profile(1)];
+  // half the opening at the front, at height t and opening s
+  const gap = (t, s) => ((sp[0] + (sp[1] + ((sp[2] ?? sp[1]) - sp[1]) * s - sp[0]) * Math.pow(t, 0.7)) / 2) * D;
+  // a point of the cloth: fu across it (0..1, from one front edge round to the other), ring r, opening si (0 rest, 1
+  // half, 2 full), da (turned this far round, for the trail), dn (pushed this far out along the cloth)
+  const at = (fu, r, si, da, dn, out) => {
+    const t = r / RINGS,
+      s = si / 2,
+      [rr, yy, th] = prof[si][r],
+      a0 = gap(t, s),
+      a = a0 + fu * (Math.PI * 2 - 2 * a0) + da,
+      // soft folds while it hangs; deep ones as it opens, as deep as the hem has swung out
+      fold =
+        0.011 * t * Math.sin(a * 16) * (1 - s) + godet * (rr - prof[0][r][0]) * Math.sin(fu * lobes * Math.PI * 2) + dn,
+      fx = Math.cos(th) * fold;
+    return out.set(
+      P.x + Math.sin(a) * (rx0 + rr + fx),
+      waistY + yy + Math.sin(th) * fold,
+      P.z + 0.01 + Math.cos(a) * (rz0 + rr + fx),
+    );
+  };
   const pos = [],
-    half = [],
-    full = [],
-    w1 = [],
-    w2 = [],
+    morphs = [[], [], [], [], []],
     col = [],
     fuv = [],
     si = [],
@@ -245,22 +301,11 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
     idx = [];
   const invRot = new THREE.Matrix3().setFromMatrix4(toBind),
     v = new THREE.Vector3(),
-    q = new THREE.Vector3();
+    q = new THREE.Vector3(),
+    q2 = new THREE.Vector3();
   const top = new THREE.Color(o.colours[0]),
     hem = new THREE.Color(o.colours[1]),
     c = new THREE.Color();
-  const bell = o.bell || 1,
-    follow = o.follow ?? 0.7;
-  const at = (a, t, th, out) => {
-    const fold = 0.011 * t * Math.sin(a * 16),
-      lift = th === th1 ? liftH * t * t * t : 0,
-      r = L * Math.pow(t, bell) * Math.sin(th) + fold;
-    return out.set(
-      P.x + Math.sin(a) * (rx0 + r),
-      waistY - L * t * Math.cos(th) + lift,
-      P.z + 0.01 + Math.cos(a) * (rz0 + r),
-    );
-  };
   const rel = (arr, d) => {
     d.applyMatrix3(invRot);
     arr.push(d.x, d.y, d.z);
@@ -269,33 +314,24 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
     const t = r / RINGS;
     c.copy(top).lerp(hem, Math.pow(t, 1.3));
     for (let sg = 0; sg <= SEG; sg++) {
-      const a = a0 + (sg / SEG) * (a1 - a0);
-      at(a, t, th0, v);
+      const fu = sg / SEG,
+        rip = flute * t * t;
+      at(fu, r, 0, 0, 0, v);
       const w = v.clone().applyMatrix4(toBind);
       pos.push(w.x, w.y, w.z);
-      rel(half, at(a, t, thH, q).sub(v));
-      rel(full, at(a, t, th1, q).sub(v));
-      // flutes: the hem rising and falling in soft waves, and swelling out a little where it rises
-      const k = t * t,
-        ra = new THREE.Vector3(Math.sin(a), 0, Math.cos(a));
-      rel(
-        w1,
-        ra
-          .clone()
-          .multiplyScalar(0.03 * k * Math.sin(a * 7))
-          .add(new THREE.Vector3(0, 0.07 * k * Math.sin(a * 7), 0)),
-      );
-      rel(
-        w2,
-        ra
-          .clone()
-          .multiplyScalar(0.03 * k * Math.cos(a * 7))
-          .add(new THREE.Vector3(0, 0.07 * k * Math.cos(a * 7), 0)),
-      );
+      rel(morphs[0], at(fu, r, 1, 0, 0, q).sub(v));
+      rel(morphs[1], at(fu, r, 2, 0, 0, q).sub(v));
+      // ripples, out of the half-open cloth
+      at(fu, r, 1, 0, 0, q2);
+      rel(morphs[2], at(fu, r, 1, 0, rip * Math.sin(fu * 7 * Math.PI * 2), q).sub(q2));
+      rel(morphs[3], at(fu, r, 1, 0, rip * Math.cos(fu * 7 * Math.PI * 2), q).sub(q2));
+      // the trail: the fully open cloth turned round, more so towards the hem
+      at(fu, r, 2, 0, 0, q2);
+      rel(morphs[4], at(fu, r, 2, trail * Math.pow(t, 1.5), 0, q).sub(q2));
       col.push(c.r, c.g, c.b);
-      fuv.push(sg / SEG, t);
+      fuv.push(fu, t);
       // the half of the skirt over each leg follows that leg, more so towards the hem
-      const side = Math.sin(a),
+      const side = Math.sin(gap(t, 0) + fu * (Math.PI * 2 - 2 * gap(t, 0))),
         wl = follow * t * THREE.MathUtils.smoothstep(side, 0.05, 0.7),
         wr = follow * t * THREE.MathUtils.smoothstep(-side, 0.05, 0.7);
       si.push(ix(pelvis), ix(thighL), ix(thighR), 0);
@@ -308,16 +344,39 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
         b = a + SEG + 1;
       idx.push(a, b, a + 1, b, b + 1, a + 1);
     }
+  // the normals of each morph's shape, as changes from the shape it is added to
+  const normalsOf = (arr) => {
+    const t = new THREE.BufferGeometry();
+    t.setIndex(idx);
+    t.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+    t.computeVertexNormals();
+    return t.attributes.normal.array;
+  };
+  const plus = (a, b) => a.map((x, i) => x + b[i]),
+    minus = (a, b) => Array.from(a, (x, i) => x - b[i]);
+  const nBase = normalsOf(pos),
+    pHalf = plus(pos, morphs[0]),
+    pFull = plus(pos, morphs[1]),
+    nHalf = normalsOf(pHalf),
+    nFull = normalsOf(pFull);
+  const nMorphs = [
+    minus(nHalf, nBase),
+    minus(nFull, nBase),
+    minus(normalsOf(plus(pHalf, morphs[2])), nHalf),
+    minus(normalsOf(plus(pHalf, morphs[3])), nHalf),
+    minus(normalsOf(plus(pFull, morphs[4])), nFull),
+  ];
   const g = new THREE.BufferGeometry();
   g.setIndex(idx);
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nBase, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setAttribute('furUv', new THREE.Float32BufferAttribute(fuv, 2));
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
   g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
-  g.morphAttributes.position = [half, full, w1, w2].map((a) => new THREE.Float32BufferAttribute(a, 3));
+  g.morphAttributes.position = morphs.map((a) => new THREE.Float32BufferAttribute(a, 3));
+  g.morphAttributes.normal = nMorphs.map((a) => new THREE.Float32BufferAttribute(a, 3));
   g.morphTargetsRelative = true;
-  g.computeVertexNormals();
   const sheer = o.opacity < 1;
   const m = new THREE.MeshPhysicalMaterial({
     vertexColors: true,
@@ -378,8 +437,80 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   const mesh = new THREE.SkinnedMesh(g, m);
   mesh.castShadow = !sheer;
   mesh.frustumCulled = false;
-  mesh.morphTargetInfluences = [0, 0, 0, 0];
+  mesh.morphTargetInfluences = [0, 0, 0, 0, 0];
+  // its own spring: f how far open, v how fast it is opening
+  mesh.userData.cloth = { o, f: 0, v: 0 };
   if (sheer) mesh.renderOrder = 2;
+  return mesh;
+}
+
+// A fur cuff round a wrist (Tesa's coat sleeves): a short tube that widens towards the hand, skinned to the forearm and
+// built in the rest pose, like the skirt. side: 'L' or 'R'. o: { length, radius (metres, at the elbow end), colour }
+function buildCuff(skeleton, toBind, bone, side, o) {
+  const fore = bone('Bip01 ' + side + ' Forearm'),
+    hand = bone('Bip01 ' + side + ' Hand'),
+    fi = skeleton.bones.indexOf(fore);
+  const A = fore.getWorldPosition(new THREE.Vector3()),
+    B = hand.getWorldPosition(new THREE.Vector3()),
+    d = B.clone().sub(A).normalize(),
+    e1 = new THREE.Vector3(0, 1, 0).cross(d);
+  if (e1.lengthSq() < 1e-4) e1.set(1, 0, 0).cross(d);
+  e1.normalize();
+  const e2 = d.clone().cross(e1);
+  const SEG = 28,
+    RINGS = 3,
+    len = o.length ?? 0.07,
+    r0 = o.radius ?? 0.04;
+  const pos = [],
+    fuv = [],
+    si = [],
+    sw = [],
+    idx = [];
+  for (let r = 0; r <= RINGS; r++) {
+    const t = r / RINGS,
+      c = B.clone().addScaledVector(d, -0.012 - len * (1 - t)),
+      rad = r0 * (1 + 0.3 * t);
+    for (let s = 0; s <= SEG; s++) {
+      const a = (s / SEG) * Math.PI * 2,
+        p = c
+          .clone()
+          .addScaledVector(e1, Math.cos(a) * rad)
+          .addScaledVector(e2, Math.sin(a) * rad)
+          .applyMatrix4(toBind);
+      pos.push(p.x, p.y, p.z);
+      fuv.push(s / SEG, t);
+      si.push(fi, 0, 0, 0);
+      sw.push(1, 0, 0, 0);
+    }
+  }
+  for (let r = 0; r < RINGS; r++)
+    for (let s = 0; s < SEG; s++) {
+      const a = r * (SEG + 1) + s,
+        b = a + SEG + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setIndex(idx);
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('furUv', new THREE.Float32BufferAttribute(fuv, 2));
+  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  g.computeVertexNormals();
+  // the fur grows along the normals, so they must point out of the tube
+  const n = g.attributes.normal,
+    p0 = new THREE.Vector3().fromBufferAttribute(g.attributes.position, 0),
+    p1 = new THREE.Vector3().fromBufferAttribute(g.attributes.position, SEG / 2);
+  if (new THREE.Vector3().fromBufferAttribute(n, 0).dot(p0.sub(p1)) < 0) {
+    for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]];
+    g.setIndex(idx);
+    g.computeVertexNormals();
+  }
+  const mesh = new THREE.SkinnedMesh(
+    g,
+    new THREE.MeshStandardMaterial({ color: o.colour ?? 0xe8e4f0, roughness: 1, side: THREE.DoubleSide }),
+  );
+  mesh.castShadow = true;
+  mesh.frustumCulled = false;
   return mesh;
 }
 
@@ -945,6 +1076,11 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           mt = attach(buildMantle(skeleton, toBind, bone, bodyMesh, mo));
         if (mo.fur) furShells(mt, mo.fur).forEach(attach);
       }
+      if (opts.cuffs)
+        ['L', 'R'].forEach((sd) => {
+          const cf = attach(buildCuff(skeleton, toBind, bone, sd, opts.cuffs));
+          if (opts.cuffs.fur) furShells(cf, opts.cuffs.fur).forEach(attach);
+        });
       // Rook's kit: helmet, gloves, and markers in his palms for the stick
       // the kit is built from positions in the world, so each piece is put into wrap (which is scaled to his height)
       // with wrap's own transform taken back out
@@ -1170,7 +1306,9 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         flare = 0,
         flareV = 0,
         spin = 0,
-        spinV = 0;
+        spinV = 0,
+        lastYaw = 0,
+        yawRate = 0;
       const api = {
         root: wrap,
         get hair() {
@@ -1262,19 +1400,30 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           flare = THREE.MathUtils.clamp(flare + flareV * sd, 0, 1);
           spinV += (k * ((spinOnly ?? spinFlare) - spin) - kc * spinV) * sd;
           spin = THREE.MathUtils.clamp(spin + spinV * sd, 0, 1);
+          // which way and how fast she turns (radians a second), for the cloth's trail
+          const yaw = proxy.hero.rotation.y,
+            dYaw = Math.atan2(Math.sin(yaw - lastYaw), Math.cos(yaw - lastYaw));
+          lastYaw = yaw;
+          if (dt > 0) yawRate += (dYaw / dt - yawRate) * (1 - Math.exp(-4 * dt));
           if (skirts.length) {
             skirtT += dt * (1.5 + 3.5 * flare);
-            const f = flare,
-              A = f < 0.5 ? 2 * f : 2 - 2 * f,
-              B = f < 0.5 ? 0 : 2 * f - 1,
-              w = 0.1 + 0.6 * f;
             skirts.forEach((sk, i) => {
-              const mi = sk.morphTargetInfluences,
-                ph = skirtT + i * 0.9;
-              mi[0] = A;
-              mi[1] = B;
+              // each layer on its own spring, a little underdamped so the cloth swings past and settles: a light skirt
+              // answers quickly, a heavy coat slowly
+              const c = sk.userData.cloth,
+                kk = c.o.k || k,
+                cc = 1.3 * Math.sqrt(kk);
+              c.v += (kk * (Math.min(1, spinFlare * (c.o.gain || opts.flareGain || 1)) - c.f) - cc * c.v) * sd;
+              c.f = THREE.MathUtils.clamp(c.f + c.v * sd, 0, 1);
+              const f = c.f,
+                mi = sk.morphTargetInfluences,
+                ph = skirtT + i * 0.9,
+                w = 0.15 + 0.85 * f;
+              mi[0] = f < 0.5 ? 2 * f : 2 - 2 * f;
+              mi[1] = f < 0.5 ? 0 : 2 * f - 1;
               mi[2] = w * Math.cos(ph);
               mi[3] = w * Math.sin(ph);
+              mi[4] = THREE.MathUtils.clamp(-yawRate / 9, -1, 1) * f;
             });
           }
           if (strands && opts.camera) strands.update(dt, opts.camera, opts.wind || WIND, spin);
