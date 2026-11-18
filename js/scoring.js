@@ -120,7 +120,8 @@ export function createScoring(saved) {
           entry = f;
           break;
         }
-      const e = score('jump', d.name, base, P.quality[d.grade], entry, codeOf(d));
+      const q = d.grade === 'stumble' ? CFG.stumble.quality : P.quality[d.grade],
+        e = score('jump', d.grade === 'stumble' ? d.name + ', stumbled' : d.name, base, q, entry, codeOf(d));
       st.jumps++;
       if (inRow >= 2 && combo && st.list[0] === combo) {
         // straight out of the last landing: one combination

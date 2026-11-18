@@ -1,4 +1,5 @@
-// Tutorial mode: one skill at a time, taught step by step.
+// Tutorial mode: one skill at a time, taught step by step, with all of the skill's steps listed at once (the one to do
+// now highlighted, the ones done ticked). It is on while the front page's mode is Tutorial.
 // Each step is a line of instruction and a test of the game that says when it is done. The game is checked every frame,
 // so a step that is already true (say, she is already skating backward) passes straight away.
 // A step can also say what must stay true while it is being worked on; if that breaks, the skill starts again.
@@ -61,7 +62,7 @@ const JUMPS = [
       [
         'Land any jump cleanly',
         (c) => {
-          if (landedAny(c) && c.ev.d.name && c.ev.d.grade !== 'fall') {
+          if (landedAny(c) && c.ev.d.name && c.ev.d.grade !== 'fall' && c.ev.d.grade !== 'stumble') {
             c.mem.t = c.now;
             return true;
           }
@@ -162,14 +163,14 @@ const $ = (id) => document.getElementById(id);
 
 export function createTutorial() {
   const root = $('tut'),
-    single = $('tutbtn'),
     cats = { jumps: $('tutjump'), moves: $('tutspin') },
     sel = $('tsel'),
     nameEl = $('tname'),
     panel = $('tpanel'),
-    dots = $('tdots'),
-    stepEl = $('tstep');
+    noteEl = $('tnote'),
+    list = $('tlist');
   let cat = null,
+    lastCat = 'jumps',
     ix = 0,
     step = 0,
     mem = {},
@@ -180,10 +181,8 @@ export function createTutorial() {
   const lesson = () => LESSONS[cat][ix];
   function show() {
     root.classList.toggle('open', !!cat);
-    single.hidden = !!cat;
-    sel.hidden = panel.hidden = !cat;
+    root.hidden = sel.hidden = panel.hidden = !cat;
     Object.keys(cats).forEach((k) => {
-      cats[k].hidden = !cat;
       cats[k].classList.toggle('on', k === cat);
       cats[k].setAttribute('aria-pressed', String(k === cat));
     });
@@ -192,15 +191,18 @@ export function createTutorial() {
       render();
     }
   }
+  // every step of the skill at once: done ones ticked, the one to do now highlighted, the rest still to come
   function render() {
     const L = lesson();
-    dots.textContent = '';
-    L.steps.forEach((_, i) => {
-      const d = document.createElement('i');
-      d.className = i < step || doneT ? 'done' : i === step ? 'now' : '';
-      dots.appendChild(d);
+    list.textContent = '';
+    L.steps.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.className = i < step || doneT ? 'done' : i === step ? 'now' : '';
+      li.textContent = s[0];
+      list.appendChild(li);
     });
-    stepEl.textContent = doneT ? '✓ ' + L.name + '! Again, or › for the next skill' : note || L.steps[step][0];
+    noteEl.textContent = doneT ? '✓ ' + L.name + '! Again, or › for the next skill' : note;
+    noteEl.hidden = !doneT && !note;
     panel.classList.toggle('win', !!doneT);
     panel.classList.toggle('note', !doneT && !!note);
   }
@@ -208,7 +210,7 @@ export function createTutorial() {
     step = 0;
     mem = {};
     note = why || '';
-    noteT = why ? 2.6 : 0;
+    noteT = why ? 3.2 : 0;
     render();
   }
   function pick(d) {
@@ -218,24 +220,18 @@ export function createTutorial() {
     restart();
     nameEl.textContent = lesson().name;
   }
-  single.addEventListener('click', () => {
-    cat = 'jumps';
+  function open(k) {
+    cat = k;
+    lastCat = k;
     ix = 0;
     doneT = 0;
     restart();
     show();
-  });
-  // the active one again: tutorial off
+  }
+  // the two kinds of lesson; tapping the other one switches to it
   Object.keys(cats).forEach((k) =>
     cats[k].addEventListener('click', () => {
-      if (cat === k) cat = null;
-      else {
-        cat = k;
-        ix = 0;
-        doneT = 0;
-        restart();
-      }
-      show();
+      if (cat !== k) open(k);
     }),
   );
   $('tprev').addEventListener('click', () => pick(-1));
@@ -253,6 +249,14 @@ export function createTutorial() {
   return {
     get on() {
       return !!cat;
+    },
+    // on in Tutorial mode, off in the others
+    setOn(on) {
+      if (on && !cat) open(lastCat);
+      else if (!on && cat) {
+        cat = null;
+        show();
+      }
     },
     event(type, d) {
       if (cat) events.push({ type, d });
@@ -285,19 +289,20 @@ export function createTutorial() {
         c.ev = ev;
         const s = L.steps[step];
         if (s[2] && !s[2](c) && !s[1](c)) {
-          restart('Not quite. Start again: ' + L.steps[0][0].charAt(0).toLowerCase() + L.steps[0][0].slice(1));
+          restart('Not quite. Start again from the top');
           return;
         }
         if (!s[1](c)) continue;
         const last = step === L.steps.length - 1;
         if (last && L.target && ev && ev.type === 'land') {
-          // the final landing decides it
+          // the final landing decides it; a stumble is a jump not quite landed
           const d = ev.d,
-            ok = d.grade !== 'fall' && (L.target === '+' ? true : d.name === L.target);
+            miss = d.grade === 'fall' || d.grade === 'stumble',
+            ok = !miss && (L.target === '+' ? true : d.name === L.target);
           if (!ok) {
             restart(
-              d.grade === 'fall'
-                ? 'A fall: ' + d.offDeg + '° off. Stop your finger closer to the full turn'
+              miss
+                ? 'A stumble: ' + d.offDeg + '° off. Stop your finger closer to the full turn'
                 : 'That was ' + (d.name ? 'a ' + d.name : 'no jump') + '. Try again',
             );
             return;

@@ -60,6 +60,11 @@ exports.open = async (opts = {}) => {
   });
   await p.goto('http://game.test/');
   await p.waitForTimeout(1500);
+  // the front page is up at launch: Start, unless the caller wants to look at it
+  if (!opts.front)
+    await p.evaluate(() => {
+      if (window.__game && window.__game.front.open) document.getElementById('fstart').click();
+    });
   const ev = (type, id, x, y) =>
     p.evaluate(
       ([type, id, x, y]) =>

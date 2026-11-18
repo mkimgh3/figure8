@@ -27,13 +27,12 @@
 <div id="padtag" aria-hidden="true"></div>
 <div id="topc">
   <div id="speedo"><svg viewBox="0 0 132 74" width="132" height="74"><path d="M12 68 A54 54 0 0 1 120 68" fill="none" stroke="rgba(22,38,63,.16)" stroke-width="9" stroke-linecap="round"/><path id="arc" d="M12 68 A54 54 0 0 1 120 68" fill="none" stroke="#2b7fff" stroke-width="9" stroke-linecap="round" stroke-dasharray="170" stroke-dashoffset="170"/></svg><div id="kmh"><span id="kmhn">0</span><small>KM/H</small></div><i id="spbar"><b id="spfill"></b></i></div>
-  <div id="tut">
-    <button id="tutbtn" class="pill" type="button">Tutorial</button>
-    <button id="tutjump" class="pill" type="button" aria-pressed="false" hidden>Jumps</button>
-    <button id="tutspin" class="pill" type="button" aria-pressed="false" hidden>Spins &amp; steps</button>
+  <div id="tut" hidden>
+    <button id="tutjump" class="pill" type="button" aria-pressed="false">Jumps</button>
+    <button id="tutspin" class="pill" type="button" aria-pressed="false">Spins &amp; steps</button>
   </div>
   <div id="tsel" hidden><button id="tprev" type="button" aria-label="Previous skill">‹</button><span id="tname"></span><button id="tnext" type="button" aria-label="Next skill">›</button></div>
-  <div id="tpanel" hidden aria-live="polite"><div id="tdots"></div><div id="tstep"></div></div>
+  <div id="tpanel" hidden aria-live="polite"><p id="tnote" hidden></p><ol id="tlist"></ol></div>
   <div id="modeline" role="status"></div>
   <div id="pop"></div>
 </div>
@@ -43,7 +42,8 @@
   <section id="pg-home">
     <div class="top"><h2>Menu</h2><button id="close" class="x" type="button" aria-label="Close menu">×</button></div>
     <div class="grid">
-      <button id="modebtn" type="button">Mode: <span id="modename">Free skate</span></button>
+      <button id="homebtn" type="button">Front page <span id="playname">Olympic</span></button>
+      <button id="modebtn" type="button">Play: <span id="modename">Free skate</span></button>
       <button id="char" type="button">Skater: <span id="charname">Tesa</span></button>
       <button id="pal" type="button"><span id="swatch"></span><span id="palname"></span></button>
       <button id="place" type="button">Place: <span id="placename">Open lake</span></button>
@@ -51,7 +51,6 @@
       <button id="gfxbtn" type="button">Graphics: <span id="gfxname">Auto</span></button>
       <button id="uibtn" type="button">Screen: <span id="uiname">Minimal</span></button>
       <button id="movesbtn" type="button">Moves ›</button>
-      <button id="tutmenu" type="button">Tutorial</button>
       <button id="fresh" type="button">Fresh ice</button>
       <button id="rescore" type="button">Reset score</button>
     </div>
@@ -76,10 +75,21 @@
     <dt>Spread eagle</dt><dd>Spread both thumbs apart and hold. Steer it with the left thumb.</dd>
     <dt>Choreography</dt><dd>Hold or drag the right finger: anything that is not a tap or a flick. Circling starts it at once, so quick loops spin her straight away, even if your thumb leaves the glass between loops. Keep it down through a jump and she dances on from the landing; she dances until you lift it. Slow strokes make calm, broad gestures; quick ones make sharp street-dance moves. Move both thumbs the same way for long, open shapes, or against each other for twisted, closed ones. Circle it and she spins, half a turn for each circle, one way a camel and the other a layback: slow circles open her out into a camel, layback or attitude, fast ones pull her into a scratch spin. The left thumb still steers and builds speed, a little more gently than usual. Lift the left thumb and she coasts, slowly losing speed in a spin. Lift the right thumb to finish: a spin winds down by itself.</dd>
     <dt>Speed bonus</dt><dd>Every move you finish leaves a little extra speed for a few seconds, and your next jump goes higher for it.</dd>
-    <dt>Ways to play</dt><dd>Menu, Mode. Jump park: skate over a glowing pad to be launched high, then circle in the air. Race: through the green gate, collect coins, jump the hurdles, steer round the ice blocks, reach the gold gate; your time, coins and moves all count. Duet: the other skater keeps beside you and follows your moves.</dd>
+    <dt>Modes</dt><dd>Chosen on the front page (Menu, Front page). Olympic: judged like the real thing, and a bad landing is a fall that costs points. Infinite: she never falls (a bad landing is a stumble she rides out), each score shows as one big number, and the total has no limit. Tutorial: lessons for every skill, with all of a skill's steps listed at once, and stumbles instead of falls. Each mode keeps its own score.</dd>
+    <dt>Rook's stick</dt><dd>Rook, the hockey player, keeps his stick in every move: on the ice in front of him as he skates, held out when his arms open, and spun over his head in a fast spin with his arms up.</dd>
+    <dt>Ways to play</dt><dd>Menu, Play. Jump park: skate over a glowing pad to be launched high, then circle in the air. Race: through the green gate, collect coins, jump the hurdles, steer round the ice blocks, reach the gold gate; your time, coins and moves all count. Duet: the other skater keeps beside you and follows your moves.</dd>
     <dt>Bonus</dt><dd>Jump out of curves and figures, link different moves within 3 seconds, and avoid repeating the same one.</dd>
   </dl>
   </section>
+</div></div>
+<div id="front" hidden><div id="fcard">
+  <h1>Ice Doodle</h1>
+  <div class="frow"><span class="flab">Skater</span><div class="seg" id="fchar"></div></div>
+  <div class="frow"><span class="flab">Place</span><div class="seg" id="fplace"></div></div>
+  <div class="frow"><span class="flab">Time</span><div class="seg" id="ftime"></div></div>
+  <div class="frow"><span class="flab">Mode</span><div class="seg" id="fmode"></div></div>
+  <p id="fabout"></p>
+  <button id="fstart" type="button">Start</button>
 </div></div>
 <div id="err">This needs WebGL, and it could not start in this browser.</div>
 <script type="module" src="js/main.js"></script>

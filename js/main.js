@@ -22,8 +22,11 @@ import * as save from './save.js';
 import { createUpdater } from './update.js';
 import { createPads, createRace } from './modes.js';
 import { createDuet } from './duet.js';
+import { createStick } from './render/stick.js';
+import { createFront } from './ui/front.js';
+import * as THREE from './render/three.js';
 
-const BUILD = 'v3-look36';
+const BUILD = 'v3-look37';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -39,11 +42,13 @@ const hud = createHud(world.coarse),
   spray = createSpray(world.scene),
   icicles = createIcicles(world.scene),
   forest = createIslands(world.scene),
-  models = createModels(world.scene);
-// Tesa's realistic body loads in the background; until it arrives the simple figure stands in
-// Each skater's realistic body (Microsoft Rocketbox avatars, MIT licence) loads in the background; until it arrives the simple figure stands in.
+  models = createModels(world.scene),
+  stick = createStick(world.scene);
+// Each skater's realistic body (Microsoft Rocketbox avatars, MIT licence) loads in the background the first time that
+// skater is chosen; until it arrives the simple figure stands in.
 const avU = { uTime: { value: 0 }, uSparkle: { value: 1 } },
-  avatars = [null, null];
+  avatars = [null, null, null],
+  asked = [false, false, false];
 const texOf = (n) => ({
   body: `assets/${n}_body.jpg`,
   bodyN: `assets/${n}_body_n.jpg`,
@@ -61,8 +66,9 @@ const showAvatar = () =>
       if (o.isMesh) o.visible = !on;
     });
   });
-// Tesa: a Scandinavian princess with white hair in a bun, slender and tall, in a pearl and lilac ball gown whose
-// skirt reaches the ice and blooms open as she spins.
+// Tesa: a Scandinavian princess with white hair in a bun, slender and tall. Her gown: a pearl and lilac satin skirt to
+// the ice, set with mirror crystals, under a white fur overskirt to the knee, and a white fur stole over her shoulders.
+// Both skirts bloom open as she spins.
 const AVA_SLIM = {
   Spine: -0.012,
   Spine1: -0.008,
@@ -74,47 +80,53 @@ const AVA_SLIM = {
 };
 const AVA_SKIRT = [
   {
-    length: 0.92,
+    length: 0.95,
     waist: [0.125, 0.095],
     rest: 19,
     open: 70,
     bell: 0.8,
     follow: 0.4,
-    colours: [0xebe5f7, 0x8a74d4],
+    colours: [0xf3effc, 0xa996e6],
     opacity: 1,
-    iridescence: 0.5,
+    iridescence: 0.6,
     sheen: 0.7,
-    sparkle: 0.6,
+    sparkle: 0.8,
+    crystals: 1,
   },
   {
-    length: 0.95,
-    waist: [0.131, 0.101],
-    rest: 22,
-    open: 74,
-    bell: 0.75,
+    length: 0.6,
+    waist: [0.137, 0.107],
+    rest: 25,
+    open: 76,
+    bell: 0.85,
     follow: 0.35,
-    colours: [0xffffff, 0xc2b2ff],
-    opacity: 0.4,
-    iridescence: 0.9,
+    colours: [0xffffff, 0xf2eef9],
+    opacity: 1,
+    rough: 0.95,
+    iridescence: 0,
     sheen: 1,
-    sparkle: 1.6,
+    sparkle: 0.2,
+    fur: { shells: 5, length: 0.03, density: [320, 70], colour: 0xc9c2dc, tip: 0xffffff },
   },
 ];
+const AVA_STOLE = {
+  size: 0.7,
+  light: true,
+  fur: { shells: 4, length: 0.016, density: [64, 22], colour: 0xc9c2dc, tip: 0xffffff },
+};
 const AV_OPTS = [
   {
     url: 'assets/ava_model.js',
     tex: texOf('ava'),
     height: 1.72,
     skirt: AVA_SKIRT,
+    mantle: AVA_STOLE,
     inflate: AVA_SLIM,
-    look: { iridescence: 0.8, sheen: 0xd9ccff, sparkle: 1, fabricSheen: true, skinRough: 0.85 },
+    look: { iridescence: 0.8, sheen: 0xd9ccff, sparkle: 1, fabricSheen: true, skinRough: 0.85, crystals: 1 },
   },
   null,
+  null,
 ];
-loadAvatar(models, 0, AV_OPTS[0], avU, (a) => {
-  avatars[0] = a;
-  showAvatar();
-});
 // Ivor: tall, shirtless and muscular; the bulk is added along the normals, most on the chest, shoulders and arms
 const MAX_BULK = {
   Spine2: 0.032,
@@ -161,46 +173,111 @@ AV_OPTS[1] = {
   camera: world.camera,
   look: { iridescence: 0, sheen: 0xffd2b0, sheenAmt: 0.25, rough: 0.46, sparkle: 0 },
 };
-loadAvatar(models, 1, AV_OPTS[1], avU, (a) => {
-  avatars[1] = a;
-  a.night(CFG.looks[lookIx].night ? 1 : 0);
-  showAvatar();
-});
+// Rook: a hockey player. The same base body as Ivor, clean-shaven, in a loose navy jersey with shoulder pads, padded
+// pants, striped socks, a helmet and gloves, on hockey skates, with his stick (stick.js).
+const ROOK_BULK = {
+  Spine2: 0.042,
+  Spine1: 0.038,
+  Spine: 0.034,
+  Pelvis: 0.03,
+  Clavicle: 0.034,
+  Neck: 0.008,
+  UpperArm: 0.03,
+  Forearm: 0.024,
+  Thigh: 0.034,
+  Calf: 0.012,
+};
+const ROOK_PADS = [
+  { bone: 'Bip01 L UpperArm', a: 0.045, r: 0.1, out: 0.01, up: 0.025 },
+  { bone: 'Bip01 R UpperArm', a: 0.045, r: 0.1, out: 0.01, up: 0.025 },
+];
+AV_OPTS[2] = {
+  url: 'assets/max_model.js',
+  tex: Object.assign(texOf('rook'), {
+    headN: 'assets/max_head_n.jpg',
+    hair: 'assets/max_hair.webp',
+  }),
+  height: 1.86,
+  skirt: false,
+  inflate: ROOK_BULK,
+  bumps: ROOK_PADS,
+  shave: true,
+  hockey: true,
+  look: { iridescence: 0, sheen: 0xaab8e0, sheenAmt: 0.2, rough: 0.72, sparkle: 0 },
+};
+// load a skater's realistic body the first time it is needed
+const ensureAvatar = (i) => {
+  if (asked[i] || !AV_OPTS[i]) return;
+  asked[i] = true;
+  loadAvatar(models, i, AV_OPTS[i], avU, (a) => {
+    avatars[i] = a;
+    a.night(CFG.looks[lookIx].night ? 1 : 0);
+    showAvatar();
+  });
+};
 let avatar = null;
 const pose = createPoser(models),
-  taps = new TapTracker(CFG.tap),
-  score = createScoring(saved && saved.sc);
+  taps = new TapTracker(CFG.tap);
+// Each of the front page's modes keeps its own score: Olympic, Infinite, Tutorial
+const scores = [createScoring(saved && saved.sc), createScoring(saved && saved.sci), createScoring(saved && saved.sct)];
+let score = scores[0];
 let dirty = false;
 const showScore = () => hud.score(score.state);
 const tutorial = createTutorial();
-// After the first few plays the Tutorial pill leaves the screen; the menu has a Tutorial button that opens it.
-{
-  let plays = 0;
-  try {
-    plays = (+localStorage.getItem('icedoodle2-plays') || 0) + 1;
-    localStorage.setItem('icedoodle2-plays', String(plays));
-  } catch (e) {}
-  document.body.classList.toggle('tut-quiet', plays > 3);
-}
+const wrapIx = (i, n) => ((i % n) + n) % n;
 let placeIx = 0,
-  lookIx = 0;
+  lookIx = 0,
+  paperOn = false;
+// The place and the time of day together: the ice and its light, or a paper sheet whose surface and line depend on the
+// time of day (CFG.paper).
+const applyScene = () => {
+  const look = CFG.looks[lookIx],
+    place = CFG.places[placeIx],
+    sheet = place.paper ? CFG.paper[look.name] : null;
+  paperOn = !!sheet;
+  world.setLook(look);
+  world.setPaper(sheet);
+  world.setPlace(place);
+  forest.set(place.trees);
+  trace.ink(sheet);
+  trace.glow(look.lineGlow || 1);
+  trace.punch(look.linePunch || 1, look.lineWide || 1);
+  avatars.forEach((a) => a && a.night(look.night ? 1 : 0));
+  duet.night(look.night ? 1 : 0);
+  icicles.strength = look.night ? 1 : 0.75;
+  hud.text('timename', look.name);
+  hud.text('placename', place.name);
+};
 const setLook = (i) => {
-  lookIx = ((i % CFG.looks.length) + CFG.looks.length) % CFG.looks.length;
-  world.setLook(CFG.looks[lookIx]);
-  trace.glow(CFG.looks[lookIx].lineGlow || 1);
-  trace.punch(CFG.looks[lookIx].linePunch || 1, CFG.looks[lookIx].lineWide || 1);
-  avatars.forEach((a) => a && a.night(CFG.looks[lookIx].night ? 1 : 0));
-  duet.night(CFG.looks[lookIx].night ? 1 : 0);
-  icicles.strength = CFG.looks[lookIx].night ? 1 : 0.75;
-  hud.text('timename', CFG.looks[lookIx].name);
+  lookIx = wrapIx(i, CFG.looks.length);
+  applyScene();
 };
 const showGfx = () => hud.text('gfxname', world.qualityName);
 const setPlace = (i) => {
-  placeIx = ((i % CFG.places.length) + CFG.places.length) % CFG.places.length;
-  const p = CFG.places[placeIx];
-  world.setPlace(p);
-  forest.set(p.trees);
-  hud.text('placename', p.name);
+  placeIx = wrapIx(i, CFG.places.length);
+  applyScene();
+};
+const setChar = (i) => {
+  models.setChar(i);
+  ensureAvatar(models.index);
+  showAvatar();
+  S.hockey = !!models.rig.hockey;
+  stick.visible = S.hockey;
+  hud.text('charname', models.rig.name);
+};
+// Olympic, Infinite or Tutorial
+const PLAY = ['olympic', 'infinite', 'tutorial'];
+let playIx = 0;
+const setPlay = (i) => {
+  playIx = wrapIx(i, PLAY.length);
+  score = scores[playIx];
+  S.forgiving = CFG.play.forgiving[playIx];
+  PLAY.forEach((k, j) => document.body.classList.toggle('play-' + k, j === playIx));
+  tutorial.setOn(playIx === 2);
+  showScore();
+  hud.mode(PLAY[playIx]);
+  hud.text('playname', CFG.play.names[playIx]);
+  if (world.view.zoomed) hud.board(true, score.state);
 };
 
 // What the skater reports, and what the rest of the game does about it.
@@ -215,6 +292,8 @@ const game = createSkater((type, d) => {
     log.jump(Object.assign({ pts: e ? e.pts : 0 }, d));
     if (d.grade === 'fall')
       hud.say('Fall', (d.name ? d.name + ' under-rotated' : 'bad landing') + ' · ' + d.offDeg + '° off', 2.4, e);
+    else if (d.grade === 'stumble')
+      hud.say('Stumble', (d.name ? d.name + ' under-rotated' : 'bad landing') + ' · ' + d.offDeg + '° off', 2.4, e);
     else if (d.name) {
       hud.say(
         d.name + (d.grade === 'perfect' ? '!' : ''),
@@ -234,6 +313,11 @@ const game = createSkater((type, d) => {
   } else if (type === 'say') hud.say(d.big, d.small, d.hold);
   else if (type === 'crash') {
     spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, 40, 2.4, 6.3);
+    // Infinite and Tutorial: she bounces off and stumbles, and it costs nothing
+    if (d.stumble) {
+      hud.say('Bump', 'ran into ' + d.what, 2);
+      return;
+    }
     const e = score.jump({ grade: 'fall', crash: 'ran into ' + d.what });
     hud.say('Crash', 'ran into ' + d.what, 2.4, e);
     dirty = true;
@@ -268,6 +352,7 @@ const input = createInput(document.getElementById('c'), game, tricks, taps, worl
 const bests = (saved && saved.rb) || {},
   sayMode = (big, small, hold) => hud.say(big, small, hold);
 const duet = createDuet(world.scene, game, (m, i, done) => loadAvatar(m, i, AV_OPTS[i], avU, done));
+// the duet partner never plays Rook (who would need his stick)
 const MODES = [
   null,
   createPads(world.scene, game, sayMode),
@@ -290,16 +375,18 @@ const setMode = (i, quiet) => {
 // saved drawing and score
 if (saved) {
   trace.palette = saved.pv === 2 ? saved.pal | 0 : 0;
-  trace.restore(saved.prints);
+  trace.restore(saved.prints, saved.pf || 5);
   S.x = +saved.x || 0;
   S.z = +saved.z || 0;
   S.skated = +saved.skated || 0;
-  models.setChar(saved.ch | 0);
   world.snapTo(S.x, S.z);
 }
-setPlace(saved ? saved.pl | 0 : 0);
-setLook(saved ? saved.tm | 0 : 0);
+setChar(saved ? saved.ch | 0 : 0);
+placeIx = saved ? wrapIx(saved.pl | 0, CFG.places.length) : 0;
+// before v3-look37 there were five times of day (Day, Golden hour, Blue hour, Night, Dawn); now Dawn, Day, Dusk
+setLook(saved ? (saved.lv === 2 ? saved.tm | 0 : ([1, 1, 2, 2, 0][saved.tm | 0] ?? 1)) : 1);
 setMode(saved ? saved.md | 0 : 0, true);
+setPlay(saved ? saved.pm | 0 : 0);
 if (saved && saved.gq && saved.gq !== 'Auto' && CFG.quality[saved.gq]) world.setQuality(saved.gq, false);
 showGfx();
 const persist = () => {
@@ -311,15 +398,20 @@ const persist = () => {
     skated: S.skated,
     pal: trace.palette,
     pv: 2,
+    pf: 6,
     ch: models.index,
     pl: placeIx,
     tm: lookIx,
+    lv: 2,
     md: modeIx,
+    pm: playIx,
     rb: bests,
     ui: uiIx,
     uv: 2,
     gq: world.auto ? 'Auto' : world.qualityName,
-    sc: score.serialise(),
+    sc: scores[0].serialise(),
+    sci: scores[1].serialise(),
+    sct: scores[2].serialise(),
     prints: trace.serialise(),
   });
 };
@@ -328,6 +420,32 @@ window.addEventListener('pagehide', persist);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) persist();
 });
+
+// the front page: skater, place, time of day and mode, then Start
+const front = createFront(
+  [
+    { id: 'fchar', names: () => models.chars.map((c) => c.name), get: () => models.index, set: setChar },
+    { id: 'fplace', names: () => CFG.places.map((p) => p.name), get: () => placeIx, set: setPlace },
+    { id: 'ftime', names: () => CFG.looks.map((l) => l.name), get: () => lookIx, set: setLook },
+    { id: 'fmode', names: () => CFG.play.names, get: () => playIx, set: setPlay },
+  ],
+  () => CFG.play.about[playIx],
+  () => {
+    dirty = true;
+    persist();
+    last = performance.now();
+    log.note(
+      'start: ' +
+        [models.rig.name, CFG.places[placeIx].name, CFG.looks[lookIx].name, CFG.play.names[playIx]].join(', '),
+    );
+  },
+  (on) => {
+    world.showcase(on);
+    // standing still for the front page, she turns a little toward the camera
+    if (on && game.speed() < 0.5) S.facing = 0.4;
+  },
+);
+front.show();
 
 // buttons
 const countText = () => {
@@ -376,10 +494,9 @@ hud.on('close', () => {
   last = performance.now();
 });
 hud.on('movesbtn', () => hud.page('moves'));
-hud.on('tutmenu', () => {
+hud.on('homebtn', () => {
   hud.sheet(false);
-  last = performance.now();
-  if (!tutorial.on) document.getElementById('tutbtn').click();
+  front.show();
 });
 hud.on('back', () => hud.page('home'));
 // a tap outside the menu card closes the menu
@@ -390,9 +507,7 @@ document.getElementById('sheet').addEventListener('click', (e) => {
   }
 });
 hud.on('char', () => {
-  models.setChar(models.index + 1);
-  showAvatar();
-  hud.text('charname', models.rig.name);
+  setChar(models.index + 1);
   dirty = true;
 });
 hud.on('timebtn', () => {
@@ -486,15 +601,42 @@ hud.on('clearlog', () => {
 
 // frame loop
 const blade = { x: 0, z: 0, width: 1, pen: true, double: false },
-  ZERO = { x: 0, y: 0 };
+  ZERO = { x: 0, y: 0 },
+  hB = new THREE.Vector3(),
+  hT = new THREE.Vector3(),
+  hE = new THREE.Vector3();
 let last = performance.now(),
   lastMove = null,
   fAcc = 0,
   fN = 0;
+// pose the skater, move the realistic body to match, and place Rook's stick
+function drawSkater(dt, now) {
+  pose(game, dt, now);
+  avatar = avatars[models.index];
+  if (avatar && avatar.visible) {
+    const spinRate =
+      (S.move && S.move.spinRate ? S.move.spinRate() : 0) + (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20);
+    avU.uTime.value = now / 1000;
+    avatar.reflection(world.quality.reflection && !paperOn, 0.26);
+    avatar.update(dt, S, Math.min(1, spinRate / 18 + game.speed() * 0.02), Math.min(1, spinRate / 18));
+  }
+  // Rook's stick, placed from his hands: the realistic body's palms, or the stand-in's hands until that has loaded
+  if (S.hockey) {
+    if (!(avatar && avatar.visible && avatar.hands(hB, hT, hE))) {
+      const r = models.rig;
+      models.hero.updateMatrixWorld(true);
+      r.armL.lower.localToWorld(hB.set(0, -0.28, 0));
+      r.armR.lower.localToWorld(hT.set(0, -0.28, 0));
+      r.armL.lower.getWorldPosition(hE);
+    }
+    stick.update(dt, hB, hT, hE, models.hero.rotation.y);
+  }
+}
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
-  const paused = world.view.zoomed || document.getElementById('sheet').style.display === 'flex'; // zooming out, or opening the menu, pauses the skating
+  // zooming out, opening the menu, or the front page pauses the skating
+  const paused = world.view.zoomed || document.getElementById('sheet').style.display === 'flex' || front.open;
   const steer = paused ? ZERO : input.read();
   if (!paused) {
     input.frame(now);
@@ -508,7 +650,7 @@ function frame(now) {
     score.tick(dt);
     if (S.move !== lastMove) {
       lastMove = S.move;
-      if (S.move && S.move.id !== 'fall') score.mark();
+      if (S.move && S.move.id !== 'fall' && S.move.id !== 'stumble') score.mark();
     }
     const yaw = game.yaw();
     blade.x = S.x;
@@ -527,7 +669,7 @@ function frame(now) {
     trace.follow(S, blade.x, blade.z, blade.width, blade.pen || dashed, dashed);
     if (trace.count !== before) {
       dirty = true;
-      if (S.grounded && blade.pen) icicles.trail(blade.x, blade.z, trace.colorAt(S.skated));
+      if (S.grounded && blade.pen && !paperOn) icicles.trail(blade.x, blade.z, trace.colorAt(S.skated));
       // spread eagle: both blades draw
       if (blade.double) trace.place(S.x - px, S.z - pz, S.facing, trace.colorAt(S.skated), 1);
     }
@@ -563,7 +705,8 @@ function frame(now) {
     // spray: off a hard edge, off each push when she is working for speed, and around a spin
     const sp = game.speed(),
       edge = Math.abs(S.turn) * sp;
-    if (S.grounded) {
+    // paper is a blank sheet: no snow thrown up, nothing drifting in the air
+    if (S.grounded && !paperOn) {
       const hx = Math.cos(S.facing),
         hz = -Math.sin(S.facing),
         out = S.turn > 0 ? -1 : 1;
@@ -577,7 +720,7 @@ function frame(now) {
         spray.emit(blade.x, blade.z, Math.random() - 0.5, Math.random() - 0.5, 1, 1.1, 6.3);
     }
     // drifting snow hangs in the air ahead of her; the faster she goes, the more of it whips past
-    if (sp > 6) {
+    if (sp > 6 && !paperOn) {
       const n = (sp - 6) * 5 * dt,
         ux = S.vx / sp,
         uz = S.vz / sp;
@@ -598,19 +741,13 @@ function frame(now) {
       fAcc = 0;
       fN = 0;
     }
-    pose(game, dt, now);
-    avatar = avatars[models.index];
-    if (avatar && avatar.visible) {
-      const spinRate =
-        (S.move && S.move.spinRate ? S.move.spinRate() : 0) + (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20);
-      avU.uTime.value = now / 1000;
-      avatar.reflection(world.quality.reflection, 0.26);
-      avatar.update(dt, S, Math.min(1, spinRate / 18 + game.speed() * 0.02), Math.min(1, spinRate / 18));
-    }
-    if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection);
+    drawSkater(dt, now);
+    if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection && !paperOn);
     ring.update(game, models.rig.scale);
     log.tick(dt, game, steer);
   }
+  // on the front page the skater stands for the showcase: posed and drawn, though nothing moves
+  else if (front.open) drawSkater(dt, now);
   world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
   forest.update(S.x, S.z);
   trace.sharpen(world.view.e);
@@ -630,6 +767,15 @@ window.__game = {
   get avatar() {
     return avatar;
   },
+  avatars,
+  stick,
+  front,
+  setPlay,
+  setChar,
+  setLook,
+  get playIx() {
+    return playIx;
+  },
   tutorial,
   world,
   forest,
@@ -638,7 +784,10 @@ window.__game = {
   S,
   input,
   tricks,
-  score,
+  get score() {
+    return score;
+  },
+  scores,
   trace,
   log,
   view: world.view,

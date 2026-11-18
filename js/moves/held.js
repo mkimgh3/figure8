@@ -33,9 +33,9 @@ function held(S, api, o) {
         } else api.ensureSpeed(o.minSpeed);
         if (o.tick) o.tick(dt, steer);
         // every held move lasts minTime; after that it ends when the finger lifts, when a coasting move has run out of
-        // speed, or after 12 seconds
+        // speed, or after CFG.held.maxTime seconds
         if (st.t < o.minTime) return true;
-        return st.held && st.t <= 12 && !(o.coast && api.speed() < CFG.held.endSpeed);
+        return st.held && st.t <= CFG.held.maxTime && !(o.coast && api.speed() < CFG.held.endSpeed);
       },
       end() {
         api.emit('element', {
@@ -123,7 +123,7 @@ export const createHydro = (S, api, dir) =>
     coast: true,
     tick(dt, steer) {
       if (Math.hypot(steer.x, steer.y) < 0.15) api.rotateVel(-dir * 1.5 * dt);
-      const f = Math.exp(-0.12 * dt);
+      const f = Math.exp(-CFG.held.hydroDrag * dt);
       S.vx *= f;
       S.vz *= f;
     },

@@ -1,4 +1,5 @@
-// The two skaters. Both share the same joints (arms, forearms, legs, shins, feet), so every pose works for both.
+// The three skaters' simple stand-in figures. All share the same joints (arms, forearms, legs, shins, feet), so every
+// pose works for all of them.
 import * as THREE from './three.js';
 export const HIP = 0.93;
 
@@ -247,7 +248,91 @@ export function createModels(scene) {
     }),
   );
 
-  const chars = [ava, max];
+  // Rook: a hockey player in a navy jersey, padded pants, striped socks and a helmet. His stick is drawn by stick.js.
+  const k = new THREE.Group();
+  k.position.y = -HIP;
+  k.visible = false;
+  body.add(k);
+  const mJersey = mat(0x1d2b53, 8),
+    mYoke = mat(0xeef2f8, 8),
+    mPantsK = mat(0x141c36, 45),
+    mSock = mat(0x1d2b53, 6),
+    mSkinK = mat(0xe2b08c, 14),
+    mHelmet = mat(0x10172c, 75),
+    mSkate = mat(0x0b0c10, 70);
+  // padded pants
+  add(
+    lathe(
+      [
+        [0.02, 0.8],
+        [0.16, 0.82],
+        [0.168, 0.9],
+        [0.158, 0.98],
+      ],
+      1.25,
+      0.9,
+    ),
+    mPantsK,
+    k,
+  );
+  // the jersey: loose and boxy, wider at the shoulders where the pads are, with a white yoke
+  add(
+    lathe(
+      [
+        [0.02, 0.86],
+        [0.165, 0.87],
+        [0.17, 0.98],
+        [0.175, 1.12],
+        [0.2, 1.26],
+        [0.21, 1.36],
+        [0.13, 1.43],
+        [0.05, 1.45],
+      ],
+      1.3,
+      0.82,
+    ),
+    mJersey,
+    k,
+  );
+  add(
+    lathe(
+      [
+        [0.205, 1.34],
+        [0.18, 1.41],
+        [0.12, 1.445],
+        [0.05, 1.46],
+      ],
+      1.31,
+      0.83,
+    ),
+    mYoke,
+    k,
+  );
+  [-1, 1].forEach((sd) => add(ball(0.095, 1.1, 0.9, 1), mJersey, k, 0.26 * sd, 1.38, 0));
+  add(new THREE.CylinderGeometry(0.05, 0.056, 0.1, 10), mSkinK, k, 0, 1.48, 0);
+  add(ball(0.104, 0.95, 1.08, 1), mSkinK, k, 0, 1.6, 0);
+  // the helmet: a shell over the top and back of the head, and a clear visor
+  add(ball(0.122, 0.98, 0.9, 1.05), mHelmet, k, 0, 1.635, -0.012);
+  const ka = Object.assign(
+    { name: 'Rook', inner: k, scale: 1.08, skirt: new THREE.Group(), hair: null, hockey: true },
+    limbs(k, {
+      shoulder: 0.255,
+      shoulderY: 1.37,
+      upper: [0.07, 0.06, 0.27],
+      fore: [0.058, 0.05, 0.24],
+      hand: 0.05,
+      upperMat: mJersey,
+      skin: mJersey,
+      hip: 0.1,
+      thigh: [0.11, 0.075],
+      shin: [0.068, 0.05],
+      legMat: mSock,
+      boot: 0.055,
+      bootMat: mSkate,
+    }),
+  );
+
+  const chars = [ava, max, ka];
   let index = 0;
   return {
     hero,

@@ -744,19 +744,59 @@ const { open } = require('./smoke.cjs');
     'tapping outside the card closes the menu',
     await p.evaluate(() => document.getElementById('sheet').style.display === 'none'),
   );
-  // tutorial: the pill splits, the selector moves, a step passes, the active category again turns it off
-  await p.tap('#tutbtn');
+  // the front page: Menu > Front page opens it (paused); Tutorial mode lists every step of a skill at once
+  await p.tap('#menu');
   await sleep(200);
-  let tu = await p.evaluate(() => ({
-    jumpOn: document.getElementById('tutjump').classList.contains('on'),
-    sel: !document.getElementById('tsel').hidden,
-    single: document.getElementById('tutbtn').hidden,
-    name: document.getElementById('tname').textContent,
-    step: document.getElementById('tstep').textContent,
+  await p.tap('#homebtn');
+  await sleep(200);
+  const fr = await p.evaluate(() => ({
+    open: window.__game.front.open,
+    shown: !document.getElementById('front').hidden,
+    sheet: document.getElementById('sheet').style.display,
+    rows: ['fchar', 'fplace', 'ftime', 'fmode'].map((id) =>
+      [...document.getElementById(id).children].map((b) => b.textContent),
+    ),
   }));
   ok(
-    'Tutorial splits into Jumps and Spins & steps, with a skill selector and a first step',
-    tu.jumpOn && tu.sel && tu.single && tu.name === 'Waltz jump' && tu.step.length > 10,
+    'Menu > Front page shows the skater, place, time and mode choices',
+    fr.open &&
+      fr.shown &&
+      fr.sheet === 'none' &&
+      fr.rows[0].join() === 'Tesa,Ivor,Rook' &&
+      fr.rows[1].join() === 'Open lake,Islands,Paper' &&
+      fr.rows[2].join() === 'Dawn,Day,Dusk' &&
+      fr.rows[3].join() === 'Olympic,Infinite,Tutorial',
+    fr,
+  );
+  {
+    const x0 = await p.evaluate(() => window.__game.S.x);
+    await sleep(400);
+    ok('nothing moves on the front page', (await p.evaluate(() => window.__game.S.x)) === x0);
+  }
+  await p.evaluate(() => [...document.getElementById('fmode').children][2].click());
+  await sleep(100);
+  await p.tap('#fstart');
+  await sleep(250);
+  let tu = await p.evaluate(() => ({
+    front: window.__game.front.open,
+    on: window.__game.tutorial.on,
+    jumpOn: document.getElementById('tutjump').classList.contains('on'),
+    sel: !document.getElementById('tsel').hidden,
+    name: document.getElementById('tname').textContent,
+    steps: [...document.getElementById('tlist').children].map((li) => [li.className, li.textContent]),
+    forgiving: window.__game.S.forgiving,
+  }));
+  ok(
+    'Tutorial mode: Jumps open with a skill selector, every step listed and the first one current, and no falls',
+    !tu.front &&
+      tu.on &&
+      tu.jumpOn &&
+      tu.sel &&
+      tu.name === 'Waltz jump' &&
+      tu.steps.length === 2 &&
+      tu.steps[0][0] === 'now' &&
+      tu.steps[1][0] === '' &&
+      tu.forgiving,
     tu,
   );
   await p.tap('#tnext');
@@ -767,29 +807,30 @@ const { open } = require('./smoke.cjs');
   );
   await p.tap('#tutspin');
   await sleep(150);
+  tu = await p.evaluate(() => ({
+    name: document.getElementById('tname').textContent,
+    steps: [...document.getElementById('tlist').children].map((li) => [li.className, li.textContent]),
+  }));
   ok(
-    'Spins & steps lists spins first',
-    (await p.evaluate(() => document.getElementById('tname').textContent)) === 'Twizzles',
+    'Spins & steps lists spins first, all five steps of Twizzles at once',
+    tu.name === 'Twizzles' && tu.steps.length === 5 && /left thumb/i.test(tu.steps[0][1]),
+    tu,
   );
   await ev('pointerdown', 1, 100, 560);
   await ev('pointermove', 1, 104, 520);
-  await sleep(500);
-  await ev('pointerdown', 2, 300, 560);
-  await sleep(500);
-  tu = await p.evaluate(() => document.getElementById('tstep').textContent);
-  ok('the first step of the skill is shown', /left thumb/i.test(tu), tu);
-  await ev('pointerup', 2, 300, 560);
+  await sleep(1500);
+  tu = await p.evaluate(() => [...document.getElementById('tlist').children].map((li) => li.className));
+  ok('a step passes: it is ticked off and the next one is current', tu[0] === 'done' && tu[1] === 'now', tu);
   await ev('pointerup', 1, 104, 520);
-  await sleep(400);
-  await p.tap('#tutspin');
-  await sleep(150);
+  await sleep(300);
+  // back to Olympic: the tutorial goes away
+  await p.evaluate(() => window.__game.setPlay(0));
+  await sleep(100);
   ok(
-    'tapping the active category ends tutorial mode',
+    'leaving Tutorial mode closes the tutorial',
     await p.evaluate(
       () =>
-        !document.getElementById('tutbtn').hidden &&
-        document.getElementById('tsel').hidden &&
-        !window.__game.tutorial.on,
+        document.getElementById('tut').hidden && document.getElementById('tsel').hidden && !window.__game.tutorial.on,
     ),
   );
   // the published version file must name the build that is running, or Home Screen copies would keep reloading
@@ -927,17 +968,124 @@ const { open } = require('./smoke.cjs');
     await p.tap('#zoom');
     await sleep(300);
     ok('paused, it says Skate', paused === 'Skate', paused);
-    await p.tap('#menu');
-    await sleep(200);
-    await p.tap('#tutmenu');
-    await sleep(200);
-    const tu = await p.evaluate(() => ({
-      on: window.__game.tutorial.on,
-      sheet: document.getElementById('sheet').style.display,
+  }
+  // Infinite: no falls, each score one big number over Base, GOE and Art, and no limit on the total
+  {
+    await p.evaluate(() => window.__game.setPlay(1));
+    await until((g) => g.S.grounded && !g.S.move, 6000);
+    await p.evaluate(() => {
+      const g = window.__game;
+      g.S.vz = 6;
+      g.game.jump();
+      g.game.airRotate(Math.PI * 0.5);
+    });
+    const st = await until((g) => g.S.grounded && g.S.move && { move: g.S.move.id, falls: g.score.state.falls }, 4000);
+    ok(
+      'Infinite: a quarter-turn-off landing is a stumble, not a fall',
+      !!st && st.move === 'stumble' && st.falls === 0,
+      st,
+    );
+    await until((g) => !g.S.move, 3000);
+    await p.evaluate(() =>
+      window.__game.game.emit('element', { kind: 'turn', name: 'Three-turn', detail: '', base: 0.3 }),
+    );
+    await sleep(100);
+    const pop = await p.evaluate(() => {
+      const el = document.getElementById('pop');
+      return {
+        inf: el.classList.contains('inf'),
+        big: el.querySelector('.ptotal') && el.querySelector('.ptotal').textContent,
+        cards: [...el.querySelectorAll('.cards span')].map((s) => s.textContent),
+        name: !!el.querySelector('.pname'),
+      };
+    });
+    ok(
+      'Infinite: the score card is one big number, no name, over Base, GOE and Art',
+      pop.inf && /^\+\d+\.\d$/.test(pop.big) && pop.cards.join() === 'Base,GOE,Art' && !pop.name,
+      pop,
+    );
+    await p.evaluate(() => {
+      const g = window.__game;
+      g.score.state.total = 123456.7;
+      g.game.emit('element', { kind: 'leap', name: 'Split leap', detail: '', base: 0.6 });
+    });
+    await sleep(1500);
+    const tot = await p.evaluate(() => document.getElementById('total').textContent);
+    ok('Infinite: the total has no limit', parseFloat(tot) > 120000, tot);
+    await p.evaluate(() => window.__game.setPlay(0));
+    await sleep(1200);
+    const olympic = await p.evaluate(() => ({
+      total: document.getElementById('total').textContent,
+      forgiving: window.__game.S.forgiving,
     }));
-    ok('Tutorial in the menu closes the menu and opens the tutorial', tu.on && tu.sheet === 'none', tu);
-    await p.tap('#tutjump');
-    await sleep(200);
+    ok(
+      'Olympic keeps its own score, up to 9999.9, and falls again',
+      parseFloat(olympic.total) <= 9999.9 && !olympic.forgiving,
+      olympic,
+    );
+  }
+  // paper: a blank sheet for each time of day, with its own line
+  {
+    const sheets = await p.evaluate(async () => {
+      const g = window.__game,
+        out = [];
+      g.setPlace(2);
+      for (let i = 0; i < 3; i++) {
+        g.setLook(i);
+        await new Promise((r) => setTimeout(r, 120));
+        out.push({
+          look: g.CFG.looks[i].name,
+          ink: g.world.paper && g.world.paper.ink,
+          ice: g.world.ice.mesh.visible,
+          night: document.body.classList.contains('night'),
+        });
+      }
+      g.setLook(1);
+      g.setPlace(0);
+      return out;
+    });
+    ok(
+      'Paper: pencil on tan at dawn, a pen on white by day, glowing lines on black at dusk; no ice',
+      sheets.map((x) => x.ink).join() === 'pencil,pen,glow' &&
+        sheets.every((x) => !x.ice) &&
+        sheets.map((x) => x.night).join() === 'false,false,true',
+      sheets,
+    );
+  }
+  // Rook, the hockey player, and his stick
+  {
+    await p.evaluate(() => window.__game.setChar(2));
+    await until((g) => g.avatars[2], 20000);
+    await sleep(800);
+    const rk = await p.evaluate(() => {
+      const g = window.__game,
+        st = g.stick.group;
+      st.updateMatrixWorld(true);
+      const v = st.position.clone();
+      let low = Infinity;
+      st.traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry.computeBoundingBox();
+        const b = o.geometry.boundingBox;
+        for (const x of [b.min.x, b.max.x])
+          for (const y of [b.min.y, b.max.y])
+            for (const z of [b.min.z, b.max.z]) low = Math.min(low, v.set(x, y, z).applyMatrix4(o.matrixWorld).y);
+      });
+      return {
+        name: document.getElementById('charname').textContent,
+        stick: st.visible,
+        real: !!g.avatars[2] && g.avatars[2].visible,
+        low: +low.toFixed(3),
+        hockey: g.S.hockey,
+      };
+    });
+    ok(
+      'Rook: his body loads, his stick shows, and its blade rests on the ice, not through it',
+      rk.name === 'Rook' && rk.stick && rk.real && rk.hockey && rk.low > -0.03 && rk.low < 0.15,
+      rk,
+    );
+    await p.evaluate(() => window.__game.setChar(0));
+    ok('back to Tesa, the stick is gone', !(await p.evaluate(() => window.__game.stick.group.visible)));
   }
   // portrait (this page is 390 x 844): the view pulls back as she speeds up, and comes back in as she slows
   {

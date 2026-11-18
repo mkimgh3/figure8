@@ -47,6 +47,16 @@ const SPIN_FAST = [
   { lean: 0, fL: 0, lLx: -0.55, lLk: 1.1, lLz: 0.15, aLz: 0.45, aRz: -0.45, aLx: -0.75, aRx: -0.75, aLe: -2.0, aRe: -2.0 },                                         // scratch: arms and free leg pulled in
   { lean: 0, fL: 0, lLx: -0.3, lLk: 1.3, lLz: 0.12, aLz: -2.7, aRz: 2.7, aLx: 0, aRx: 0, aLe: -0.3, aRe: -0.3 },                                                    // arms stretched overhead
 ];
+// Rook works his stick into the dance (S.hockey). armL is his right arm, the hand that holds the stick alone.
+// prettier-ignore
+const STICK_CALM = [
+  { lean: 0.1, fL: 0, lLx: 0.4, lLk: 0.2, aLx: -1.45, aRx: -1.45, aLz: 0.12, aRz: -0.12, aLe: -0.2, aRe: -0.2 },                       // the stick presented level in both hands
+  { lean: 0.3, fL: 0, lRx: -0.5, lLx: 0.6, lLk: 0.1, aLx: -1.5, aLz: -0.25, aLe: -0.05, aRz: 1.5, aRx: 0.2, aRe: -0.15, yaw: 0.3 },   // the stick held straight out ahead, the other arm wide
+  { lean: -0.1, fL: 0, lLx: 0.3, lLk: 0.4, aLz: -1.55, aLx: 0.0, aLe: -0.05, aRz: 1.55, aRx: 0.0, aRe: -0.05, yaw: -0.6 },             // arms wide, the stick held out to the side
+];
+// a fast spin with both arms up: the stick turns over his head like a rotor
+// prettier-ignore
+export const STICK_OVERHEAD = { lean: 0, fL: 0, lLx: -0.3, lLk: 1.2, lLz: 0.12, aLz: -3.3, aRz: 3.3, aLx: 0.15, aRx: 0.15, aLe: -0.3, aRe: -0.3 };
 // Which poses she draws on. Thumbs moving together: the long, open, travelling shapes. Thumbs going their own ways: the twisted, closed, contrasting ones.
 // One thumb alone: any of them. Spinning: counter-clockwise takes the camel and then the scratch spin, clockwise the layback or attitude and then arms overhead.
 const PICK = {
@@ -133,6 +143,11 @@ export function createDance(S, api) {
     last = i;
     to = full(set[i]);
     if (Math.random() < 0.5) to = mirror(to);
+    // Rook: the overhead stick spin, and about half his calm gestures with the stick (never mirrored: the stick stays in
+    // his right hand)
+    if (S.hockey && inSpin && st.spin > 1) to = full(STICK_OVERHEAD);
+    else if (S.hockey && !inSpin && !snap && Math.random() < 0.5)
+      to = full(STICK_CALM[Math.floor(Math.random() * STICK_CALM.length)]);
     // she keeps turning as she dances: each pose faces a little further round, and now and then she turns right about
     facing += inSpin
       ? 0

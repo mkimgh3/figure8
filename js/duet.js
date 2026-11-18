@@ -1,5 +1,6 @@
 // Duet: a second skater, run by the game, keeps beside her and does what she does a moment later.
-// The partner is the skater she is not playing. It has its own simple figure, and its realistic body loads the first time it is needed.
+// The partner is Tesa, or Ivor when the player is Tesa (never Rook, whose stick follows only the player). It has its own
+// simple figure, and its realistic body loads the first time it is needed.
 import { CFG } from './config.js';
 import { createModels } from './render/model.js';
 import { createPoser } from './render/poses.js';
@@ -34,8 +35,9 @@ export function createDuet(scene, game, loadBody) {
     S = game.S,
     models = createModels(scene),
     pose = createPoser(models),
-    bodies = [null, null],
-    asked = [false, false];
+    bodies = [null, null, null],
+    asked = [false, false, false];
+  const partnerOf = (playerIx) => (playerIx === 0 ? 1 : 0);
   const P = { phase: 1.7 },
     trail = [];
   let on = false,
@@ -78,7 +80,7 @@ export function createDuet(scene, game, loadBody) {
       on = true;
       trail.length = 0;
       who = -1;
-      setWho(1 - playerIx);
+      setWho(partnerOf(playerIx));
       show();
     },
     off() {
@@ -102,7 +104,7 @@ export function createDuet(scene, game, loadBody) {
     },
     update(dt, now, playerIx, reflect, time) {
       if (!on) return;
-      setWho(1 - playerIx);
+      setWho(partnerOf(playerIx));
       clock += dt;
       // remember where she was and what she was doing; the partner lives a moment in her past
       const snap = { t: clock, yaw: game.yaw() };

@@ -68,6 +68,8 @@ export function createScene(canvas) {
 
   const ice = createIce(renderer);
   scene.add(ice.mesh);
+  const paper = createPaper();
+  scene.add(paper.mesh, paper.shade);
   const sky = createSky(renderer),
     atmos = createAtmos(scene);
   const hemi = new THREE.HemisphereLight(0xf2f8ff, 0xdde9f6, 1.25);
@@ -173,6 +175,29 @@ export function createScene(canvas) {
     spotOn = l.spot || 0;
     glowOn = !!q.glow && l.glow[0] > 0; // glow only at night, for the line: by day it only hazes the ice
     document.body.classList.add('night'); // light text over the ice, which is deep blue at every time of day
+    if (sheet) setPaper(sheet);
+  }
+  // ---- paper: a blank sheet in place of the lake (c: a CFG.paper entry), or null for the ice
+  let sheet = null;
+  function setPaper(c) {
+    sheet = c;
+    ice.mesh.visible = !c;
+    paper.mesh.visible = paper.shade.visible = !!c;
+    blob.material.color.setHex(c ? 0x2a2a2e : 0x14284f);
+    if (c) paper.set(c);
+    // white light on the black sheet blooms more than the line on the ice does
+    if (c && c.bloom) {
+      bloom.strength = c.bloom[0];
+      bloom.radius = c.bloom[1];
+      bloom.threshold = c.bloom[2];
+    } else if (!c) {
+      bloom.strength = look.glow[0];
+      bloom.radius = look.glow[1];
+      bloom.threshold = look.glow[2];
+    }
+    // dark text on the white and the tan sheets, light text on the black one and on the ice
+    document.body.classList.toggle('night', !c || c.night);
+    document.body.classList.toggle('paper', !!c);
   }
 
   // ---- graphics levels
@@ -216,6 +241,10 @@ export function createScene(canvas) {
     air = 0,
     time = 0;
   const DIST = Math.hypot(C.closeHeight, C.closeBack);
+  // the front page: the view comes in close and the skater sits in the upper part of the screen, above the choices
+  let showK = 0,
+    showOn = false,
+    offsetOn = false;
   let distK = 1,
     distGoal = 1; // some places are seen from a little further back
   function toggleZoom() {
@@ -271,8 +300,20 @@ export function createScene(canvas) {
       camera.aspect < 1
         ? C.portrait * (1 + C.portraitFast * clamp((pullSp - C.portraitFrom) / C.portraitSpan, 0, 1))
         : 1;
-    const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
-      dist = (DIST + camSp * C.speedLift) * distK * portrait;
+    showK += ((showOn ? 1 : 0) - showK) * (1 - Math.exp(-4 * dt));
+    const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air + 14 * showK) * DEG,
+      dist = (DIST + camSp * C.speedLift) * distK * portrait * (1 - 0.55 * showK);
+    if (showK > 0.002) {
+      const el = renderer.domElement,
+        w = el.clientWidth || window.innerWidth,
+        hh = el.clientHeight || window.innerHeight;
+      camera.setViewOffset(w, hh, 0, hh * (camera.aspect < 1 ? 0.24 : 0.02) * showK, w, hh);
+      if (camera.aspect >= 1) camera.setViewOffset(w, hh, w * 0.2 * showK, 0, w, hh);
+      offsetOn = true;
+    } else if (offsetOn) {
+      camera.clearViewOffset();
+      offsetOn = false;
+    }
     const closeH = dist * Math.cos(tilt),
       back = dist * Math.sin(tilt);
     view.zMax = Math.max(1.5, far.h / closeH);
@@ -296,7 +337,12 @@ export function createScene(canvas) {
     view.ppm = window.innerHeight / (2 * h * tanHalf);
     uScale.value = Math.max(1, (4 - 0.8 * e) / (CFG.trace.width * view.ppm)); // from high up the line stays a hairline, about a pixel and a half
     ice.material.color.copy(iceCol).lerp(DARK, e);
-    scene.background.copy(ice.material.color);
+    // the sheet stays the colour it is from any height: the lines on it are already dark (or glowing on black)
+    scene.background.copy(sheet ? paper.mesh.material.color : ice.material.color);
+    if (sheet) {
+      paper.mesh.position.set(tgt.x, 0, tgt.z);
+      paper.shade.position.set(S.x, 0.003, S.z);
+    }
     ice.material.envMapIntensity = 0.35 * (1 - e); // dark ice makes the lines stand out
     const U = ice.uniforms;
     U.uTime.value = time;
@@ -308,6 +354,9 @@ export function createScene(canvas) {
     }
     return h;
   }
+  const showcase = (on) => {
+    showOn = on;
+  };
   const snapTo = (x, z) => {
     tgt.set(x, 0.9, z);
   };
@@ -330,8 +379,13 @@ export function createScene(canvas) {
     toggleZoom,
     update,
     snapTo,
+    showcase,
     setPlace,
     setLook,
+    setPaper,
+    get paper() {
+      return sheet;
+    },
     setQuality,
     coarse,
     adapt,
@@ -356,6 +410,115 @@ export function createScene(canvas) {
     render: () => {
       if (glowOn) composer.render();
       else renderer.render(scene, camera);
+    },
+  };
+}
+
+// The paper sheet: an unlit plane in the sheet's own colour (so white stays white), with an optional grain, and a
+// shadow catcher above it that shows only the skater's shadow.
+function createPaper() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  {
+    const g = c.getContext('2d');
+    let s = 31;
+    const rnd = () => {
+      s = (s * 16807) % 2147483647;
+      return s / 2147483647;
+    };
+    g.fillStyle = 'rgb(236,236,236)';
+    g.fillRect(0, 0, 512, 512);
+    // soft cloudy unevenness first, the way pulp settles
+    for (let i = 0; i < 90; i++) {
+      const x = rnd() * 512,
+        y = rnd() * 512,
+        r = 20 + rnd() * 70,
+        v = rnd() < 0.5 ? '255,255,255' : '200,200,200';
+      for (const ox of [-512, 0, 512])
+        for (const oy of [-512, 0, 512]) {
+          const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+          gr.addColorStop(0, 'rgba(' + v + ',0.07)');
+          gr.addColorStop(1, 'rgba(' + v + ',0)');
+          g.fillStyle = gr;
+          g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
+        }
+    }
+    // the tooth of the paper: fine speckle, then short pale and dark fibres lying every which way
+    const img = g.getImageData(0, 0, 512, 512),
+      d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = d[i] + (rnd() - 0.5) * 26;
+      d[i] = d[i + 1] = d[i + 2] = v;
+    }
+    g.putImageData(img, 0, 0);
+    g.lineCap = 'round';
+    for (let i = 0; i < 2600; i++) {
+      const x = rnd() * 512,
+        y = rnd() * 512,
+        a = rnd() * Math.PI,
+        l = 3 + rnd() * 14,
+        light = rnd() < 0.5;
+      g.strokeStyle = light ? 'rgba(255,255,255,0.35)' : 'rgba(170,170,170,0.22)';
+      g.lineWidth = 0.6 + rnd() * 0.8;
+      for (const ox of [-512, 0, 512])
+        for (const oy of [-512, 0, 512]) {
+          g.beginPath();
+          g.moveTo(x + ox, y + oy);
+          g.lineTo(x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l);
+          g.stroke();
+        }
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  // one tile of grain every 3 metres; the plane follows the camera, so the grain is pinned to the world in the shader
+  const uGrain = { value: 0 };
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, map: tex, toneMapped: false, depthWrite: false });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uGrain = uGrain;
+    sh.vertexShader = sh.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec2 vPW;`,
+      )
+      .replace(
+        '#include <worldpos_vertex>',
+        `#include <worldpos_vertex>
+vPW = (modelMatrix * vec4(transformed, 1.0)).xz;`,
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec2 vPW; uniform float uGrain;`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        'vec3 gr = texture2D(map, vPW / 3.0).rgb / 0.84; diffuseColor.rgb *= mix(vec3(1.0), gr, uGrain);',
+      );
+  };
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.renderOrder = -2;
+  mesh.visible = false;
+  const shade = new THREE.Mesh(
+    new THREE.PlaneGeometry(24, 24),
+    new THREE.ShadowMaterial({ color: 0x1a1a22, opacity: 0.2, depthWrite: false }),
+  );
+  shade.rotation.x = -Math.PI / 2;
+  shade.receiveShadow = true;
+  shade.renderOrder = -1;
+  shade.visible = false;
+  return {
+    mesh,
+    shade,
+    set(c) {
+      mat.color.setHex(c.surface);
+      uGrain.value = c.grain * 0.9;
+      shade.material.opacity = c.night ? 0 : 0.2;
     },
   };
 }

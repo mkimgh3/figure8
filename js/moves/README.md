@@ -15,3 +15,6 @@ Each move is one file exporting `createX(S, api, args)`. It returns an object th
 | `pose(T, kit)` | optional; set pose targets with `kit.set({...})`; may return a blend rate |
 
 Start it with `skater.startMove(createX(...))`. Tuning numbers belong in `config.js`.
+
+A fall (`fall.js`) or, in Infinite and Tutorial mode (`S.forgiving`), a stumble (`stumble.js`) is set straight onto
+`S.move` by the skater when a landing goes wrong.

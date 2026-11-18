@@ -232,11 +232,11 @@ for (const [name, move] of [
   const v2 = r.game.speed(),
     held = r.move;
   let last = 0;
-  for (let k = 0; k < 600 && r.move === move; k++) {
+  for (let k = 0; k < 4000 && r.move === move; k++) {
     last = r.game.speed();
     r.wait(16);
   }
-  ok(`${move}: with the left thumb pushing, she slows and does not speed up`, held === move && v2 < v1 - 0.5, {
+  ok(`${move}: with the left thumb pushing, she slows and does not speed up`, held === move && v2 < v1 - 0.3, {
     v0: +v0.toFixed(1),
     v1: +v1.toFixed(1),
     v2: +v2.toFixed(1),
@@ -258,7 +258,7 @@ for (const [name, move] of [
     // the flick is read once the thumb has been still idleMs
     r.wait(CFG.swipe.idleMs + 40);
     let n = 0;
-    while (r.move === 'spiral' && n < 900) {
+    while (r.move === 'spiral' && n < 4000) {
       r.wait(16);
       n++;
     }

@@ -2,6 +2,7 @@
 import { CFG } from '../config.js';
 import { TAU, clamp, wrap } from '../core/math.js';
 import { createFall } from '../moves/fall.js';
+import { createStumble } from '../moves/stumble.js';
 
 const COUNT = ['', 'Single', 'Double', 'Triple', 'Quad', 'Quint'];
 
@@ -45,6 +46,8 @@ export function createSkater(emit) {
     bonus: 0,
     surge: 0,
     flipK: 9,
+    // Infinite and Tutorial: falls and crashes become stumbles
+    forgiving: false,
   };
   const C = CFG.steer;
   const speed = () => Math.hypot(S.vx, S.vz);
@@ -162,7 +165,15 @@ export function createSkater(emit) {
       combo: S.combo,
       speed: +speed().toFixed(1),
     };
-    if (grade) {
+    // Infinite and Tutorial: a landing that would be a fall is a stumble she rides out
+    if (!grade && S.forgiving) {
+      const K = CFG.stumble;
+      info.grade = 'stumble';
+      S.bonus *= 0.5;
+      S.vx *= K.keep;
+      S.vz *= K.keep;
+      S.move = createStumble(S);
+    } else if (grade) {
       S.cleanLand = grade !== 'shaky';
       if (grade === 'shaky') {
         S.vx *= 0.75;
@@ -193,7 +204,18 @@ export function createSkater(emit) {
 
   // She has run into something at (nx, nz) away from it: she goes down and slides back off it.
   function crash(nx, nz, what) {
-    if (S.move && S.move.id === 'fall') return false;
+    if (S.move && (S.move.id === 'fall' || S.move.id === 'stumble')) return false;
+    // Infinite and Tutorial: she bounces off and stumbles instead of going down
+    if (S.forgiving) {
+      if (S.grounded) endMove();
+      S.yawX = 0;
+      S.bonus *= 0.5;
+      S.vx = nx * 3;
+      S.vz = nz * 3;
+      if (S.grounded) S.move = createStumble(S);
+      emit('crash', { what, stumble: true });
+      return true;
+    }
     S.bonus = 0;
     if (S.grounded) endMove();
     S.move = null;

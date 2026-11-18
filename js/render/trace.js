@@ -1,4 +1,6 @@
-// The line on the ice: instanced marks, each with a position, direction, colour and width.
+// The line on the ice: instanced marks, each with a position, direction, colour, width and the speed she was going.
+// On paper (ink()) the same marks are drawn as a pencil line, a broad calligraphy pen whose stroke swells and thins
+// with the direction of travel and her speed, or white light.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { TAU } from '../core/math.js';
@@ -17,7 +19,8 @@ PALETTES.forEach((p) => {
 });
 
 export function createTrace(scene) {
-  const F = 5,
+  // each mark: x, z, direction, colour, width, speed (0..1 of top speed)
+  const F = 6,
     BLOCK = 8192,
     PERIOD = 14,
     T = CFG.trace;
@@ -41,7 +44,14 @@ export function createTrace(scene) {
   }
   const uScale = { value: 1 },
     uPunch = { value: 1 },
-    uWide = { value: 1 };
+    uWide = { value: 1 },
+    // paper: 0 the ice's coloured line, 1 pen, 2 pencil, 3 glow
+    uInk = { value: 0 },
+    uInkCol = { value: new THREE.Color(0x111318) },
+    uNib = { value: 0.75 },
+    uThin = { value: 0.14 },
+    uFast = { value: 0.55 };
+  const INKS = { pen: 1, pencil: 2, glow: 3 };
   // lies on the ice: the skater passes in front of it
   const mat = new THREE.MeshBasicMaterial({
     color: 0xffffff,
@@ -54,37 +64,75 @@ export function createTrace(scene) {
     polygonOffsetUnits: -4,
   });
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uScale = uScale;
-    sh.uniforms.uWide = uWide;
+    Object.assign(sh.uniforms, { uScale, uWide, uPunch, uInk, uInkCol, uNib, uThin, uFast });
+    // pen: a broad nib draws thick across its edge and a hairline along it, and thinner the faster it moves
     sh.vertexShader =
-      'uniform float uScale;\nuniform float uWide;\n' +
+      `uniform float uScale, uWide, uNib, uThin, uFast;
+uniform int uInk;
+attribute float aSpd;
+varying vec2 vInkP;
+` +
       sh.vertexShader.replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\n  transformed.x *= uWide;\n  transformed.xz *= uScale;',
+        `#include <begin_vertex>
+  float inkW = 1.0;
+  if (uInk == 1) {
+    float rot = atan(instanceMatrix[2].x, instanceMatrix[2].z);
+    inkW = mix(uThin, 1.0, abs(sin(rot - uNib))) * (1.0 - uFast * clamp(aSpd, 0.0, 1.0));
+  }
+  transformed.x *= uWide * inkW;
+  // on paper the marks overlap more, so a thin stroke reads as one line, not a string of beads
+  if (uInk > 0) transformed.z *= 1.7;
+  transformed.xz *= uScale;
+  vInkP = (instanceMatrix * vec4(transformed, 1.0)).xz;`,
       );
-    sh.uniforms.uPunch = uPunch;
     sh.fragmentShader =
-      'uniform float uPunch;\n' +
-      sh.fragmentShader.replace(
-        '#include <color_fragment>',
-        '#include <color_fragment>\n  diffuseColor.rgb = pow(diffuseColor.rgb, vec3(uPunch));',
-      );
+      `uniform float uPunch;
+uniform int uInk;
+uniform vec3 uInkCol;
+varying vec2 vInkP;
+float ih(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
+float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(ih(i), ih(i + vec2(1, 0)), f.x), mix(ih(i + vec2(0, 1)), ih(i + vec2(1, 1)), f.x), f.y); }
+` +
+      sh.fragmentShader
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+  diffuseColor.rgb = pow(diffuseColor.rgb, vec3(uPunch));
+  if (uInk > 0) diffuseColor.rgb = uInkCol * diffuse;`,
+        )
+        // pen: a crisp inked edge. pencil: graphite caught on the paper's tooth, broken up where it skips
+        .replace(
+          '#include <alphamap_fragment>',
+          `#include <alphamap_fragment>
+  if (uInk == 1) diffuseColor.a = smoothstep(0.3, 0.55, diffuseColor.a);
+  else if (uInk == 2) {
+    float g = inz(vInkP * 150.0) * 0.55 + inz(vInkP * 41.0) * 0.45;
+    diffuseColor.a *= smoothstep(0.1, 0.55, g) * 0.95;
+  }`,
+        );
   };
   const geo = new THREE.PlaneGeometry(T.width, T.length);
   geo.rotateX(-Math.PI / 2);
   const tmpM = new THREE.Matrix4(),
     tmpC = new THREE.Color();
+  let ink = null;
   let blocks = [],
     prints = [],
     palette = 0,
     speedFrac = 0;
   const bounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0, any: false };
-  function place(x, z, rot, colorInt, w) {
+  function place(x, z, rot, colorInt, w, spd) {
+    spd = spd || 0;
     const n = prints.length / F,
       k = n % BLOCK;
     let blk = blocks[Math.floor(n / BLOCK)];
     if (!blk) {
-      blk = new THREE.InstancedMesh(geo, mat, BLOCK);
+      // each block has its own copy of the little quad, to carry its own speeds
+      const g = geo.clone();
+      g.setAttribute('aSpd', new THREE.InstancedBufferAttribute(new Float32Array(BLOCK), 1));
+      blk = new THREE.InstancedMesh(g, mat, BLOCK);
       blk.setColorAt(0, tmpC.setHex(0xffffff));
       blk.count = 0;
       blk.frustumCulled = false;
@@ -97,10 +145,13 @@ export function createTrace(scene) {
     tmpM.set(c * w, 0, s, x, 0, 1, 0, 0.02, -s * w, 0, c, z, 0, 0, 0, 1);
     blk.setMatrixAt(k, tmpM);
     blk.setColorAt(k, tmpC.setHex(colorInt));
+    const sa = blk.geometry.attributes.aSpd;
+    sa.array[k] = spd;
+    sa.needsUpdate = true;
     blk.count = k + 1;
     blk.instanceMatrix.needsUpdate = true;
     blk.instanceColor.needsUpdate = true;
-    prints.push(x, z, rot, colorInt, w);
+    prints.push(x, z, rot, colorInt, w, Math.round(spd * 100) / 100);
     if (!bounds.any) {
       bounds.minX = bounds.maxX = x;
       bounds.minZ = bounds.maxZ = z;
@@ -157,6 +208,7 @@ export function createTrace(scene) {
               rot,
               colorAt(S.skated - pen.since),
               dashed ? 0.6 : width,
+              speedFrac,
             );
           }
         }
@@ -184,7 +236,7 @@ export function createTrace(scene) {
   // from high up the line is drawn fine and crisp: the soft edge is cut away as the view rises
   // two settings only: changing it rebuilds the shader
   const sharpen = (e) => {
-    const a = e > 0.6 ? 0.5 : 0.02;
+    const a = e > 0.6 && uInk.value !== 2 ? 0.5 : 0.02;
     if (mat.alphaTest !== a) {
       mat.alphaTest = a;
       mat.needsUpdate = true;
@@ -192,12 +244,22 @@ export function createTrace(scene) {
   };
   // brighter than white at night, so the glow picks the line up
   const glow = (k) => {
-    mat.color.setScalar(k);
+    mat.color.setScalar(ink && ink.glow ? ink.glow : k);
   };
   // deeper, more saturated colours on bright ice, where the pastel line would fade into it (1 leaves them as they are)
   const punch = (k, wide) => {
-    uPunch.value = k;
-    uWide.value = wide || 1;
+    uPunch.value = ink ? 1 : k;
+    uWide.value = ink ? ink.wide : wide || 1;
+  };
+  // paper (a CFG.paper entry), or null for the ice; call glow() and punch() again afterwards
+  const setInk = (c) => {
+    ink = c;
+    uInk.value = c ? INKS[c.ink] : 0;
+    if (!c) return;
+    uInkCol.value.setHex(c.inkColor);
+    if (c.nib !== undefined) uNib.value = c.nib;
+    if (c.thin !== undefined) uThin.value = c.thin;
+    if (c.fast !== undefined) uFast.value = c.fast;
   };
   return {
     place,
@@ -205,6 +267,7 @@ export function createTrace(scene) {
     sharpen,
     glow,
     punch,
+    ink: setInk,
     rosette,
     clear,
     colorAt,
@@ -226,8 +289,11 @@ export function createTrace(scene) {
       const src = prints.length > T.saveMax * F ? prints.slice(prints.length - T.saveMax * F) : prints;
       return src.map((v, i) => (i % F === 3 ? v : Math.round(v * 100) / 100));
     },
-    restore(arr) {
-      for (let i = 0; i + F - 1 < arr.length; i += F) place(arr[i], arr[i + 1], arr[i + 2], arr[i + 3], arr[i + 4]);
+    // f: how many numbers each mark was saved with (5 before v3-look37, which added the speed)
+    restore(arr, f) {
+      f = f || F;
+      for (let i = 0; i + f - 1 < arr.length; i += f)
+        place(arr[i], arr[i + 1], arr[i + 2], arr[i + 3], arr[i + 4], f > 5 ? arr[i + 5] : 0.5);
     },
   };
 }

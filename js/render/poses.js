@@ -38,6 +38,24 @@ const FLOWS = [
   LANDINGS[2],
 ];
 const ARMS = ['aLz', 'aRz', 'aLx', 'aRx', 'aLe', 'aRe'];
+// Rook. A positive x turn swings a limb backward; armL is his right arm (the bottom hand on the stick), armR his left.
+// Skating: both hands on the stick in front of him, the right low and forward, the left at the hip, so the blade
+// rests on the ice ahead of him (stick.js keeps it on the surface).
+// lean, drop, knee, thigh: how much further he leans, how much lower he sits, and how much more his knees and hips bend
+export const STANCE = {
+  aLz: 0.05,
+  aLx: -0.95,
+  aLe: -0.05,
+  aRz: -0.45,
+  aRx: 0.55,
+  aRe: -1.8,
+  lean: 0.5,
+  drop: 0.12,
+  knee: 0.45,
+  thigh: 0.25,
+};
+// landing a jump: the stick thrown up in his right hand, the left arm out
+export const CELEBRATE = { aLz: -2.75, aLx: -0.15, aLe: -0.15, aRz: 1.15, aRx: -0.2, aRe: -0.4 };
 const CARVE = { from: 0.1, full: 0.4, minSpeed: 1.2, easeIn: 2.6, easeOut: 1.1, change: [1.6, 2.4], hold: [0.6, 2.2] }; // from/full: how fast her path is turning (rad/s) where the arms begin to flow and where they fully do, at minSpeed m/s or more; easeIn, easeOut: how gently they come in and go back (1/s); change, hold: seconds to move to the next gesture and to rest in it
 
 export function createPoser(model) {
@@ -84,6 +102,7 @@ export function createPoser(model) {
     flowRest = CARVE.hold[0] + Math.random() * (CARVE.hold[1] - CARVE.hold[0]);
   };
   return function update(game, dt, now) {
+    const hockey = !!model.rig.hockey;
     const S = game.S,
       sp = game.speed(),
       m = S.move,
@@ -160,7 +179,7 @@ export function createPoser(model) {
     // only on a straight line do they stay still, or pump when she is pushing for speed
     {
       const want =
-          S.grounded && !m && sp >= CARVE.minSpeed
+          S.grounded && !m && sp >= CARVE.minSpeed && !hockey
             ? clamp((Math.abs(S.turn) - CARVE.from) / (CARVE.full - CARVE.from), 0, 1)
             : 0,
         was = carve;
@@ -178,6 +197,21 @@ export function createPoser(model) {
         T[k] += (flow[k] - T[k]) * w;
       }
     }
+    // Rook skates low with his hands on the stick, which sways a little with each stride
+    if (hockey && S.grounded && !m) {
+      const k = 1 - 0.6 * hustle;
+      for (const key of ARMS) T[key] += (STANCE[key] - T[key]) * k;
+      T.aLx += 0.12 * sw * g;
+      T.aRx += 0.1 * sw * g;
+      T.lean += STANCE.lean;
+      T.bodyY -= STANCE.drop;
+      T.lLx -= STANCE.lean + STANCE.thigh;
+      T.lRx -= STANCE.lean + STANCE.thigh;
+      T.lLk += STANCE.knee;
+      T.lRk += STANCE.knee;
+      T.lLz -= pL * 0.18 * g;
+      T.lRz += pR * 0.18 * g;
+    }
     let rate = 13;
     if (!S.grounded) {
       set(TUCK);
@@ -190,7 +224,7 @@ export function createPoser(model) {
       // the landing: free leg extended behind, arms in this landing's shape; held, then eased back as she skates on
       if (S.landT < lastLandT) {
         pick = (pick + 1 + Math.floor(Math.random() * (LANDINGS.length - 1))) % LANDINGS.length;
-        arms = Math.random() < 0.5 ? LANDINGS[pick] : mirror(LANDINGS[pick]);
+        arms = hockey ? CELEBRATE : Math.random() < 0.5 ? LANDINGS[pick] : mirror(LANDINGS[pick]);
       }
       const w = (S.landT < LAND_HOLD ? 1 : 1 - (S.landT - LAND_HOLD) / LAND_EASE) * (1 - hustle),
         L = Object.assign(

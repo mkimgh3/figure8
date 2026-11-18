@@ -35,9 +35,11 @@ export const CFG = {
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
   stop: { minSpeed: 2.5, liftMs: 250, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
   // Spiral and hydroblade: the left thumb steers but cannot push. She slows as she glides (glide, 1/s; the hydroblade drags
-  // a little more), and comes out of the move once her speed is below endSpeed (m/s), even with the finger down. So the
-  // faster she goes in, the longer she can hold it. Going in gives her a small push of `kick` (m/s), over about 0.25 s.
-  held: { glide: 0.32, endSpeed: 2.5, kick: 1.5 },
+  // a little more, hydroDrag), and comes out of the move once her speed is below endSpeed (m/s), even with the finger down,
+  // or after maxTime seconds. So the faster she goes in, the longer she can hold it. Going in gives her a small push of
+  // `kick` (m/s), over about 0.25 s. (v3-look37: glide 0.32 to 0.1 and endSpeed 2.5 to 1.6: from 8 m/s a spiral lasts
+  // about 16 s instead of 4.)
+  held: { glide: 0.1, hydroDrag: 0.04, endSpeed: 1.6, kick: 1.5, maxTime: 40 },
   twirl: { startTurn: 3.1, afterLeapMs: 3000 }, // a circle is twizzles for afterLeapMs after a split leap; any other time it is part of choreography
   // Choreography: the right thumb down holdMs with nothing else going on (held still, or dragged further or slower than a
   // flick), or still down afterLand seconds after a jump lands, or after the move it started is over. It lasts while that
@@ -144,9 +146,32 @@ export const CFG = {
     portraitSpan: 10,
     portraitEase: 1,
   },
-  // Times of day. Each is a complete lighting setup; the menu cycles through them. sun: [elevation, azimuth] in degrees (azimuth 0 = from the south, 90 = from the west).
+  // Times of day: dawn, day and dusk. Each is a complete lighting setup; the front page and the menu choose one.
+  // sun: [elevation, azimuth] in degrees (azimuth 0 = from the south, 90 = from the west).
+  // linePunch deepens the line's colours (1 = as painted); lineWide draws it wider. spot: the two follow spots.
+  // (v3-look37: Golden hour, Blue hour and Night are gone; dusk is a deep blue dark with the follow spots.)
   looks: [
-    // linePunch deepens the line's colours (1 = as painted); lineWide draws it wider.
+    {
+      name: 'Dawn',
+      glow: [0, 0.5, 9],
+      lineGlow: 1,
+      linePunch: 1.2,
+      lineWide: 1.35,
+      sun: [7, -70],
+      sunColor: 0xffc4d2,
+      sunPower: 2.4,
+      sky: [0x7e98d6, 0xffd6de, 0xd9cfe6],
+      hemi: [0xf0e4f6, 0xcfd3ec, 1.0],
+      ice: 0xece8f6,
+      deep: 0x5e6ab4,
+      exposure: 1.0,
+      cloud: 0,
+      aurora: 0,
+      snow: 0,
+      mist: 0,
+      mistColor: 0xfff0f6,
+      stars: 0.1,
+    },
     {
       name: 'Day',
       glow: [0, 0.5, 9],
@@ -169,98 +194,83 @@ export const CFG = {
       stars: 0,
     },
     {
-      name: 'Golden hour',
-      glow: [0, 0.5, 9],
-      lineGlow: 1,
-      sun: [11, 60],
-      sunColor: 0xffb46e,
-      sunPower: 3.2,
-      sky: [0x7194d6, 0xffcfa0, 0xe9cfb6],
-      hemi: [0xdfe6ff, 0xd9c2b0, 0.9],
-      ice: 0xf2e8e0,
-      deep: 0x5f78b8,
-      exposure: 1.0,
-      cloud: 0,
-      aurora: 0,
-      snow: 0,
-      mist: 0,
-      mistColor: 0xffe2c4,
-      stars: 0,
-    },
-    {
-      name: 'Blue hour',
-      glow: [0.6, 0.25, 1.3],
-      lineGlow: 1.5,
-      night: true,
-      sun: [-3, 70],
-      sunColor: 0x8fa6ff,
-      sunPower: 0.3,
-      sky: [0x1d2b66, 0x9a8fd6, 0x39407a],
-      hemi: [0x9aaaf0, 0x34407a, 1.45],
-      ice: 0xb3c0ea,
-      deep: 0x30449a,
-      exposure: 1.1,
-      cloud: 0,
-      aurora: 0.2,
-      snow: 0,
-      mist: 0,
-      mistColor: 0xc2c4f4,
-      stars: 0.3,
-    },
-    {
-      name: 'Night',
+      name: 'Dusk',
       spot: 1,
       glow: [0.65, 0.25, 1.3],
       lineGlow: 1.8,
       night: true,
       sun: [38, -30],
-      sunColor: 0xb3c6ff,
-      sunPower: 0.7,
-      sky: [0x040818, 0x18264f, 0x0a1230],
-      hemi: [0x4a5ca8, 0x0e1430, 0.5],
-      ice: 0x6a7fb8,
-      deep: 0x1c2a70,
+      sunColor: 0xaec2ff,
+      sunPower: 0.75,
+      sky: [0x0a1648, 0x2b3f95, 0x0f1c56],
+      hemi: [0x5a72d0, 0x16225a, 0.62],
+      ice: 0x7a90d0,
+      deep: 0x203a98,
       exposure: 1.15,
       cloud: 0,
-      aurora: 1,
+      aurora: 0.35,
       snow: 0,
       mist: 0,
       mistColor: 0x7c8fe0,
-      stars: 1,
-    },
-    {
-      name: 'Dawn',
-      glow: [0, 0.5, 9],
-      lineGlow: 1,
-      linePunch: 1.2,
-      lineWide: 1.35,
-      sun: [7, -70],
-      sunColor: 0xffc4d2,
-      sunPower: 2.4,
-      sky: [0x7e98d6, 0xffd6de, 0xd9cfe6],
-      hemi: [0xf0e4f6, 0xcfd3ec, 1.0],
-      ice: 0xece8f6,
-      deep: 0x5e6ab4,
-      exposure: 1.0,
-      cloud: 0,
-      aurora: 0,
-      snow: 0,
-      mist: 0,
-      mistColor: 0xfff0f6,
-      stars: 0.1,
+      stars: 0.7,
     },
   ],
+  // Places. camera: how much further back the view sits. paper: a blank sheet instead of the lake (see `paper` below).
   places: [
     { name: 'Open lake', trees: false },
-    { name: 'Islands', trees: true, camera: 1.35 }, // camera: how much further back the view sits
+    { name: 'Islands', trees: true, camera: 1.35 },
+    { name: 'Paper', trees: false, paper: true },
   ],
+  // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.
+  // ink: 'pencil' (thin graphite that the paper's tooth breaks up), 'pen' (a broad calligraphy nib: thick across the
+  // nib, a hairline along it, thinner the faster she goes) or 'glow' (white light). nib: the pen's angle (radians from
+  // screen-up); thin/thick: its stroke as a share of the full width; fast: how much speed thins it; wide: the line's width.
+  paper: {
+    Dawn: { surface: 0xe8d9bd, grain: 1, ink: 'pencil', inkColor: 0x46464e, wide: 0.85, night: false },
+    Day: {
+      surface: 0xffffff,
+      grain: 0,
+      ink: 'pen',
+      inkColor: 0x111318,
+      wide: 3.2,
+      nib: 0.75,
+      thin: 0.12,
+      fast: 0.45,
+      night: false,
+    },
+    Dusk: {
+      surface: 0x050506,
+      grain: 0.15,
+      ink: 'glow',
+      inkColor: 0xffffff,
+      wide: 1.4,
+      glow: 1.5,
+      bloom: [0.5, 0.2, 1.2],
+      night: true,
+    },
+  },
   // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop.
   quality: {
     High: { dpr: 3, shadow: 2048, reflection: true, snow: 0, mist: 0, glow: true },
     Balanced: { dpr: 2, shadow: 1024, reflection: true, snow: 0, mist: 0, glow: true },
     Low: { dpr: 1.5, shadow: 1024, reflection: false, snow: 0, mist: 0, glow: false },
   },
-  // Ways to play, chosen in the menu.
+  // The three modes on the front page. Olympic: falls count, and the total stops at 9999.9. Infinite: she never falls (a
+  // bad landing is a stumble), the score card is one big number, and the total has no limit. Tutorial: the lessons, all
+  // of a skill's steps listed at once, and stumbles instead of falls. Each mode keeps its own score.
+  play: {
+    names: ['Olympic', 'Infinite', 'Tutorial'],
+    about: [
+      'Judged like the real thing. Falls cost points.',
+      'No falls, no limit. Skate and score forever.',
+      'Learn each skill step by step. No falls.',
+    ],
+    forgiving: [false, true, true],
+  },
+  // A stumble, in Infinite and Tutorial: a bad landing she rides out instead of falling. She wobbles for `seconds`, keeps
+  // `keep` of her speed and half her speed bonus, and the jump scores at `quality` of its base.
+  stumble: { seconds: 0.75, keep: 0.8, quality: 0.5 },
+  // Ways to play, chosen in the menu (Menu > Play).
   modes: {
     names: ['Free skate', 'Jump park', 'Race', 'Duet'],
     // Jump park: one launch pad in every `cell` metres of ice, `radius` wide; it throws her `boost` times faster off the ice than her own jump.

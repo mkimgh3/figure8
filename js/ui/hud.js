@@ -8,13 +8,13 @@ const el = (tag, cls, text) => {
   return e;
 };
 // one decimal, a real minus sign, and never wider than a score card (-99.9 to 99.9); the running total goes to 9999.9
+// in Olympic mode and has no limit in Infinite
 const num = (v, most = 99.9) => {
   const x = Math.max(-most, Math.min(most, +v || 0));
   return (x < 0 ? '\u2212' : '') + Math.abs(x).toFixed(1);
 };
-const TOTAL_MAX = 9999.9;
-// four equal black cards; with labels for the live score card, without for the scoreboard
-function cards(e, labels, size) {
+// four equal black cards; with labels for the live score card, without for the scoreboard. noTotal: Base, GOE and Art only
+function cards(e, labels, size, noTotal) {
   const box = el('div', 'cards' + (size ? ' ' + size : labels ? '' : ' sm'));
   [
     ['Base', e.base, ''],
@@ -22,6 +22,7 @@ function cards(e, labels, size) {
     ['Art', e.art, e.art > 0 ? 'up' : e.art < 0 ? 'dn' : ''],
     ['Total', e.pts, 'tot'],
   ].forEach(([k, v, cls]) => {
+    if (noTotal && cls === 'tot') return;
     const c = el('div', cls);
     if (labels) c.appendChild(el('span', '', k));
     c.appendChild(el('b', '', num(v)));
@@ -51,7 +52,10 @@ export function createHud(coarse) {
     chipKey = null;
   const bar = $('cbar'),
     tag = $('padtag');
-  let tagT = 0;
+  let tagT = 0,
+    // Infinite mode: no limit on the total, and the score card is one big number over Base, GOE and Art
+    totalMax = 9999.9,
+    infMode = false;
   // the running total's font shrinks when the number is too wide for the score chip (each Screen style sizes both)
   const totalEl = $('total'),
     scoreEl = $('score');
@@ -66,13 +70,17 @@ export function createHud(coarse) {
       totalEl.style.fontSize = (parseFloat(getComputedStyle(totalEl).fontSize) * room) / w + 'px';
   }
   hint.textContent = coarse
-    ? 'Left thumb steers. Right finger: double tap to jump. Tap Tutorial to learn each skill step by step.'
+    ? 'Left thumb steers. Right finger: double tap to jump. Tutorial mode, on the front page, teaches every skill.'
     : 'WASD steers. Space jumps, A or D rotates in the air.';
   return {
     // An announcement: a big line and a small one. Or, for a scored element, its name over four black cards: Base, GOE, Art, Total.
     say(big, small, hold, card) {
       pop.textContent = '';
-      if (card) {
+      pop.classList.toggle('inf', !!card && infMode);
+      if (card && infMode) {
+        pop.appendChild(el('div', 'ptotal', (card.pts > 0 ? '+' : '') + num(card.pts, Infinity)));
+        pop.appendChild(cards(card, true, 'inf', true));
+      } else if (card) {
         pop.appendChild(el('div', 'pname', card.name));
         pop.appendChild(cards(card, true));
       } else {
@@ -81,6 +89,15 @@ export function createHud(coarse) {
       }
       pop.style.opacity = 1;
       popT = hold;
+    },
+    // the front page's mode: 'infinite' takes the limit off the total and shows each score as one big number
+    mode(name) {
+      infMode = name === 'infinite';
+      totalMax = infMode ? Infinity : 9999.9;
+      shown = target;
+      const text = num(shown, totalMax);
+      totalEl.textContent = text;
+      fitTotal(text.length);
     },
     // fit the total again, after the Screen style has changed its size
     refit() {
@@ -148,7 +165,7 @@ export function createHud(coarse) {
     board(open, st) {
       document.body.classList.toggle('paused', open);
       if (!open) return;
-      $('btotal').textContent = num(st.total, TOTAL_MAX);
+      $('btotal').textContent = num(st.total, totalMax);
       $('bsum').textContent =
         st.jumps +
         (st.jumps === 1 ? ' jump' : ' jumps') +
@@ -185,7 +202,7 @@ export function createHud(coarse) {
     update(dt, speedMs, colorHex) {
       if (shown !== target) {
         shown = Math.abs(target - shown) < 0.05 ? target : shown + (target - shown) * Math.min(1, dt * 9);
-        const text = num(shown, TOTAL_MAX);
+        const text = num(shown, totalMax);
         $('total').textContent = text;
         if (text.length !== totalLen) fitTotal(text.length);
       }
