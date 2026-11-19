@@ -4,7 +4,12 @@
 //   clouds   soft cloud shadows drifting across the ice
 //   aurora   at night, bands of coloured light reflected in the ice
 // The ice writes no depth, so the skater's mirror image (drawn just below the surface) shows through it as a reflection.
+// Rolling ice (v3-look47): a second mesh round the view, rings close together at the middle and further apart outwards,
+// lifted by the height field (core/terrain.js) in its vertex shader and lit by its slope. The flat plane leaves a hole
+// where it lies.
 import * as THREE from './three.js';
+import { CFG } from '../config.js';
+import { ICE_GLSL, uWaves } from '../core/terrain.js';
 
 function canvasTex(size, draw, srgb) {
   const c = document.createElement('canvas');
@@ -183,6 +188,10 @@ export function createIce(renderer) {
     uGlitter: { value: 0 },
     uFocus: { value: new THREE.Vector2() },
     uPx: { value: 1 },
+    // rolling ice: where the rolling mesh is (x, z) and how far it reaches (0: not there), so the flat plane leaves it
+    // a hole; and how high the waves are
+    uHole: { value: new THREE.Vector3() },
+    uWaves,
   };
   const mat = new THREE.MeshStandardMaterial({
     color: 0xd9e9f8,
@@ -193,7 +202,7 @@ export function createIce(renderer) {
     envMapIntensity: 0.35,
     depthWrite: false,
   });
-  mat.onBeforeCompile = (sh) => {
+  const base = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
@@ -206,7 +215,7 @@ export function createIce(renderer) {
         '#include <common>',
         `#include <common>
 varying vec3 vWPos;
-uniform float uTime, uCloud, uAurora, uOverview, uGlitter, uPx; uniform vec2 uFocus;
+uniform float uTime, uCloud, uAurora, uOverview, uGlitter, uPx; uniform vec2 uFocus; uniform vec3 uHole;
 uniform sampler2D uDeep; uniform vec3 uDepthTint, uSunDir, uSunCol, uAur1, uAur2; uniform vec2 uWind;
 float h21(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
 float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -268,11 +277,130 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
   } }`,
       );
   };
+  mat.onBeforeCompile = (sh) => {
+    base(sh);
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <clipping_planes_fragment>',
+      `#include <clipping_planes_fragment>
+  if (uHole.z > 0.0 && distance(vWPos.xz, uHole.xy) < uHole.z) discard;`,
+    );
+  };
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000), mat);
   mesh.rotation.x = -Math.PI / 2;
   mesh.receiveShadow = true;
-  mesh.renderOrder = -2;
+  mesh.renderOrder = -3;
   surface.repeat.set(40000 / 16, 40000 / 16);
   rough.repeat.copy(surface.repeat);
-  return { mesh, uniforms: U, material: mat };
+
+  // ---- rolling ice: the same material, lifted by the height field. Its textures are laid by world position, as on the
+  // plane (one tile every 16 m), so the two meet without a seam; the waves ease out towards its rim.
+  const G = CFG.waves.grid,
+    // the short waves ease out from x to y metres from the middle, and all of them from z to w
+    uFade = { value: new THREE.Vector4(G.detail[0], G.detail[1], G.radius * G.fade[0], G.radius * G.fade[1]) },
+    rmat = mat.clone();
+  rmat.color = mat.color;
+  rmat.onBeforeCompile = (sh) => {
+    base(sh);
+    sh.uniforms.uFade = uFade;
+    sh.uniforms.uRelief = { value: CFG.waves.relief };
+    sh.uniforms.uRise = { value: CFG.waves.rise };
+    // seen from above, a slope hardly changes how the ice is lit, so the waves are drawn up a little: slopes that face
+    // the sun brighter, slopes that face away darker, crests paler and hollows a deeper blue
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vRollN; varying float vRollH; uniform float uRelief, uRise;',
+      )
+      // the glare of the sun or a follow spot off a slope turned to the view: kept from blowing out into a white blur
+      .replace(
+        '#include <aomap_fragment>',
+        '#include <aomap_fragment>\nreflectedLight.directSpecular = min(reflectedLight.directSpecular, vec3(0.12));',
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+  diffuseColor.rgb *= clamp((1.0 + uRelief * dot(vRollN.xz, normalize(uSunDir.xz))) * (1.0 + uRise * vRollH), 0.4, 1.8);`,
+      );
+    sh.vertexShader = sh.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform float uWaves; uniform vec4 uFade; varying vec3 vRollN; varying float vRollH;' +
+          ICE_GLSL,
+      )
+      .replace(
+        '#include <uv_vertex>',
+        `vec2 iwp = (modelMatrix * vec4(position, 1.0)).xz;
+  float idist = distance(iwp, modelMatrix[3].xz), idet = 1.0 - smoothstep(uFade.x, uFade.y, idist);
+  float iamp = uWaves * (1.0 - smoothstep(uFade.z, uFade.w, idist));
+#include <uv_vertex>
+#ifdef USE_MAP
+  vMapUv = vec2(iwp.x, -iwp.y) / 16.0;
+#endif
+#ifdef USE_ROUGHNESSMAP
+  vRoughnessMapUv = vec2(iwp.x, -iwp.y) / 16.0;
+#endif`,
+      )
+      .replace(
+        '#include <beginnormal_vertex>',
+        `vec3 objectNormal = normalize(vec3(
+    -(iceRawD(iwp + vec2(0.25, 0.0), idet) - iceRawD(iwp - vec2(0.25, 0.0), idet)) * 2.0 * iamp, 1.0,
+    -(iceRawD(iwp + vec2(0.0, 0.25), idet) - iceRawD(iwp - vec2(0.0, 0.25), idet)) * 2.0 * iamp));
+  vRollN = objectNormal;
+#ifdef USE_TANGENT
+  vec3 objectTangent = vec3(tangent.xyz);
+#endif`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvRollH = iamp * iceRawD(iwp, idet);\ntransformed.y += vRollH;',
+      );
+  };
+  rmat.customProgramCacheKey = () => 'rolling-ice';
+  // rings round the middle: `sides` points each, closer together near the middle where she is
+  const pos = [0, 0, 0],
+    idx = [],
+    S = G.sides;
+  let r = 0,
+    rings = 0;
+  while (r < G.radius) {
+    r = Math.min(G.radius, r + G.step + G.grow * r);
+    rings++;
+    for (let i = 0; i < S; i++) pos.push(Math.cos((i / S) * Math.PI * 2) * r, 0, -Math.sin((i / S) * Math.PI * 2) * r);
+  }
+  for (let i = 0; i < S; i++) idx.push(0, 1 + i, 1 + ((i + 1) % S));
+  for (let j = 1; j < rings; j++)
+    for (let i = 0; i < S; i++) {
+      const a = 1 + (j - 1) * S + i,
+        b = 1 + (j - 1) * S + ((i + 1) % S),
+        c = a + S,
+        d = b + S;
+      idx.push(a, c, b, b, c, d);
+    }
+  const rgeo = new THREE.BufferGeometry();
+  rgeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  rgeo.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(pos.length).fill(0), 3));
+  rgeo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  rgeo.setIndex(idx);
+  const rolling = new THREE.Mesh(rgeo, rmat);
+  rolling.receiveShadow = true;
+  rolling.renderOrder = -2;
+  rolling.frustumCulled = false;
+  rolling.visible = false;
+  // every frame: centre the rolling ice on (x, z), or put it away on flat ice
+  const follow = (x, z, show) => {
+    const on = show && uWaves.value > 0;
+    rolling.visible = on;
+    rolling.position.set(x, 0, z);
+    U.uHole.value.set(x, z, on ? G.radius - 0.5 : 0);
+  };
+  return {
+    mesh,
+    rolling,
+    follow,
+    uniforms: U,
+    material: mat,
+    set envMapIntensity(v) {
+      mat.envMapIntensity = rmat.envMapIntensity = v;
+    },
+  };
 }

@@ -1,11 +1,14 @@
 // Ice spray: small white flecks thrown up by hard edges, landings, spins and falls.
 import * as THREE from './three.js';
+import { iceY } from '../core/terrain.js';
 export function createSpray(scene) {
   const N = 320,
     pos = new Float32Array(N * 3).fill(-50),
     vel = new Float32Array(N * 3),
     life = new Float32Array(N),
-    still = new Uint8Array(N);
+    still = new Uint8Array(N),
+    // the ice under each fleck where it was thrown up, so it comes down onto it (rolling ice)
+    floor = new Float32Array(N);
   let next = 0;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -47,7 +50,8 @@ export function createSpray(scene) {
         const a = Math.atan2(dx, dz) + (Math.random() - 0.5) * spread,
           v = speed * (0.4 + Math.random() * 0.8);
         pos[k] = x + (Math.random() - 0.5) * 0.15;
-        pos[k + 1] = 0.03;
+        floor[k / 3] = iceY(x, z) + 0.02;
+        pos[k + 1] = floor[k / 3] + 0.01;
         pos[k + 2] = z + (Math.random() - 0.5) * 0.15;
         vel[k] = Math.sin(a) * v;
         vel[k + 1] = 0.6 + Math.random() * 1.6;
@@ -63,7 +67,7 @@ export function createSpray(scene) {
       life[next] = sec;
       next = (next + 1) % N;
       pos[k] = x;
-      pos[k + 1] = y;
+      pos[k + 1] = y + iceY(x, z);
       pos[k + 2] = z;
     },
     update(dt) {
@@ -83,7 +87,7 @@ export function createSpray(scene) {
         vel[k] *= f;
         vel[k + 2] *= f;
         pos[k] += vel[k] * dt;
-        pos[k + 1] = Math.max(0.02, pos[k + 1] + vel[k + 1] * dt);
+        pos[k + 1] = Math.max(floor[i], pos[k + 1] + vel[k + 1] * dt);
         pos[k + 2] += vel[k + 2] * dt;
       }
       if (any) geo.attributes.position.needsUpdate = true;

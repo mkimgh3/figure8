@@ -3,14 +3,21 @@ import { CFG } from '../config.js';
 import { TAU, clamp, wrap } from '../core/math.js';
 import { createFall } from '../moves/fall.js';
 import { createStumble } from '../moves/stumble.js';
+import { iceY, iceSlope, uWaves } from '../core/terrain.js';
 
 const COUNT = ['', 'Single', 'Double', 'Triple', 'Quad', 'Quint'];
 
 export function createSkater(emit) {
   const S = {
     x: 0,
+    // y: how high she is above the ice under her; gy: how high that ice is, and gx, gz its slope (rise per metre along x
+    // and z; all 0 on flat ice); wy: her height in the world while she is in the air (v3-look47)
     y: 0,
     z: 0,
+    gy: 0,
+    gx: 0,
+    gz: 0,
+    wy: 0,
     vx: 0,
     vz: 0,
     vy: 0,
@@ -49,7 +56,8 @@ export function createSkater(emit) {
     // Infinite and Tutorial: falls and crashes become stumbles
     forgiving: false,
   };
-  const C = CFG.steer;
+  const C = CFG.steer,
+    SLOPE = [0, 0];
   const speed = () => Math.hypot(S.vx, S.vz);
   const ensureSpeed = (min) => {
     if (speed() < min) {
@@ -108,6 +116,7 @@ export function createSkater(emit) {
       (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed + S.bonus * CFG.jump.vyPerBonus) *
       (boost || 1);
     S.grounded = false;
+    S.wy = S.gy;
     S.spin = 0;
     S.goal = 0;
     S.fingerTurn = 0;
@@ -297,6 +306,17 @@ export function createSkater(emit) {
         S.vx *= f;
         S.vz *= f;
       }
+      // rolling ice: downhill speeds her up and uphill slows her, along the way she is going (it never turns her, and
+      // never stops her dead or sends her back)
+      if (uWaves.value) {
+        const v = speed();
+        if (v > 0.05) {
+          const a = (-CFG.waves.pull * 9.81 * (S.gx * S.vx + S.gz * S.vz)) / v,
+            nv = Math.max(Math.min(v, CFG.waves.minSpeed), v + a * dt);
+          S.vx *= nv / v;
+          S.vz *= nv / v;
+        }
+      }
     }
     sp = speed();
     if (sp > 0.25 && !(S.move && S.move.holdFacing))
@@ -310,13 +330,19 @@ export function createSkater(emit) {
         (S.move && S.move.id !== 'fall' ? 1.2 * dt : 0); // recent curving and figures
     S.x += S.vx * dt;
     S.z += S.vz * dt;
+    S.gy = iceY(S.x, S.z);
+    iceSlope(S.x, S.z, SLOPE);
+    S.gx = SLOPE[0];
+    S.gz = SLOPE[1];
     if (!S.grounded) {
       S.airT += dt;
       S.spin += (S.goal - S.spin) * (1 - Math.exp(-20 * dt)); // she turns exactly as far as the finger has
       S.vy -= CFG.jump.gravity * dt;
-      S.y += S.vy * dt;
+      // she flies through the world: over a hollow she is higher above the ice, over a rise she comes down sooner
+      S.wy += S.vy * dt;
+      S.y = S.wy - S.gy;
       if (S.y <= 0) land();
-    }
+    } else S.wy = S.gy;
     if (S.boostT > 0) S.boostT -= dt;
     S.clock += dt;
     if (S.bonus > 0) S.bonus = Math.max(0, S.bonus - CFG.bonus.fade * dt);

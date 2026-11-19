@@ -3,6 +3,7 @@
 // lengthens downward and fades. The ice writes no depth, so they show through it, shifting against the line as the view moves.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
+import { iceY } from '../core/terrain.js';
 
 export function createIcicles(scene) {
   const K = CFG.icicles,
@@ -75,11 +76,12 @@ export function createIcicles(scene) {
         b = 0.35 + 0.65 * tint.b,
         jx = (Math.random() - 0.5) * 0.05,
         jz = (Math.random() - 0.5) * 0.05,
-        v = K.sink * (0.6 + Math.random() * 0.9);
+        v = K.sink * (0.6 + Math.random() * 0.9),
+        gy = iceY(x, z);
       for (let i = 0; i < K.perSpot; i++) {
         const k = next * 3;
         pos[k] = x + jx;
-        pos[k + 1] = -0.02;
+        pos[k + 1] = gy - 0.02;
         pos[k + 2] = z + jz;
         base[k] = r;
         base[k + 1] = g;

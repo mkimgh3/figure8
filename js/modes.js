@@ -4,6 +4,7 @@
 // (The duet partner is in duet.js.)
 import * as THREE from './render/three.js';
 import { CFG } from './config.js';
+import { iceY, iceSlope } from './core/terrain.js';
 
 const glow = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
 const solid = (color, emissive) =>
@@ -14,6 +15,16 @@ const solid = (color, emissive) =>
     roughness: 0.45,
     metalness: 0.2,
   });
+// rolling ice: a flat thing laid on the ice at (x, z), lifted to it and tilted with it
+const UP = new THREE.Vector3(0, 1, 0),
+  FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2),
+  _n = new THREE.Vector3(),
+  _g = [0, 0];
+function layFlat(g, x, z, lift) {
+  iceSlope(x, z, _g);
+  g.position.set(x, iceY(x, z) + lift, z);
+  g.quaternion.setFromUnitVectors(UP, _n.set(-_g[0], 1, -_g[1]).normalize()).multiply(FLAT);
+}
 const hash = (a, b) => {
   const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
   return s - Math.floor(s);
@@ -67,8 +78,7 @@ export function createPads(scene, game, say) {
         for (let j = -1; j <= 1; j++) {
           const p = pads[k++],
             q = at(cx + i, cz + j);
-          p.g.position.x = q[0];
-          p.g.position.z = q[1];
+          layFlat(p.g, q[0], q[1], 0.03);
           const u = (t * 0.9 + k * 0.13) % 1;
           p.pulse.scale.setScalar(0.6 + u * 1.25);
           p.pulse.material.opacity = 0.8 * (1 - u); // a ring that keeps rising out of the pad
@@ -132,6 +142,8 @@ export function createRace(scene, game, say, getTotal, bests) {
     for (let i = 0; i < n; i++) {
       const m = make();
       m.visible = false;
+      // its height above the ice, kept for when it is laid out on rolling ice
+      m.userData.y0 = m.position.y;
       group.add(m);
       a.push(m);
     }
@@ -228,7 +240,7 @@ export function createRace(scene, game, say, getTotal, bests) {
       const p = world(f, s);
       m.position.x = p[0];
       m.position.z = p[1];
-      if (y !== undefined) m.position.y = y;
+      m.position.y = (y !== undefined ? y : m.userData.y0 || 0) + iceY(p[0], p[1]);
       m.rotation.y = o.h;
       m.visible = true;
       return m;

@@ -866,6 +866,14 @@ body.paused #vig {
   background: var(--ink);
   color: #fff;
 }
+/* four places (v3-look47): each name stays on one line */
+#fcard .seg button {
+  white-space: nowrap;
+}
+#fcard #fplace button {
+  padding: 0 2px;
+  letter-spacing: 0;
+}
 #fturn {
   margin: -6px 0 2px;
   font-size: 11px;
@@ -1072,7 +1080,7 @@ body.paused #zoom {
 .ui-broadcast #total {
   font-size: 30px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 .ui-broadcast #sub,
 .ui-broadcast #tlab {

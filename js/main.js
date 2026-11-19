@@ -1,6 +1,7 @@
 // Wires the parts together and runs the frame loop. Game rules live in sim/, moves/, scoring.js and input/tricks.js.
 import { CFG } from './config.js';
 import { TAU } from './core/math.js';
+import { setWaves, iceY } from './core/terrain.js';
 import { TapTracker } from './input/recognizer.js';
 import { createTricks } from './input/tricks.js';
 import { createInput } from './input/pointers.js';
@@ -29,7 +30,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look46';
+const BUILD = 'v3-look47';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -280,6 +281,9 @@ const applyScene = () => {
     place = CFG.places[placeIx],
     sheet = place.paper ? CFG.paper[look.name] : null;
   paperOn = !!sheet;
+  // rolling ice, or flat; where she stands follows at once
+  setWaves(place.waves);
+  S.gy = S.wy = iceY(S.x, S.z);
   world.setLook(look);
   world.setPaper(sheet);
   world.setPlace(place);

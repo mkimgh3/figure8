@@ -12,6 +12,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { HIP } from './model.js';
 import { createHair } from './hair.js';
 import { starDot } from './atmos.js';
+import { ICE_GLSL, uWaves } from '../core/terrain.js';
 
 const LIFT = 0.045;
 const WIND = { x: 1.8, y: 0.75 }; // a breeze over the lake, metres per second (same way the snow drifts)                                   // how far the blades raise her above where her shoes were
@@ -117,10 +118,13 @@ function costumeMaterial(map, normalMap, mask, U, look) {
 
 // Never below the ice (v3-look43): cloth that would pass through it in a deep crouch lies on it instead. Goes after
 // skinning. The mirror image is drawn flipped (its model matrix turns it upside down), so there the same rule keeps it
-// below the surface.
+// below the surface. On rolling ice (v3-look47) the surface is the height field's (ICE_DECL goes in the shader's
+// declarations).
+const ICE_DECL = '\nuniform float uWaves;' + ICE_GLSL;
 const ABOVE_ICE = `
 { vec4 wq = modelMatrix * vec4(transformed, 1.0); float fl = sign(determinant(mat3(modelMatrix)));
-  if (wq.y * fl < 0.012) { wq.y = 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; } }`;
+  float gy = uWaves > 0.0 ? uWaves * iceRaw(wq.xz) : 0.0;
+  if ((wq.y - gy) * fl < 0.012) { wq.y = gy + 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; } }`;
 
 // A mirror crystal: a tiny flat facet (n: its normal, tilted at random) that reflects the sky and flashes white when it
 // turns to the sun or a spotlight, twinkling a little as it moves. Used on Tesa's bodice and gown.
@@ -163,8 +167,9 @@ function furShells(base, o) {
         envMapIntensity: 0.7,
       });
     m.onBeforeCompile = (sh) => {
+      sh.uniforms.uWaves = uWaves;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec2 vFur, vFr;')
+        .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec2 vFur, vFr;' + ICE_DECL)
         .replace('#include <morphnormal_vertex>', '#include <morphnormal_vertex>\nvec3 furN = normalize(objectNormal);')
         .replace(
           '#include <morphtarget_vertex>',
@@ -404,8 +409,12 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = U.uTime;
     sh.uniforms.uSparkle = U.uSparkle;
+    sh.uniforms.uWaves = uWaves;
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec3 vSk;\nvarying vec2 vFu;')
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute vec2 furUv;\nvarying vec3 vSk;\nvarying vec2 vFu;' + ICE_DECL,
+      )
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSk = position * 160.0;\nvFu = furUv;')
       .replace('#include <skinning_vertex>', '#include <skinning_vertex>' + ABOVE_ICE);
     sh.fragmentShader = sh.fragmentShader
@@ -1523,7 +1532,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
               }),
             );
             // move her so the lowest blade point sits on the ice
-            if (isFinite(low)) ground -= low * (1 - Math.exp(-14 * dt));
+            if (isFinite(low)) ground -= (low - (S.gy || 0)) * (1 - Math.exp(-14 * dt));
           }
           // the spin's pull on cloth and hair, given weight: it builds and eases off over a second or so instead of
           // snapping to the spin rate (a critically damped spring), so the skirt and locks open in step with the spin
@@ -1566,6 +1575,35 @@ export function loadAvatar(models, ix, opts, U, onReady) {
             glints.update(dt);
           }
           if (reflect) {
+            // the mirror: her reflection in the ice under her (on rolling ice, in its slope there)
+            {
+              const gx = S.gx || 0,
+                gz = S.gz || 0,
+                l = Math.hypot(gx, 1, gz),
+                nx = -gx / l,
+                ny = 1 / l,
+                nz = -gz / l,
+                d2 = 2 * (nx * S.x + ny * (S.gy || 0) + nz * S.z);
+              R.set(
+                1 - 2 * nx * nx,
+                -2 * nx * ny,
+                -2 * nx * nz,
+                d2 * nx,
+                -2 * ny * nx,
+                1 - 2 * ny * ny,
+                -2 * ny * nz,
+                d2 * ny,
+                -2 * nz * nx,
+                -2 * nz * ny,
+                1 - 2 * nz * nz,
+                d2 * nz,
+                0,
+                0,
+                0,
+                1,
+              );
+              if (strands) strands.parts.forEach((s) => s.mirror.matrixWorld.copy(R));
+            }
             mirrors.forEach((r, i) => {
               r.matrix.multiplyMatrices(R, skinned[i].bindMatrix);
               r.matrixWorld.copy(r.matrix);

@@ -276,11 +276,48 @@ export const CFG = {
     },
   ],
   // Places. camera: how much further back the view sits. paper: a blank sheet instead of the lake (see `paper` below).
+  // waves: how high the ice rises and falls (CFG.waves; 0 or left out: flat). tilt: degrees more side-on the view is,
+  // so the slopes show. Rolling ice (v3-look47) comes last so the
+  // places saved before it keep their numbers.
   places: [
     { name: 'Open lake', trees: false },
     { name: 'Islands', trees: true, camera: 1.35 },
     { name: 'Paper', trees: false, paper: true },
+    { name: 'Rolling ice', trees: false, waves: 1, tilt: 14 },
   ],
+  // Rolling ice (v3-look47, Mark: "undulating ice, various, gentle to wavy"; core/terrain.js). Each wave: [height (m),
+  // wavelength (m), direction (degrees), phase]. gentle: long low swells everywhere. wavy: shorter waves, only where the
+  // two very long `patch` waves add up to more than mix[0] (fully from mix[1]), so the lake goes from gently rolling to
+  // wavy and back. warp: bends the wavy crests (metres, and two wave numbers). pull: how much of a slope's pull she feels
+  // (1: all of gravity); it only speeds her up or slows her down, never turns her. minSpeed: a slope slows her no further.
+  // grid: the ice drawn as a mesh round the view, out to `radius` metres (rings `step` apart at the middle, `grow` more
+  // for every metre out, `sides` round), the waves easing out between fade[0] and fade[1] of the radius, and the short
+  // wavy ones already between detail[0] and detail[1] metres, where the rings are too far apart to draw them.
+  waves: {
+    gentle: [
+      [0.22, 26, 20, 0],
+      [0.17, 37, 115, 1.7],
+      [0.13, 52, 250, 4.1],
+    ],
+    wavy: [
+      [0.15, 6, 65, 0.6],
+      [0.12, 7.8, 82, 2.9],
+      [0.1, 9.6, 47, 5.2],
+    ],
+    patch: [
+      [1, 170, 35, 0.3],
+      [1, 230, 140, 2.2],
+    ],
+    mix: [-0.2, 0.6],
+    warp: [2.5, 0.11, 0.13],
+    pull: 0.6,
+    minSpeed: 0.3,
+    // how much brighter a slope facing the sun is drawn (and darker facing away), per unit of slope; and a crest (paler)
+    // or hollow (deeper blue), per metre up or down
+    relief: 3.5,
+    rise: 0.5,
+    grid: { radius: 150, step: 0.3, grow: 0.025, sides: 256, fade: [0.55, 0.95], detail: [35, 70] },
+  },
   // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.
   // ink: 'pencil' (thin graphite that the paper's tooth breaks up), 'pen' (a broad calligraphy nib: thick across the
   // nib, a hairline along it, thinner the faster she goes) or 'glow' (white light). nib: the pen's angle (radians from

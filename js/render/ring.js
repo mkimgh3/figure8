@@ -41,7 +41,7 @@ export function createRing(scene) {
       arc.geometry.setDrawRange(0, 6 * Math.max(1, Math.round((len / TAU) * SEGS)));
       arc.rotation.z = S.spin >= 0 ? t0 : t0 - len;
       arc.material.color.setHex(!gr ? COLORS.fall : gr === 'shaky' ? COLORS.shaky : COLORS.ok); // mint: lands clean now, gold: shaky, rose: would fall
-      group.position.set(S.x, S.y + 0.9, S.z);
+      group.position.set(S.x, S.gy + S.y + 0.9, S.z);
       group.scale.set(scale, 1, scale);
     },
   };

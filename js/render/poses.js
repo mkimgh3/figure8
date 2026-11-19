@@ -285,7 +285,7 @@ export function createPoser(model) {
       0,
       clamp(-S.turn * 0.16, -0.5, 0.5) * g * (m && !m.leanIntoTurn ? 0 : 1) + pose.roll,
     );
-    model.hero.position.set(S.x, S.y + S.visY, S.z);
+    model.hero.position.set(S.x, (S.gy || 0) + S.y + S.visY, S.z);
     model.hero.rotation.y = game.yaw() + pose.side * 1.5708;
   };
 }

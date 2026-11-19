@@ -8,6 +8,7 @@
 // on the surface, so in the hockey stance the blade slides along the ice in front of him.
 import * as THREE from './three.js';
 import { clamp } from '../core/math.js';
+import { iceY } from '../core/terrain.js';
 
 const SHAFT = 1.42,
   LIE = 0.8, // the angle between shaft and blade (radians off straight): about 135 degrees, as on a real stick
@@ -80,11 +81,12 @@ export function createStick(scene) {
       k2 += (want - k2) * (1 - Math.exp(-10 * dt));
       D.copy(D1).lerp(D2, k2).normalize();
       B.copy(B1).lerp(B2, k2);
-      // keep the blade on or above the ice
-      const tipY = B.y + D.y * SHAFT;
-      if (tipY < ICE) {
+      // keep the blade on or above the ice (on rolling ice, the ice where the blade is)
+      const tipY = B.y + D.y * SHAFT,
+        floor = iceY(B.x + D.x * SHAFT, B.z + D.z * SHAFT) + ICE;
+      if (tipY < floor) {
         const h = Math.hypot(D.x, D.z) || 1,
-          dy = clamp((ICE - B.y) / SHAFT, -0.99, 0.99),
+          dy = clamp((floor - B.y) / SHAFT, -0.99, 0.99),
           s = Math.sqrt(1 - dy * dy) / h;
         D.set(D.x * s, dy, D.z * s);
       }

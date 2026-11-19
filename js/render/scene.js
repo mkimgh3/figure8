@@ -12,7 +12,10 @@ import { UnrealBloomPass } from '../vendor/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/OutputPass.js';
 
 const DEG = Math.PI / 180,
-  DARK = new THREE.Color().setRGB(0.085, 0.12, 0.2, THREE.SRGBColorSpace);
+  DARK = new THREE.Color().setRGB(0.085, 0.12, 0.2, THREE.SRGBColorSpace),
+  UP = new THREE.Vector3(0, 1, 0),
+  FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2),
+  _n = new THREE.Vector3();
 
 export function createScene(canvas) {
   const coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -79,6 +82,7 @@ export function createScene(canvas) {
 
   const ice = createIce(renderer);
   scene.add(ice.mesh);
+  scene.add(ice.rolling);
   const paper = createPaper();
   scene.add(paper.mesh, paper.shade);
   const sky = createSky(renderer),
@@ -149,8 +153,8 @@ export function createScene(canvas) {
       }
       const wx = u.ox + 0.18 * Math.sin(t * (0.5 + i * 0.23) + i * 2),
         wz = u.oz + 0.18 * Math.cos(t * (0.41 + i * 0.17) + i);
-      l.target.position.set(u.tx + wx, 0, u.tz + wz);
-      l.position.set(u.tx + u.x, u.y, u.tz + u.z);
+      l.target.position.set(u.tx + wx, S.gy, u.tz + wz);
+      l.position.set(u.tx + u.x, u.y + S.gy, u.tz + u.z);
       l.intensity = spotNow * 3.0;
       l.visible = spotNow > 0.01;
     });
@@ -252,6 +256,8 @@ export function createScene(canvas) {
     tgt = new THREE.Vector3(0, 0.9, 0);
   let zoomT = 0,
     camSp = 0,
+    // the height of the ice under her, smoothed, for the view (rolling ice)
+    camGy = 0,
     // her speed, smoothed more slowly, for the upright view's distance (so a push or a landing does not make it pump)
     pullSp = 0,
     dark = false,
@@ -295,11 +301,14 @@ export function createScene(canvas) {
     const oy = ((1 - (2 * b.top) / hh - ny(hT, shot.d)) * hh) / 2;
     shot.ox += (ox - shot.ox) * k;
     shot.oy += (oy - shot.oy) * k;
-    shL.set(S.x, mid, S.z);
-    shP.set(S.x, mid + shot.d * sinE, S.z + shot.d * cosE);
+    shL.set(S.x, S.gy + mid, S.z);
+    shP.set(S.x, S.gy + mid + shot.d * sinE, S.z + shot.d * cosE);
   }
   let distK = 1,
-    distGoal = 1; // some places are seen from a little further back
+    distGoal = 1, // some places are seen from a little further back
+    // and some a little more side-on (degrees)
+    tiltK = 0,
+    tiltGoal = 0;
   function toggleZoom() {
     view.zf = 1;
     view.px = 0;
@@ -312,10 +321,12 @@ export function createScene(canvas) {
       sp = game.speed();
     time += dt;
     moveSpots(S, dt, time);
-    sun.target.position.set(S.x, 0, S.z);
-    sun.position.set(S.x + sunDir.x * 30, Math.max(sunDir.y, 0.07) * 30, S.z + sunDir.z * 30);
+    sun.target.position.set(S.x, S.gy, S.z);
+    sun.position.set(S.x + sunDir.x * 30, S.gy + Math.max(sunDir.y, 0.07) * 30, S.z + sunDir.z * 30);
     const lift = Math.max(S.y, S.visY);
-    blob.position.set(S.x, 0.012, S.z);
+    // her shadow lies on the ice under her, tilted with it on rolling ice
+    blob.position.set(S.x, S.gy + 0.012, S.z);
+    blob.quaternion.setFromUnitVectors(UP, _n.set(-S.gx, 1, -S.gz).normalize()).multiply(FLAT);
     blob.scale.setScalar(1 + lift * 0.5);
     blob.material.opacity = 1 / (1 + lift * 2.5);
     zoomT += ((view.zoomed ? 1 : 0) - zoomT) * (1 - Math.exp(-4.5 * dt));
@@ -337,6 +348,7 @@ export function createScene(canvas) {
     far.z += ((minZ + maxZ) / 2 - far.z) * kf;
     far.h += (needH - far.h) * kf;
     camSp += (sp - camSp) * (1 - Math.exp(-2 * dt));
+    camGy += (S.gy - camGy) * (1 - Math.exp(-3 * dt));
     pullSp += (sp - pullSp) * (1 - Math.exp(-C.portraitEase * dt));
     const fov = C.fov + C.fovFast * clamp((camSp - 5) / 8, 0, 1) * (1 - zoomT);
     if (Math.abs(fov - fovNow) > 0.02) {
@@ -348,6 +360,7 @@ export function createScene(canvas) {
     // tilt: a little more side-on at speed and in the air, so height and pace read; back to the drawing view when slow
     air += ((S.grounded && S.visY < 0.05 ? 0 : 1) - air) * (1 - Math.exp(-(S.grounded ? 2.5 : 6) * dt));
     distK += (distGoal - distK) * (1 - Math.exp(-2 * dt));
+    tiltK += (tiltGoal - tiltK) * (1 - Math.exp(-2 * dt));
     // upright: close when she is slow, further back the faster she goes, easing back in as she slows; sideways: closer
     const pullT = clamp((pullSp - C.portraitFrom) / C.portraitSpan, 0, 1),
       portrait =
@@ -355,7 +368,7 @@ export function createScene(canvas) {
           ? C.portraitNear + (C.portraitFar - C.portraitNear) * pullT * pullT * (3 - 2 * pullT)
           : C.landscape;
     showK += ((showOn ? 1 : 0) - showK) * (1 - Math.exp(-4 * dt));
-    const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
+    const tilt = (C.tilt + tiltK + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
       dist = (DIST + camSp * C.speedLift) * distK * portrait;
     const closeH = dist * Math.cos(tilt),
       back = dist * Math.sin(tilt);
@@ -374,8 +387,8 @@ export function createScene(canvas) {
       kc = 1 - Math.exp(-8 * dt);
     tgt.x += (tx - tgt.x) * kc;
     tgt.z += (tz - tgt.z) * kc;
-    tgt.y = 0.9 * (1 - e);
-    camP.set(tgt.x, h, tgt.z + back * (1 - e) + 0.001);
+    tgt.y = (camGy + 0.9) * (1 - e);
+    camP.set(tgt.x, h + camGy * (1 - e), tgt.z + back * (1 - e) + 0.001);
     camL.copy(tgt);
     if (showK > 0.002) {
       // the front page: from the play view round to the showcase view
@@ -404,7 +417,8 @@ export function createScene(canvas) {
       paper.mesh.position.set(tgt.x, 0, tgt.z);
       paper.shade.position.set(S.x, 0.003, S.z);
     }
-    ice.material.envMapIntensity = 0.35 * (1 - e); // dark ice makes the lines stand out
+    ice.envMapIntensity = 0.35 * (1 - e); // dark ice makes the lines stand out
+    ice.follow(tgt.x, tgt.z, !sheet);
     const U = ice.uniforms;
     U.uTime.value = time;
     U.uOverview.value = e;
@@ -447,6 +461,7 @@ export function createScene(canvas) {
   };
   const setPlace = (p) => {
     distGoal = p.camera || 1;
+    tiltGoal = p.tilt || 0;
   };
   // called every few seconds with the measured frame rate: in Auto, step down a level when the phone cannot keep up
   const adapt = (fps) => {
