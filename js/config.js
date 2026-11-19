@@ -86,6 +86,9 @@ export const CFG = {
     // `steer` of the usual while she dances it.
     hiphop: { bpm: 96, syncRate: 2, inStep: 0.75, outOfStep: 0.6, linger: 0.6, dip: 0.05, sway: 0.07, steer: 0.35 },
   },
+  // Bjorn's dash on all fours (v3-look48, an easter egg): skating at `speed` m/s or more with his path turning less than
+  // `turn` rad/s for `after` seconds, he drops onto all fours: body pitched forward `lean` radians, hips `y` metres up.
+  dash: { speed: 5, turn: 0.3, after: 2.5, lean: 1.35, y: 0.61 },
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7 },
   // fraction of a turn off a clean half or whole turn
   grades: [

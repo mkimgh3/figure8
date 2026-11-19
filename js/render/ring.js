@@ -1,7 +1,13 @@
 // A light ring around the skater during a jump: it fills as she turns, with small marks at the half and whole turn.
+// It is tipped part of the way toward the camera (v3-look48, Mark: on Rolling ice, with the view more side-on, the ring
+// was so flattened that it was hard to see how far round it had filled): TOWARD of the way from lying flat to facing the
+// view, so it reads as a rounder ring but still lies roughly on the ice.
 import * as THREE from './three.js';
 import { TAU } from '../core/math.js';
-const COLORS = { ok: 0x7df0c4, shaky: 0xffdf8a, fall: 0xff9db0 };
+const COLORS = { ok: 0x7df0c4, shaky: 0xffdf8a, fall: 0xff9db0 },
+  TOWARD = 0.5,
+  UP = new THREE.Vector3(0, 1, 0),
+  _n = new THREE.Vector3();
 
 export function createRing(scene) {
   const group = new THREE.Group();
@@ -31,7 +37,7 @@ export function createRing(scene) {
       whole.position.set(Math.cos(t0) * 1.073, 0, -Math.sin(t0) * 1.073);
       half.position.set(-Math.cos(t0) * 1.073, 0, Math.sin(t0) * 1.073);
     },
-    update(game, scale) {
+    update(game, scale, camera) {
       const S = game.S;
       group.visible = !S.grounded;
       if (S.grounded) return;
@@ -43,6 +49,15 @@ export function createRing(scene) {
       arc.material.color.setHex(!gr ? COLORS.fall : gr === 'shaky' ? COLORS.shaky : COLORS.ok); // mint: lands clean now, gold: shaky, rose: would fall
       group.position.set(S.x, S.gy + S.y + 0.9, S.z);
       group.scale.set(scale, 1, scale);
+      if (camera) {
+        // from straight up, turned toward the camera by TOWARD of the angle the view is from straight down
+        _n.subVectors(camera.position, group.position);
+        const h = Math.hypot(_n.x, _n.z),
+          a = Math.atan2(h, Math.max(1e-3, _n.y)) * TOWARD;
+        if (h > 1e-4) _n.set((_n.x / h) * Math.sin(a), Math.cos(a), (_n.z / h) * Math.sin(a));
+        else _n.copy(UP);
+        group.quaternion.setFromUnitVectors(UP, _n);
+      }
     },
   };
 }

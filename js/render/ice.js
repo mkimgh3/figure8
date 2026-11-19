@@ -250,12 +250,13 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
 { vec3 V = normalize(cameraPosition - vWPos); float near = 1.0 - uOverview;
-  if (uAurora > 0.0) { vec2 q = vWPos.xz * 0.05; float t = uTime * 0.06;
+  if (uAurora > 0.0 && near > 0.0) { vec2 q = vWPos.xz * 0.05; float t = uTime * 0.06;
     // ribbons of light reflected from the sky: thin, wavering, drifting
     float w1 = fbm(q * 0.7 + vec2(t, -t * 0.5)) * 5.0, w2 = fbm(q * 0.6 - vec2(t * 0.7, t)) * 5.0;
     float band = pow(1.0 - abs(sin(q.x * 0.9 + q.y * 0.35 + w1)), 6.0) * fbm(q * 2.5 + t);
     float band2 = pow(1.0 - abs(sin(q.y * 0.8 - q.x * 0.3 + w2)), 8.0) * fbm(q * 2.0 - t);
-    totalEmissiveRadiance += (uAur1 * band + uAur2 * band2 * 0.8) * uAurora * 0.5 * (0.5 + 0.5 * near); }
+    // none when zoomed out (v3-look48: the green streaks drew the eye away from the line)
+    totalEmissiveRadiance += (uAur1 * band + uAur2 * band2 * 0.8) * uAurora * 0.5 * near; }
   // Night glitter: frost crystals on the surface, one in some of the 12.5 cm cells, each winking out a small star of
   // light on its own beat and as the view moves across it; brightest round her, where the follow spots fall. The
   // position is wrapped first (64 m, a whole number of cells) so the hash keeps its precision far from the start.

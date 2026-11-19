@@ -2,6 +2,7 @@
 // each move supplies its own pose through move.pose().
 import { HIP } from './model.js';
 import { clamp } from '../core/math.js';
+import { CFG } from '../config.js';
 
 const TUCK = { aLz: 0.45, aRz: -0.45, aLx: -0.75, aRx: -0.75, aLe: -2.0, aRe: -2.0 };
 const WIDE = { aLz: -1.4, aRz: 1.4, aLx: 0.15, aRx: 0.15, aLe: -0.15, aRe: -0.15 };
@@ -78,8 +79,13 @@ export function createPoser(model) {
     lRz: 0,
     lLk: 0.05,
     lRk: 0.05,
+    head: 0,
   };
   let lastLandT = 99,
+    // Bjorn's dash on all fours: seconds he has skated fast and straight, how far he is down (0..1), and his stride
+    dashT = 0,
+    dashK = 0,
+    dashPh = 0,
     arms = WIDE,
     pick = 0,
     wasMove = null,
@@ -137,6 +143,7 @@ export function createPoser(model) {
       lRx: -0.28 * g - ln + pR * 0.5 * g,
       lRz: pR * 0.38 * g + 0.03,
       lRk: 0.55 * g * (1 - pR * 0.7) + 0.05,
+      head: 0,
     };
     const set = (o) => {
       for (const k in o) T[k] = o[k];
@@ -251,6 +258,46 @@ export function createPoser(model) {
         rate = 3.2 + 9.8 * u;
       }
     }
+    // Bjorn's easter egg (v3-look48, Mark: "for a continuous straight run make him dash on all fours"): skating fast and
+    // straight for CFG.dash.after seconds, he drops onto all fours and bounds along, front paws and hind legs reaching and
+    // pushing in turn, head up to look ahead; a turn, slowing down, a move or a jump brings him back up.
+    if (model.rig.bear && !show) {
+      const K = CFG.dash,
+        going = S.grounded && !m && sp >= K.speed && Math.abs(S.turn) < K.turn,
+        keep = dashK > 0.5 && S.grounded && !m && sp >= K.speed * 0.8 && Math.abs(S.turn) < K.turn * 2;
+      dashT = going ? dashT + dt : 0;
+      const want = dashT >= K.after || keep ? 1 : 0;
+      dashK += (want - dashK) * (1 - Math.exp(-(want ? 2.5 : 5) * dt));
+      if (dashK > 0.01) {
+        dashPh += dt * 2 * Math.PI * (1.3 + 0.16 * sp);
+        const s = Math.sin(dashPh),
+          s2 = Math.sin(dashPh - 0.35),
+          L = K.lean + 0.07 * Math.cos(dashPh),
+          Q = {
+            lean: L,
+            bodyY: K.y + 0.035 * Math.abs(s),
+            roll: 0,
+            head: L - 0.25,
+            aLx: -L + 0.55 * s,
+            aRx: -L + 0.55 * s2,
+            aLz: -0.1,
+            aRz: 0.1,
+            aLe: -0.15,
+            aRe: -0.15,
+            lLx: -L - 0.3 - 0.45 * s,
+            lRx: -L - 0.3 - 0.45 * s2,
+            lLk: 1.6,
+            lRk: 1.6,
+            lLz: -0.06,
+            lRz: 0.06,
+            fL: 1,
+            fR: 1,
+          },
+          e = dashK * dashK * (3 - 2 * dashK);
+        for (const k in Q) T[k] += (Q[k] - T[k]) * e;
+        if (dashK > 0.5) rate = 16;
+      }
+    } else dashT = dashK = 0;
     if (show) {
       const r = show.pose(T, { HIP });
       if (r) rate = r;
@@ -268,6 +315,7 @@ export function createPoser(model) {
     r.legR.lower.rotation.x = pose.lRk;
     r.legL.foot.rotation.x = -(pose.lean + pose.lLx + pose.lLk) * pose.fL + 0.3 * (1 - pose.fL); // planted blades stay flat, free feet point
     r.legR.foot.rotation.x = -(pose.lean + pose.lRx + pose.lRk) * pose.fR + 0.3 * (1 - pose.fR);
+    if (r.head) r.head.rotation.x = -pose.head;
     const spinRate =
       (m && m.spinRate ? m.spinRate() : 0) +
       (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20) +

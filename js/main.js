@@ -31,7 +31,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look48';
+const BUILD = 'v3-look49';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -863,7 +863,7 @@ function frame(now) {
     }
     drawSkater(dt, now);
     if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection && !paperOn);
-    ring.update(game, models.rig.scale);
+    ring.update(game, models.rig.scale, world.camera);
     log.tick(dt, game, steer, real);
   }
   // on the front page the skater stands for the showcase: posed and drawn, turned by the finger, framed in the space

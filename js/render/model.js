@@ -361,6 +361,11 @@ export function createModels(scene) {
     { name: 'Bjorn', inner: b, scale: 1.15, skirt: new THREE.Group(), hair: null, bear: true, dims: bearDims },
     limbs(b, bearDims),
   );
+  // his head turns on a joint of its own at the top of his neck (the others' heads are part of the body), so it can be
+  // lifted to look ahead when he runs on all fours
+  bj.head = new THREE.Group();
+  bj.head.position.set(0, 1.46, 0.04);
+  b.add(bj.head);
 
   const chars = [ava, max, ka, bj];
   let index = 0;

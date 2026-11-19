@@ -163,6 +163,7 @@ const BONES = [
   'legR.g',
   'legR.lower',
   'legR.foot',
+  'head',
 ];
 // his arms out and down and his legs a little apart while the skin is built, so nothing grows together that has to move apart
 const BIND_ARM = 1.2,
@@ -218,11 +219,11 @@ export function createBear(models, index, scene, opts = {}) {
     [ellipsoid([0, 1.28, 0.0], [0.24, 0.2, 0.2]), 0, 0.1],
     [limb([-0.2, 1.345, -0.01], [0.2, 1.345, -0.01], 0.1, 0.1), 0, 0.08],
     [limb([0, 1.36, 0.0], [0, 1.52, 0.07], 0.125, 0.1), 0, 0.07],
-    [ellipsoid([0, 1.6, 0.085], [0.112, 0.108, 0.125]), 0, 0.06],
-    [limb([0, 1.585, 0.15], [0, 1.56, 0.29], 0.064, 0.046), 0, 0.045],
-    [ellipsoid([0, 1.54, 0.17], [0.054, 0.035, 0.075]), 0, 0.035],
-    [ellipsoid([-0.078, 1.695, 0.04], [0.037, 0.037, 0.024]), 0, 0.022],
-    [ellipsoid([0.078, 1.695, 0.04], [0.037, 0.037, 0.024]), 0, 0.022],
+    [ellipsoid([0, 1.6, 0.085], [0.112, 0.108, 0.125]), 11, 0.06],
+    [limb([0, 1.585, 0.15], [0, 1.56, 0.29], 0.064, 0.046), 11, 0.045],
+    [ellipsoid([0, 1.54, 0.17], [0.054, 0.035, 0.075]), 11, 0.035],
+    [ellipsoid([-0.078, 1.695, 0.04], [0.037, 0.037, 0.024]), 11, 0.022],
+    [ellipsoid([0.078, 1.695, 0.04], [0.037, 0.037, 0.024]), 11, 0.022],
     [ellipsoid([0, 0.94, -0.23], [0.05, 0.05, 0.04]), 0, 0.03],
   ];
   for (const [s, b] of [
@@ -455,11 +456,11 @@ if (vFA < 0.05) discard;
     new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion(), s || new THREE.Vector3(1, 1, 1));
   {
     const eye = new THREE.SphereGeometry(0.017, 14, 10);
-    for (const q of EYES) attach(new THREE.Mesh(eye, black), 0, at(q[0], q[1], q[2] + 0.002));
+    for (const q of EYES) attach(new THREE.Mesh(eye, black), 11, at(q[0], q[1], q[2] + 0.002));
     const q = NOSE;
     attach(
       new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 12), black),
-      0,
+      11,
       at(q[0], q[1] + 0.004, q[2] - 0.006, new THREE.Vector3(1.05, 0.72, 0.75)),
     );
   }
