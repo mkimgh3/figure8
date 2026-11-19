@@ -342,6 +342,8 @@ export const CFG = {
   // has her settle at `top` m/s (70 km/h) on a slope of `settle` (the run winds, so its own slope is less than grade,
   // and carving through the bends costs speed), and she never goes faster. Slopes there push her sideways as well, so
   // the banks turn her back into the run.
+  // v3-look53 (Mark: "make the sides little more gentler slope but also go higher"): the walls 30 m high spread over
+  // 20 m (were 16 m over 7 m).
   canyon: {
     bends: [
       [18, 180, 0.4],
@@ -352,7 +354,7 @@ export const CFG = {
     bank: 2.6,
     rise: 2.2,
     bend: 15,
-    cliff: [16, 7],
+    cliff: [30, 20],
     rough: 1.6,
     undulate: 0.45,
     grade: 0.12,
@@ -364,7 +366,10 @@ export const CFG = {
     // the view swings round to look down the run (v3-look52, Mark: "camera swings so it can be relatively perpendicular
     // to the parallels of the canyon wall"), so the walls run up the screen: it faces along the run from where she is
     // to `ahead` metres further down, turning toward that at `ease` (1/s). The left thumb steers as the screen shows.
-    view: { ahead: 24, ease: 1.3 },
+    // It also keeps over the run (v3-look53: in a bend, straight back from her could be inside the canyon's side):
+    // from over[0] of the run's half width out from its middle it is drawn back in, never past over[1]; and it rises
+    // to stay `clear` metres above the ice under it and on the way to her.
+    view: { ahead: 24, ease: 1.3, over: [0.45, 0.85], clear: 2 },
   },
   // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.
   // ink: 'pencil' (thin graphite that the paper's tooth breaks up), 'pen' (a broad calligraphy nib: thick across the

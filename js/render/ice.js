@@ -216,7 +216,7 @@ export function createIce(renderer) {
         '#include <common>',
         `#include <common>
 varying vec3 vWPos;
-uniform float uTime, uCloud, uAurora, uOverview, uGlitter, uPx; uniform vec2 uFocus; uniform vec3 uHole;
+uniform float uTime, uCloud, uAurora, uOverview, uGlitter, uPx, uCanyon; uniform vec2 uFocus; uniform vec3 uHole;
 uniform sampler2D uDeep; uniform vec3 uDepthTint, uSunDir, uSunCol, uAur1, uAur2; uniform vec2 uWind;
 float h21(vec2 p) { p = fract(p * vec2(233.34, 851.73)); p += dot(p, p + 23.45); return fract(p.x * p.y); }
 float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -251,7 +251,7 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
 { vec3 V = normalize(cameraPosition - vWPos); float near = 1.0 - uOverview;
-  if (uAurora > 0.0 && near > 0.0) { vec2 q = vWPos.xz * 0.05; float t = uTime * 0.06;
+  if (uAurora > 0.0 && near > 0.0 && uCanyon < 0.5) { vec2 q = vWPos.xz * 0.05; float t = uTime * 0.06;
     // ribbons of light reflected from the sky: thin, wavering, drifting
     float w1 = fbm(q * 0.7 + vec2(t, -t * 0.5)) * 5.0, w2 = fbm(q * 0.6 - vec2(t * 0.7, t)) * 5.0;
     float band = pow(1.0 - abs(sin(q.x * 0.9 + q.y * 0.35 + w1)), 6.0) * fbm(q * 2.5 + t);
@@ -309,6 +309,30 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
     // seen from above, a slope hardly changes how the ice is lit, so the waves are drawn up a little: slopes that face
     // the sun brighter, slopes that face away darker, crests paler and hollows a deeper blue
     sh.fragmentShader = sh.fragmentShader
+      // The canyon at night (v3-look53, Mark: "remove the green streaks on the ground but do simulate light from aurora
+      // reflecting off the ice"): no ribbons drawn on the ice. Instead the sky's curtains (as sky.js draws them) seen in
+      // the ice as in a mirror, broadened because the ice is not polished, so they lie as soft bands of light that
+      // slide over it as the view moves and bend over its rolls; brighter where the ice is seen at a glancing angle, as
+      // a reflection is. And a faint wash of their light over everything, the snow and rock too. Kept faint, so the
+      // night stays blue and the line stands out.
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+  if (uCanyon > 0.5 && uAurora > 0.0) {
+    vec3 aV = normalize(cameraPosition - vWPos), aN = normalize(vRollN), aR = reflect(-aV, aN);
+    float at = uTime * 0.05, near = 1.0 - uOverview;
+    float curtain = 0.5 + 0.5 * sin(aR.x * 9.0 + sin(aR.z * 5.0 + at) * 2.0 + at * 1.5);
+    float sky = smoothstep(0.03, 0.3, aR.y) * (1.0 - 0.5 * smoothstep(0.55, 1.0, aR.y));
+    vec3 aCol = mix(uAur1, uAur2, clamp(aR.z * 0.5 + 0.5, 0.0, 1.0) * 0.55);
+    float fres = 0.04 + 0.96 * pow(1.0 - clamp(dot(aN, aV), 0.0, 1.0), 5.0);
+    float glow = fbm(vWPos.xz * 0.012 + vec2(at * 0.7, -at * 0.4));
+    // only the smooth ice mirrors it: not the rock, nor its bumps where they run down onto the banks
+    float smoothIce = (1.0 - smoothstep(0.0, 0.35, vWall)) * smoothstep(0.8, 0.95, aN.y);
+    float mirror = curtain * curtain * sky * (0.03 + 1.1 * fres) * smoothIce;
+    float wash = 0.035 * (0.4 + 0.6 * clamp(aN.y, 0.0, 1.0));
+    totalEmissiveRadiance += aCol * uAurora * (mirror + wash) * (0.55 + 0.9 * glow) * near;
+  }`,
+      )
       .replace(
         '#include <common>',
         '#include <common>\nvarying vec3 vRollN; varying float vRollH, vWall; uniform float uRelief, uRise;',

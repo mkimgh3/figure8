@@ -3,7 +3,7 @@
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { clamp } from '../core/math.js';
-import { uCanyon, canyonCentre } from '../core/terrain.js';
+import { uCanyon, canyonCentre, canyonOff, canyonWidth, canyonAcross, iceY } from '../core/terrain.js';
 import { createIce } from './ice.js';
 import { createSky } from './sky.js';
 import { createAtmos } from './atmos.js';
@@ -266,6 +266,8 @@ export function createScene(canvas) {
     lookAhead = 1,
     // the view's swing round (radians), before zooming out takes it away
     swing = 0,
+    // how far the view is lifted to stay clear of the canyon's sides (m)
+    lift = 0,
     air = 0,
     time = 0;
   const DIST = Math.hypot(C.closeHeight, C.closeBack);
@@ -313,6 +315,36 @@ export function createScene(canvas) {
     // and some a little more side-on (degrees)
     tiltK = 0,
     tiltGoal = 0;
+  // Down the canyon the view keeps over the run, never out over the rock: in a bend, straight back from her can be
+  // inside the canyon's side (v3-look52 went up to 10 m into it when she rode the banks). Past over[0] of the run's half
+  // width it is drawn in toward the middle, never further out than over[1]; then it rises, if it must, to stay `clear`
+  // above the ice under it and along the way to her. It rises at once and settles back slowly.
+  const ACROSS = [0, 0];
+  function keepClear(dt, e) {
+    const V = CFG.canyon.view,
+      w = canyonWidth(camP.z),
+      off = canyonOff(camP.x, camP.z),
+      a = Math.abs(off),
+      l0 = V.over[0] * w,
+      l1 = V.over[1] * w;
+    if (a > l0) {
+      const d = Math.sign(off) * (l0 + (l1 - l0) * Math.tanh((a - l0) / (l1 - l0)) - a) * (1 - e);
+      canyonAcross(camP.z, ACROSS);
+      camP.x += ACROSS[0] * d;
+      camP.z += ACROSS[1] * d;
+    }
+    // the way to where it looks (just ahead of her)
+    let need = 0;
+    for (let i = 0; i < 6; i++) {
+      const t = i * 0.15,
+        x = camP.x + (tgt.x - camP.x) * t,
+        z = camP.z + (tgt.z - camP.z) * t,
+        y = camP.y + (tgt.y + 0.3 - camP.y) * t;
+      need = Math.max(need, (iceY(x, z) + V.clear - y) / (1 - t));
+    }
+    lift = need > lift ? need : lift + (need - lift) * (1 - Math.exp(-2 * dt));
+    camP.y += lift * (1 - e);
+  }
   function toggleZoom() {
     view.zf = 1;
     view.px = 0;
@@ -403,6 +435,7 @@ export function createScene(canvas) {
     view.yaw = swing * (1 - e);
     const bk = back * (1 - e) + 0.001;
     camP.set(tgt.x + bk * Math.sin(view.yaw), h + camGy * (1 - e), tgt.z + bk * Math.cos(view.yaw));
+    if (uCanyon.value) keepClear(dt, e);
     camL.copy(tgt);
     // the screen's up: the way the view faces (camera.up, which is north, -z, when not swung)
     let upYaw = view.yaw;
