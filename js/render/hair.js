@@ -8,6 +8,7 @@
 //
 // Where hair grows comes from the model: its head carries an attribute _hair (x: beard, y: scalp).
 import * as THREE from './three.js';
+import { iceY, iceSlope } from '../core/terrain.js';
 
 const _a = new THREE.Vector3(),
   _b = new THREE.Vector3(),
@@ -360,6 +361,11 @@ export function createHair(headMesh, bone, o) {
   const ctr = new THREE.Vector3(),
     ctr0 = new THREE.Vector3();
   let spin = 0;
+  // the ice under the head, as a plane (height, and rise per metre along x and z), so the locks rest on it wherever it
+  // is: on rolling ice and down the canyon it is far from 0 (v3-look51 and before kept them above 0, which down the
+  // canyon dragged every lock straight up)
+  const ice = [0, 0, 0, 0, 0],
+    slope = [0, 0];
   const step = (h, f, sc, kd) => {
     const g = 9.8 * sc * h * h,
       fan = spin * 9.8 * 2.2 * sc * h * h,
@@ -415,7 +421,8 @@ export function createHair(headMesh, bone, o) {
           _c.lerpVectors(c.w0, c.w, f);
           push(p, j, _c, (c.r + R0 * c.pad) * sc);
         }
-        if (p[j + 1] < R0) p[j + 1] = R0;
+        const fy = ice[0] + ice[1] * (p[j] - ice[3]) + ice[2] * (p[j + 2] - ice[4]) + R0;
+        if (p[j + 1] < fy) p[j + 1] = fy;
       }
     }
   };
@@ -494,6 +501,12 @@ export function createHair(headMesh, bone, o) {
         c.w.copy(c.at).applyMatrix4(c.bone.matrixWorld);
       });
       spin = spinK;
+      ice[3] = W1[0];
+      ice[4] = W1[2];
+      ice[0] = iceY(ice[3], ice[4]);
+      iceSlope(ice[3], ice[4], slope);
+      ice[1] = slope[0];
+      ice[2] = slope[1];
       ctr0.copy(cols[0].w0);
       ctr.copy(cols[0].w);
       if ((W1[0] - W0[0]) ** 2 + (W1[1] - W0[1]) ** 2 + (W1[2] - W0[2]) ** 2 > 4 * sc * sc) place(); // jumped somewhere new: start combed

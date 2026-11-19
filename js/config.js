@@ -289,12 +289,13 @@ export const CFG = {
   // Places. camera: how much further back the view sits. paper: a blank sheet instead of the lake (see `paper` below).
   // waves: how high the ice rises and falls (CFG.waves; 0 or left out: flat). tilt: degrees more side-on the view is,
   // so the slopes show. Rolling ice (v3-look47) comes last so the places saved before it keep their numbers.
+  // Canyon: 0.75 (v3-look52, Mark: "a bit more zoomed in"), and its view swings round with the run (CFG.canyon.view).
   places: [
     { name: 'Open lake', trees: false },
     { name: 'Islands', trees: true, camera: 1.35 },
     { name: 'Paper', trees: false, paper: true },
     { name: 'Rolling ice', trees: false, waves: 1, tilt: 18 },
-    { name: 'Canyon', trees: false, canyon: true, tilt: 16 },
+    { name: 'Canyon', trees: false, canyon: true, tilt: 16, camera: 0.75 },
   ],
   // Rolling ice (v3-look47, Mark: "undulating ice, various, gentle to wavy"; core/terrain.js). Each wave: [height (m),
   // wavelength (m), direction (degrees), phase]. gentle: long low swells everywhere. wavy: shorter waves, only where the
@@ -360,6 +361,10 @@ export const CFG = {
     settle: 0.07,
     // she can go up the banks this far past the run's edge (m), no further: there the rock begins
     edge: 1.2,
+    // the view swings round to look down the run (v3-look52, Mark: "camera swings so it can be relatively perpendicular
+    // to the parallels of the canyon wall"), so the walls run up the screen: it faces along the run from where she is
+    // to `ahead` metres further down, turning toward that at `ease` (1/s). The left thumb steers as the screen shows.
+    view: { ahead: 24, ease: 1.3 },
   },
   // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.
   // ink: 'pencil' (thin graphite that the paper's tooth breaks up), 'pen' (a broad calligraphy nib: thick across the

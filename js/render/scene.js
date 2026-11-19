@@ -3,6 +3,7 @@
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { clamp } from '../core/math.js';
+import { uCanyon, canyonCentre } from '../core/terrain.js';
 import { createIce } from './ice.js';
 import { createSky } from './sky.js';
 import { createAtmos } from './atmos.js';
@@ -249,7 +250,8 @@ export function createScene(canvas) {
   setLook(look);
 
   // ---- camera
-  const view = { zoomed: false, zf: 1, px: 0, pz: 0, zMax: 4, ppm: 20, e: 0 };
+  // yaw: how far the view is swung round from looking toward -z (radians, toward +x), as drawn; only down the canyon
+  const view = { zoomed: false, zf: 1, px: 0, pz: 0, zMax: 4, ppm: 20, e: 0, yaw: 0 };
   let tanHalf = Math.tan((C.fov * Math.PI) / 360),
     fovNow = C.fov;
   const far = { x: 0, z: 0, h: 60 },
@@ -262,6 +264,8 @@ export function createScene(canvas) {
     pullSp = 0,
     dark = false,
     lookAhead = 1,
+    // the view's swing round (radians), before zooming out takes it away
+    swing = 0,
     air = 0,
     time = 0;
   const DIST = Math.hypot(C.closeHeight, C.closeBack);
@@ -388,8 +392,20 @@ export function createScene(canvas) {
     tgt.x += (tx - tgt.x) * kc;
     tgt.z += (tz - tgt.z) * kc;
     tgt.y = (camGy + 0.9) * (1 - e);
-    camP.set(tgt.x, h + camGy * (1 - e), tgt.z + back * (1 - e) + 0.001);
+    // down the canyon the view swings round to look along the run ahead of her; zoomed out it faces -z again, as the
+    // overview and its panning expect
+    let swingGoal = 0;
+    if (uCanyon.value) {
+      const V = CFG.canyon.view;
+      swingGoal = Math.atan2(canyonCentre(S.z) - canyonCentre(S.z - V.ahead), V.ahead);
+    }
+    swing += (swingGoal - swing) * (1 - Math.exp(-(uCanyon.value ? CFG.canyon.view.ease : 2) * dt));
+    view.yaw = swing * (1 - e);
+    const bk = back * (1 - e) + 0.001;
+    camP.set(tgt.x + bk * Math.sin(view.yaw), h + camGy * (1 - e), tgt.z + bk * Math.cos(view.yaw));
     camL.copy(tgt);
+    // the screen's up: the way the view faces (camera.up, which is north, -z, when not swung)
+    let upYaw = view.yaw;
     if (showK > 0.002) {
       // the front page: from the play view round to the showcase view
       const el = renderer.domElement,
@@ -399,6 +415,7 @@ export function createScene(canvas) {
       frameShowcase(S, dt, w, hh);
       camP.lerp(shP, k);
       camL.lerp(shL, k);
+      upYaw *= 1 - k;
       camera.setViewOffset(w, hh, shot.ox * k, shot.oy * k, w, hh);
       offsetOn = true;
     } else if (offsetOn) {
@@ -407,6 +424,7 @@ export function createScene(canvas) {
       shot.d = 0;
     }
     camera.position.copy(camP);
+    camera.up.set(-Math.sin(upYaw), 0, -Math.cos(upYaw));
     camera.lookAt(camL);
     view.ppm = window.innerHeight / (2 * h * tanHalf);
     uScale.value = Math.max(1, (4 - 0.8 * e) / (CFG.trace.width * view.ppm)); // from high up the line stays a hairline, about a pixel and a half

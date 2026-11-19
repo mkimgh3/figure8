@@ -31,7 +31,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look51';
+const BUILD = 'v3-look52';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -673,6 +673,15 @@ hud.on('clearlog', () => {
   hud.text('logcount', countText());
 });
 
+// The left thumb steers the way the screen shows: when the view has swung round (down the canyon), the stick turns
+// with it. a: the view's swing (radians, see scene.js).
+function onScreen(s, a) {
+  if (!a) return s;
+  const c = Math.cos(a),
+    n = Math.sin(a);
+  return { x: s.x * c + s.y * n, y: s.y * c - s.x * n };
+}
+
 // frame loop
 const blade = { x: 0, z: 0, width: 1, pen: true, double: false },
   ZERO = { x: 0, y: 0 },
@@ -759,7 +768,7 @@ function frame(now) {
   last = now;
   // zooming out, opening the menu, or the front page pauses the skating
   const paused = world.view.zoomed || document.getElementById('sheet').style.display === 'flex' || front.open;
-  const steer = paused ? ZERO : input.read();
+  const steer = paused ? ZERO : onScreen(input.read(), world.view.yaw);
   if (!paused) {
     input.frame(now);
     if (!S.grounded) {
