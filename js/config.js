@@ -348,8 +348,8 @@ export const CFG = {
   // metres either way; in a round tube the bank shows as the lines inside turning (`twistLook` times the bank), so it
   // twists over from one bend to the next. hill: the hillside drops this much per metre toward -z; the run keeps
   // between height[0] and height[1] metres above it. Where one part of the run passes over another there are at least
-  // `clear` metres between them; side by side, their centre lines are at least `apart` apart. pillar: one every
-  // pillar[0] metres, pillar[1] m thick. rings: a ring of light round the inside every rings[0] metres, rings[1] wide.
+  // `clear` metres between them; side by side, their centre lines are at least `apart` apart. rings: a ring of light
+  // round the inside every rings[0] metres, rings[1] wide.
   // pull: how much of gravity she feels; air drag has her settle at `top` m/s (120 km/h) on a slope of `settle`, and
   // she never goes faster. The tube's curve pushes her sideways too, so in bends she rides up the outside.
   // v3-look57: steeper (straights 0.085 to 0.15) and faster (top 70 to 120 km/h), so the curves are wider (at 120 km/h
@@ -372,7 +372,6 @@ export const CFG = {
     height: [16, 95],
     clear: 17,
     apart: 20,
-    pillar: [10, 0.55],
     rings: [12, 0.4],
     pull: 0.85,
     top: 33.3,

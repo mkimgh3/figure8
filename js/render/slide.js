@@ -1,11 +1,11 @@
-// The Canyon's run drawn (its shape is core/track.js): since v3-look57 a tube of ice, white outside, on pillars down to
-// the hillside (v3-look56: an open trough), built in pieces CHUNK metres long as she nears them and dropped once she is
-// well past. Across: the ice inside, round from the bottom, and the shell outside, each a ring of points turned with the
-// run's bank (TWIST times it, so the lines inside twist over between bends). Where a spiral passes over its own lower
-// turns there are no pillars under it (they would stand in the turn below); a tower stands in the spiral's middle.
+// The Canyon's run drawn (its shape is core/track.js): since v3-look57 a tube of ice, white outside, over a snowy
+// hillside (v3-look56: an open trough), built in pieces CHUNK metres long as she nears them and dropped once she is well
+// past. Across: the ice inside, round from the bottom, and the shell outside, each a ring of points turned with the
+// run's bank (TWIST times it, so the lines inside twist over between bends). v3-look58 (Mark: "remove the vertical posts
+// as you cant even see them"): no pillars or spiral towers any more; from inside the tube they were never seen.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
-import { track, ensureTrack, trackPoint, profile, TUBE, hillY } from '../core/track.js';
+import { track, ensureTrack, trackPoint, profile, TUBE } from '../core/track.js';
 
 const CHUNK = 96,
   BEHIND = 260,
@@ -26,9 +26,7 @@ export function createSlide(scene, iceMat) {
     ];
   // the ice's parts first, then the shell's, so each material is one draw
   parts.sort((a, b) => a[1] - b[1]);
-  const shell = new THREE.MeshStandardMaterial({ color: 0xeef3f9, roughness: 0.82, metalness: 0 }),
-    post = new THREE.MeshStandardMaterial({ color: 0xc9d3df, roughness: 0.9, metalness: 0 }),
-    postGeo = new THREE.CylinderGeometry(1, 1, 1, 10, 1, true).translate(0, 0.5, 0);
+  const shell = new THREE.MeshStandardMaterial({ color: 0xeef3f9, roughness: 0.82, metalness: 0 });
   scene.add(group);
   group.visible = false;
   // the hillside: snow, dropping toward -z through (0, 0, 0) as CFG.canyon.hill says
@@ -40,33 +38,13 @@ export function createSlide(scene, iceMat) {
   snow.receiveShadow = true;
   group.add(snow);
   const chunks = new Map(),
-    towers = new Map(),
-    P = { x: 0, y: 0, z: 0, th: 0, bank: 0 },
-    M = new THREE.Matrix4(),
-    Q = new THREE.Quaternion(),
-    V = new THREE.Vector3(),
-    Sc = new THREE.Vector3();
+    P = { x: 0, y: 0, z: 0, th: 0, bank: 0 };
 
-  // is there a lower part of the run under (x, z), other than the run near sample i
-  function under(x, z, i, y) {
-    const X = track.X,
-      Z = track.Z,
-      Y = track.Y,
-      r = TUBE + D + 1.5;
-    for (let j = 0; j < X.length; j += 2) {
-      if (Math.abs(j - i) < 30 || Y[j] > y) continue;
-      const dx = X[j] - x,
-        dz = Z[j] - z;
-      if (dx * dx + dz * dz < r * r) return true;
-    }
-    return false;
-  }
   function build(c) {
     const s0 = track.S0 + c * CHUNK,
       s1 = s0 + CHUNK;
     ensureTrack(s1 + 2);
     const pos = [],
-      nrm = [],
       uv = [],
       idx = [],
       groups = [];
@@ -121,52 +99,14 @@ export function createSlide(scene, iceMat) {
     const mesh = new THREE.Mesh(geo, [iceMat, shell]);
     // light comes through the ice: the tube casts no shadow into itself (she still casts hers on it)
     mesh.receiveShadow = true;
-    // pillars: one every K.pillar[0] metres under the middle of the tube, down to the hillside, where nothing of the
-    // run lies under it
-    const spots = [];
-    for (let s = Math.ceil(s0 / K.pillar[0]) * K.pillar[0]; s < s1; s += K.pillar[0]) {
-      trackPoint(s, P);
-      const top = P.y - D,
-        foot = hillY(P.z) - 1;
-      if (top - foot < 1.5 || under(P.x, P.z, Math.round(s - track.S0), P.y - 2)) continue;
-      spots.push([P.x, foot, P.z, top - foot]);
-    }
-    let posts = null;
-    if (spots.length) {
-      posts = new THREE.InstancedMesh(postGeo, post, spots.length);
-      spots.forEach(([x, y, z, h], k) =>
-        posts.setMatrixAt(k, M.compose(V.set(x, y, z), Q, Sc.set(K.pillar[1], h, K.pillar[1]))),
-      );
-      posts.castShadow = true;
-      posts.receiveShadow = true;
-      posts.computeBoundingSphere();
-    }
-    const ch = { mesh, posts };
     group.add(mesh);
-    if (posts) group.add(posts);
-    chunks.set(c, ch);
+    chunks.set(c, mesh);
   }
   function drop(c) {
-    const ch = chunks.get(c);
-    group.remove(ch.mesh);
-    ch.mesh.geometry.dispose();
-    if (ch.posts) {
-      group.remove(ch.posts);
-      ch.posts.dispose();
-    }
+    const mesh = chunks.get(c);
+    group.remove(mesh);
+    mesh.geometry.dispose();
     chunks.delete(c);
-  }
-  // each spiral's tower: from the hillside up through its middle to just over its top turn
-  function tower(sp, k) {
-    if (towers.has(k)) return;
-    const foot = hillY(sp[1]) - 1,
-      r = 2.2,
-      m = new THREE.Mesh(postGeo, post);
-    m.position.set(sp[0], foot, sp[1]);
-    m.scale.set(r, sp[2] + 3 - foot, r);
-    m.castShadow = m.receiveShadow = true;
-    group.add(m);
-    towers.set(k, m);
   }
   // every frame: show the run round s metres along it (on: it is the Canyon)
   function update(s, on) {
@@ -182,13 +122,10 @@ export function createSlide(scene, iceMat) {
       if (!chunks.has(c) && (want < 0 || Math.abs(c * CHUNK + track.S0 - s) < Math.abs(want * CHUNK + track.S0 - s)))
         want = c;
     if (want >= 0) build(want);
-    track.spirals.forEach((sp, k) => tower(sp, k));
   }
   // the run was laid again from the top: draw it afresh
   function reset() {
     for (const c of [...chunks.keys()]) drop(c);
-    for (const m of towers.values()) group.remove(m);
-    towers.clear();
   }
   return { group, update, reset };
 }

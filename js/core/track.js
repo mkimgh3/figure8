@@ -1,8 +1,8 @@
 // The Canyon's run, rebuilt in v3-look56 (Mark: "make it more like halfpipe simple, flatter bottom and curved side wide
-// bobsled or waterslide type with looping ... the track also does spiral and twists like waterslide"): an ice trough on
-// pillars, winding down a snowy hillside toward -z. Across it, a flat floor and curved sides up to a lip (a halfpipe);
-// along it, straights, bends, spirals that pass under their own earlier turns, and quick twists from one side to the
-// other. It banks into every bend (the whole trough rolls about its centre line), so between bends it twists over.
+// bobsled or waterslide type with looping ... the track also does spiral and twists like waterslide"), an open trough
+// then and a round ice tube since v3-look57, winding down over a snowy hillside toward -z. Along it, straights, bends,
+// spirals that pass under their own earlier turns, and quick twists from one side to the other. It banks into every
+// bend, so between bends it twists over.
 // The centre line is laid down a metre at a time from a seeded list of sections, so it is the same run every visit, and
 // it goes on for as long as she skates: more of it is made ahead of her as she goes.
 // For the game it is a height field near her: the height of the ice at (x, z) is found from the nearest point of the
@@ -39,7 +39,7 @@ export const track = {
   Y,
   Z,
   TH,
-  // the spirals' middles, for their towers: [x, z, top y, bottom y]
+  // the spirals' middles: [x, z, top y, bottom y]
   spirals,
   // where she is along the run (m): the queries look near here
   hint: 0,
