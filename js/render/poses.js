@@ -293,8 +293,8 @@ export function createPoser(model) {
       }
     }
     // Bjorn's easter egg (v3-look48, Mark: "for a continuous straight run make him dash on all fours"): skating fast and
-    // straight for CFG.dash.after seconds, he drops onto all fours and bounds along, front paws and hind legs reaching and
-    // pushing in turn, head up to look ahead; a turn, slowing down, a move or a jump brings him back up.
+    // straight for CFG.dash.after seconds, he drops onto all fours and runs, his four feet stepping in turn, head up to
+    // look ahead; a turn, slowing down, a move or a jump brings him back up.
     if (model.rig.bear && !show) {
       const K = CFG.dash,
         going = S.grounded && !m && sp >= K.speed && Math.abs(S.turn) < K.turn,
@@ -303,33 +303,48 @@ export function createPoser(model) {
       const want = dashT >= K.after || keep ? 1 : 0;
       dashK += (want - dashK) * (1 - Math.exp(-(want ? 2.5 : 5) * dt));
       if (dashK > 0.01) {
-        dashPh += dt * 2 * Math.PI * (1.3 + 0.16 * sp);
-        const s = Math.sin(dashPh),
-          s2 = Math.sin(dashPh - 0.35),
-          L = K.lean + 0.07 * Math.cos(dashPh),
+        // a four-beat gait, as four-legged animals run (v3-look51, Mark: "alternating feet of typical four legged
+        // mammal steps"): each foot in turn, a quarter of a stride apart: his left hind leg, left front, right hind,
+        // right front. A foot on the ice is pushed back under him for most of the stride (DUTY), then lifted and
+        // swung forward (the front paw tucked up at the elbow, the hind foot drawn up at the knee). dashPh: strides.
+        dashPh = (dashPh + dt * (1 + 0.1 * sp)) % 1;
+        const DUTY = 0.6,
+          // how far forward the leg is (-1 back .. 1 forward) and how high the foot is lifted (0..1), at stride phase p
+          leg = (p) => {
+            p = ((p % 1) + 1) % 1;
+            if (p < DUTY) return [1 - (2 * p) / DUTY, 0];
+            const u = (p - DUTY) / (1 - DUTY);
+            return [-Math.cos(Math.PI * u), Math.sin(Math.PI * u)];
+          },
+          [hl, hlUp] = leg(dashPh),
+          [fl, flUp] = leg(dashPh - 0.25),
+          [hr, hrUp] = leg(dashPh - 0.5),
+          [fr, frUp] = leg(dashPh - 0.75),
+          L = K.lean + 0.04 * Math.cos(4 * Math.PI * dashPh),
           Q = {
             lean: L,
-            bodyY: K.y + 0.035 * Math.abs(s),
-            roll: 0,
+            // a small rise and fall with each footfall, and the body swaying a little toward the side that is down
+            bodyY: K.y + 0.02 * Math.abs(Math.sin(4 * Math.PI * dashPh)),
+            roll: 0.05 * Math.sin(2 * Math.PI * dashPh),
             head: L - 0.25,
-            aLx: -L + 0.55 * s,
-            aRx: -L + 0.55 * s2,
+            aLx: -L - 0.5 * fl,
+            aRx: -L - 0.5 * fr,
             aLz: -0.1,
             aRz: 0.1,
-            aLe: -0.15,
-            aRe: -0.15,
-            lLx: -L - 0.3 - 0.45 * s,
-            lRx: -L - 0.3 - 0.45 * s2,
-            lLk: 1.6,
-            lRk: 1.6,
+            aLe: -0.15 - 0.85 * flUp,
+            aRe: -0.15 - 0.85 * frUp,
+            lLx: -L - 0.3 - 0.45 * hl,
+            lRx: -L - 0.3 - 0.45 * hr,
+            lLk: 1.6 + 0.55 * hlUp,
+            lRk: 1.6 + 0.55 * hrUp,
             lLz: -0.06,
             lRz: 0.06,
-            fL: 1,
-            fR: 1,
+            fL: 1 - hlUp,
+            fR: 1 - hrUp,
           },
           e = dashK * dashK * (3 - 2 * dashK);
         for (const k in Q) T[k] += (Q[k] - T[k]) * e;
-        if (dashK > 0.5) rate = 16;
+        if (dashK > 0.5) rate = 26;
       }
     } else dashT = dashK = 0;
     if (show) {
