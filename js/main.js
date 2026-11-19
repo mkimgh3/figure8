@@ -1,7 +1,8 @@
 // Wires the parts together and runs the frame loop. Game rules live in sim/, moves/, scoring.js and input/tricks.js.
 import { CFG } from './config.js';
 import { TAU } from './core/math.js';
-import { setTerrain, iceY, canyonCentre, canyonOff, canyonWidth } from './core/terrain.js';
+import { setTerrain, iceY, setIcePlane, uCanyon } from './core/terrain.js';
+import { track, trackPoint } from './core/track.js';
 import { TapTracker } from './input/recognizer.js';
 import { createTricks } from './input/tricks.js';
 import { createInput } from './input/pointers.js';
@@ -31,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look55';
+const BUILD = 'v3-look56';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -280,7 +281,8 @@ const tutorial = createTutorial();
 const wrapIx = (i, n) => ((i % n) + n) % n;
 let placeIx = 0,
   lookIx = 0,
-  paperOn = false;
+  paperOn = false,
+  inCanyon = false;
 // The place and the time of day together: the ice and its light, or a paper sheet whose surface and line depend on the
 // time of day (CFG.paper).
 const applyScene = () => {
@@ -290,12 +292,17 @@ const applyScene = () => {
   paperOn = !!sheet;
   // rolling ice, the canyon, or flat; where she stands follows at once
   setTerrain(place);
-  // the canyon: off the run (arriving from another place), she starts on it, sliding gently down it
-  if (place.canyon && Math.abs(canyonOff(S.x, S.z)) > canyonWidth(S.z) * 0.8) {
-    S.x = canyonCentre(S.z);
-    S.vx = 0;
-    S.vz = -2;
+  // the Canyon: arriving from another place, she starts at the top of the run, sliding gently down it
+  if (place.canyon && !inCanyon) {
+    const P = trackPoint(2, {});
+    track.hint = 2;
+    S.x = P.x;
+    S.z = P.z;
+    S.facing = P.th;
+    S.vx = Math.sin(P.th) * 2;
+    S.vz = Math.cos(P.th) * 2;
   }
+  inCanyon = !!place.canyon;
   S.gy = S.wy = iceY(S.x, S.z);
   world.setLook(look);
   world.setPaper(sheet);
@@ -705,6 +712,7 @@ let last = performance.now(),
   fN = 0;
 // pose the skater, move the realistic body to match, and place Rook's stick. show: the front page's turntable, if open
 function drawSkater(dt, now, show) {
+  setIcePlane(S);
   pose(game, dt, now, show);
   avatar = avatars[models.index];
   if (avatar && avatar.visible) {
@@ -713,7 +721,7 @@ function drawSkater(dt, now, show) {
       (S.grounded ? 0 : Math.abs(S.goal - S.spin) * 20) +
       (show ? show.spinRate() : 0);
     avU.uTime.value = now / 1000;
-    avatar.reflection(world.quality.reflection && !paperOn, 0.26);
+    avatar.reflection(world.quality.reflection && !paperOn && !uCanyon.value, 0.26);
     avatar.update(dt, S, Math.min(1, spinRate / 18 + game.speed() * 0.02), Math.min(1, spinRate / 18));
   }
   // Rook's stick, placed from his hands: the realistic body's palms, or the stand-in's hands until that has loaded
@@ -890,7 +898,7 @@ function frame(now) {
       fN = 0;
     }
     drawSkater(dt, now);
-    if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection && !paperOn);
+    if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection && !paperOn && !uCanyon.value);
     ring.update(game, models.rig.scale, world.camera);
     log.tick(dt, game, steer, real);
   }

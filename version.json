@@ -1,5 +1,5 @@
 {
- "build": "v3-look55",
+ "build": "v3-look56",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -29,6 +29,7 @@
   "js/config.js",
   "js/core/math.js",
   "js/core/terrain.js",
+  "js/core/track.js",
   "js/duet.js",
   "js/input/pointers.js",
   "js/input/recognizer.js",
@@ -55,6 +56,7 @@
   "js/render/ring.js",
   "js/render/scene.js",
   "js/render/sky.js",
+  "js/render/slide.js",
   "js/render/spray.js",
   "js/render/stick.js",
   "js/render/three.js",

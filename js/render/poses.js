@@ -1,8 +1,10 @@
 // Turns the skater's state into joint angles. Plain skating, sprinting, the air and the landing live here;
 // each move supplies its own pose through move.pose().
+import * as THREE from './three.js';
 import { HIP } from './model.js';
 import { clamp } from '../core/math.js';
 import { CFG } from '../config.js';
+import { uCanyon } from '../core/terrain.js';
 
 const TUCK = { aLz: 0.45, aRz: -0.45, aLx: -0.75, aRx: -0.75, aLe: -2.0, aRe: -2.0 };
 const WIDE = { aLz: -1.4, aRz: 1.4, aLx: 0.15, aRx: 0.15, aLe: -0.15, aRe: -0.15 };
@@ -81,7 +83,13 @@ const TUCK_SPEED = {
 };
 const CARVE = { from: 0.1, full: 0.4, minSpeed: 1.2, easeIn: 2.6, easeOut: 1.1, change: [1.6, 2.4], hold: [0.6, 2.2] }; // from/full: how fast her path is turning (rad/s) where the arms begin to flow and where they fully do, at minSpeed m/s or more; easeIn, easeOut: how gently they come in and go back (1/s); change, hold: seconds to move to the next gesture and to rest in it
 
+// how square to a slope she stands down the Canyon's run (1: at right angles to it)
+const STAND = 0.9,
+  _up = new THREE.Vector3(0, 1, 0),
+  _n = new THREE.Vector3(),
+  _q = new THREE.Quaternion();
 export function createPoser(model) {
+  const lean = new THREE.Quaternion();
   const pose = {
     roll: 0,
     lean: 0.1,
@@ -383,6 +391,13 @@ export function createPoser(model) {
       clamp(-S.turn * 0.16, -0.5, 0.5) * g * (m && !m.leanIntoTurn ? 0 : 1) + pose.roll,
     );
     model.hero.position.set(S.x, (S.gy || 0) + S.y + S.visY, S.z);
-    model.hero.rotation.y = game.yaw() + pose.side * 1.5708;
+    model.hero.rotation.set(0, game.yaw() + pose.side * 1.5708, 0);
+    // down the Canyon's run (v3-look56) she stands square to the ice, leaning out with its curved sides as a skater in
+    // a halfpipe does; in the air she comes upright again
+    const sq = uCanyon.value && S.grounded ? STAND : 0;
+    _n.set(-(S.gx || 0) * sq, 1, -(S.gz || 0) * sq).normalize();
+    _q.setFromUnitVectors(_up, _n);
+    lean.slerp(_q, 1 - Math.exp(-10 * dt));
+    if (uCanyon.value || lean.w < 0.99999) model.hero.quaternion.premultiply(lean);
   };
 }

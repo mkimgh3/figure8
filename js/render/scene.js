@@ -3,8 +3,10 @@
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { clamp } from '../core/math.js';
-import { uCanyon, canyonCentre, canyonOff, canyonWidth, canyonAcross, iceY } from '../core/terrain.js';
+import { uCanyon, iceY } from '../core/terrain.js';
+import { track, trackPoint, trackNear } from '../core/track.js';
 import { createIce } from './ice.js';
+import { createSlide } from './slide.js';
 import { createSky } from './sky.js';
 import { createAtmos } from './atmos.js';
 import { EffectComposer } from '../vendor/EffectComposer.js';
@@ -13,6 +15,7 @@ import { UnrealBloomPass } from '../vendor/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/OutputPass.js';
 
 const DEG = Math.PI / 180,
+  wrapA = (a) => a - 2 * Math.PI * Math.floor((a + Math.PI) / (2 * Math.PI)),
   DARK = new THREE.Color().setRGB(0.085, 0.12, 0.2, THREE.SRGBColorSpace),
   UP = new THREE.Vector3(0, 1, 0),
   FLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2),
@@ -84,10 +87,15 @@ export function createScene(canvas) {
   const ice = createIce(renderer);
   scene.add(ice.mesh);
   scene.add(ice.rolling);
+  // the Canyon's run (v3-look56)
+  const slide = createSlide(scene, ice.trackMaterial);
   const paper = createPaper();
   scene.add(paper.mesh, paper.shade);
   const sky = createSky(renderer),
     atmos = createAtmos(scene);
+  scene.add(sky.backdrop);
+  // the Canyon: haze toward the horizon, in the sky's colour there, so the far hillside and the run fade into it
+  const haze = new THREE.FogExp2(0xffffff, 0.0026);
   const hemi = new THREE.HemisphereLight(0xf2f8ff, 0xdde9f6, 1.25);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
@@ -191,6 +199,7 @@ export function createScene(canvas) {
     U.uAurora.value = l.aurora;
     U.uGlitter.value = l.glitter || 0;
     scene.environment = sky.set(l, sunDir);
+    haze.color.setHex(l.sky[1]);
     atmos.look(l);
     spotOn = l.spot || 0;
     glowOn = !!q.glow && l.glow[0] > 0; // glow only at night, for the line: by day it only hazes the ice
@@ -318,35 +327,41 @@ export function createScene(canvas) {
     // and some a little more side-on (degrees)
     tiltK = 0,
     tiltGoal = 0;
-  // Down the canyon the view keeps over the run, never out over the rock: in a bend, straight back from her can be
-  // inside the canyon's side (v3-look52 went up to 10 m into it when she rode the banks). Past over[0] of the run's half
-  // width it is drawn in toward the middle, never further out than over[1]; then it rises, if it must, to stay `clear`
-  // above the ice under it and along the way to her. It rises at once and settles back slowly.
-  const ACROSS = [0, 0];
-  function keepClear(dt, e) {
+  // Down the Canyon's run (v3-look56, Mark: "the camera can be more zoomed in and lower tilted up to look more at the
+  // horizon, parallel to the track") the view chases her: from `back` metres behind her along the run itself (so in a
+  // bend or a spiral it is still over the trough), `side` of the way out toward where she is across it, `high` metres
+  // over the ice under her, looking at a point a metre over the ice `ahead` metres beyond her the way the run heads. Each
+  // [slow, fast]. Then it rises, if it must, to stay `clear` above the ice under it, less and less of that along the way
+  // to her middle; at once, settling back slowly.
+  const TP = { x: 0, y: 0, z: 0, th: 0, bank: 0 },
+    NR = { s: 0, th: 0, y: 0, bank: 0, d: 0, dist: 0 },
+    aim = new THREE.Vector3();
+  let sideNow = 0;
+  function chase(S, dt) {
     const V = CFG.canyon.view,
-      w = canyonWidth(camP.z),
-      off = canyonOff(camP.x, camP.z),
-      a = Math.abs(off),
-      l0 = V.over[0] * w,
-      l1 = V.over[1] * w;
-    if (a > l0) {
-      const d = Math.sign(off) * (l0 + (l1 - l0) * Math.tanh((a - l0) / (l1 - l0)) - a) * (1 - e);
-      canyonAcross(camP.z, ACROSS);
-      camP.x += ACROSS[0] * d;
-      camP.z += ACROSS[1] * d;
-    }
-    // the way to where it looks (just ahead of her)
+      f = clamp((camSp - 3) / 14, 0, 1),
+      mix = (r) => r[0] + (r[1] - r[0]) * f,
+      back = mix(V.back) * (camera.aspect < 1 ? 1 : V.wide),
+      high = mix(V.high) + V.air * air;
+    trackNear(S.x, S.z, NR);
+    sideNow += (NR.d * V.side - sideNow) * (1 - Math.exp(-4 * dt));
+    trackPoint(NR.s - back, TP);
+    camP.set(TP.x - Math.cos(TP.th) * sideNow, camGy + high, TP.z + Math.sin(TP.th) * sideNow);
+    // ahead of her the way the run heads where she is (so in a bend she stays in the middle of the view)
+    const ah = mix(V.ahead);
+    aim.x = S.x + Math.sin(NR.th) * ah;
+    aim.z = S.z + Math.cos(NR.th) * ah;
+    aim.y = iceY(aim.x, aim.z) + 1 + (S.gy + S.y - camGy) * 0.5;
     let need = 0;
     for (let i = 0; i < 6; i++) {
       const t = i * 0.15,
-        x = camP.x + (tgt.x - camP.x) * t,
-        z = camP.z + (tgt.z - camP.z) * t,
-        y = camP.y + (tgt.y + 0.3 - camP.y) * t;
-      need = Math.max(need, (iceY(x, z) + V.clear - y) / (1 - t));
+        x = camP.x + (S.x - camP.x) * t,
+        z = camP.z + (S.z - camP.z) * t,
+        y = camP.y + (S.gy + 1 - camP.y) * t;
+      need = Math.max(need, (iceY(x, z) + V.clear * (1 - t) + 0.3 * t - y) / (1 - t));
     }
     lift = need > lift ? need : lift + (need - lift) * (1 - Math.exp(-2 * dt));
-    camP.y += lift * (1 - e);
+    camP.y += lift;
   }
   function toggleZoom() {
     view.zf = 1;
@@ -363,12 +378,12 @@ export function createScene(canvas) {
     moveSpots(S, dt, time);
     sun.target.position.set(S.x, S.gy, S.z);
     sun.position.set(S.x + sunDir.x * 30, S.gy + Math.max(sunDir.y, 0.07) * 30, S.z + sunDir.z * 30);
-    const lift = Math.max(S.y, S.visY);
+    const up = Math.max(S.y, S.visY);
     // her shadow lies on the ice under her, tilted with it on rolling ice
     blob.position.set(S.x, S.gy + 0.012, S.z);
     blob.quaternion.setFromUnitVectors(UP, _n.set(-S.gx, 1, -S.gz).normalize()).multiply(FLAT);
-    blob.scale.setScalar(1 + lift * 0.5);
-    blob.material.opacity = 1 / (1 + lift * 2.5);
+    blob.scale.setScalar(1 + up * 0.5);
+    blob.material.opacity = 1 / (1 + up * 2.5);
     zoomT += ((view.zoomed && !view.still ? 1 : 0) - zoomT) * (1 - Math.exp(-4.5 * dt));
     let minX = S.x,
       maxX = S.x,
@@ -388,9 +403,17 @@ export function createScene(canvas) {
     far.z += ((minZ + maxZ) / 2 - far.z) * kf;
     far.h += (needH - far.h) * kf;
     camSp += (sp - camSp) * (1 - Math.exp(-2 * dt));
-    camGy += (S.gy - camGy) * (1 - Math.exp(-3 * dt));
+    // the height of the ice under her, smoothed; snapped when she arrives somewhere new (a new place, the top of the run)
+    if (Math.abs(S.gy - camGy) > 8) {
+      camGy = S.gy;
+      lift = 0;
+    } else camGy += (S.gy - camGy) * (1 - Math.exp(-3 * dt));
     pullSp += (sp - pullSp) * (1 - Math.exp(-C.portraitEase * dt));
-    const fov = C.fov + C.fovFast * clamp((camSp - 5) / 8, 0, 1) * (1 - zoomT);
+    const fast = clamp((camSp - 5) / 8, 0, 1),
+      CV = CFG.canyon.view,
+      fov = uCanyon.value
+        ? CV.fov[camera.aspect < 1 ? 0 : 1] + CV.fovFast * fast
+        : C.fov + C.fovFast * fast * (1 - zoomT);
     if (Math.abs(fov - fovNow) > 0.02) {
       fovNow = fov;
       camera.fov = fov;
@@ -428,19 +451,18 @@ export function createScene(canvas) {
     tgt.x += (tx - tgt.x) * kc;
     tgt.z += (tz - tgt.z) * kc;
     tgt.y = (camGy + 0.9) * (1 - e);
-    // down the canyon the view swings round to look along the run ahead of her; zoomed out it faces -z again, as the
-    // overview and its panning expect
-    let swingGoal = 0;
-    if (uCanyon.value) {
-      const V = CFG.canyon.view;
-      swingGoal = Math.atan2(canyonCentre(S.z) - canyonCentre(S.z - V.ahead), V.ahead);
-    }
-    swing += (swingGoal - swing) * (1 - Math.exp(-(uCanyon.value ? CFG.canyon.view.ease : 2) * dt));
+    // zoomed out the view faces -z (north up), as the overview and its panning expect; down the Canyon's run it faces
+    // the way the chase view looks (view.yaw turns the left thumb with it)
+    swing = wrapA(swing * Math.exp(-2 * dt));
     view.yaw = swing * (1 - e);
     const bk = back * (1 - e) + 0.001;
     camP.set(tgt.x + bk * Math.sin(view.yaw), h + camGy * (1 - e), tgt.z + bk * Math.cos(view.yaw));
-    if (uCanyon.value) keepClear(dt, e);
     camL.copy(tgt);
+    if (uCanyon.value) {
+      chase(S, dt);
+      camL.copy(aim);
+      swing = view.yaw = Math.atan2(camP.x - camL.x, camP.z - camL.z);
+    }
     // the screen's up: the way the view faces (camera.up, which is north, -z, when not swung)
     let upYaw = view.yaw;
     if (showK > 0.002) {
@@ -461,7 +483,12 @@ export function createScene(canvas) {
       shot.d = 0;
     }
     camera.position.copy(camP);
-    camera.up.set(-Math.sin(upYaw), 0, -Math.cos(upYaw));
+    sky.backdrop.visible = !!uCanyon.value && !sheet;
+    scene.fog = sky.backdrop.visible ? haze : null;
+    sky.backdrop.position.copy(camP);
+    // the screen's up: the way the view faces; down the Canyon's run, where the view looks out nearly level, straight up
+    if (uCanyon.value) camera.up.set(0, 1, 0);
+    else camera.up.set(-Math.sin(upYaw), 0, -Math.cos(upYaw));
     camera.lookAt(camL);
     view.ppm = window.innerHeight / (2 * h * tanHalf);
     uScale.value = Math.max(1, (4 - 0.8 * e) / (CFG.trace.width * view.ppm)); // from high up the line stays a hairline, about a pixel and a half
@@ -474,6 +501,7 @@ export function createScene(canvas) {
     }
     ice.envMapIntensity = 0.35 * (1 - e); // dark ice makes the lines stand out
     ice.follow(tgt.x, tgt.z, !sheet);
+    slide.update(track.hint, !!uCanyon.value && !sheet);
     const U = ice.uniforms;
     U.uTime.value = time;
     U.uOverview.value = e;
@@ -533,6 +561,8 @@ export function createScene(canvas) {
     scene,
     camera,
     view,
+    slide,
+    sky,
     toggleZoom,
     update,
     snapTo,

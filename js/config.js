@@ -289,14 +289,13 @@ export const CFG = {
   // Places. camera: how much further back the view sits. paper: a blank sheet instead of the lake (see `paper` below).
   // waves: how high the ice rises and falls (CFG.waves; 0 or left out: flat). tilt: degrees more side-on the view is,
   // so the slopes show. Rolling ice (v3-look47) comes last so the places saved before it keep their numbers.
-  // Canyon: 0.75 (v3-look52, Mark: "a bit more zoomed in"), and its view swings round with the run (CFG.canyon.view);
-  // tilt 24 (v3-look54, Mark: "bring camera down and look slightly more to horizon"; was 16).
+  // Canyon: its view chases her along the run (CFG.canyon.view, since v3-look56).
   places: [
     { name: 'Open lake', trees: false },
     { name: 'Islands', trees: true, camera: 1.35 },
     { name: 'Paper', trees: false, paper: true },
     { name: 'Rolling ice', trees: false, waves: 1, tilt: 18 },
-    { name: 'Canyon', trees: false, canyon: true, tilt: 24, camera: 0.75 },
+    { name: 'Canyon', trees: false, canyon: true },
   ],
   // Rolling ice (v3-look47, Mark: "undulating ice, various, gentle to wavy"; core/terrain.js). Each wave: [height (m),
   // wavelength (m), direction (degrees), phase]. gentle: long low swells everywhere. wavy: shorter waves, only where the
@@ -334,43 +333,63 @@ export const CFG = {
     rise: 0.32,
     grid: { radius: 150, step: 0.3, grow: 0.025, sides: 256, fade: [0.55, 0.95], detail: [35, 70] },
   },
-  // Canyon (v3-look50, core/terrain.js): a frozen river running downhill toward -z between rock walls.
-  // bends: the centre line, [sideways (m), wavelength (m), phase]. width: half the run's width (m), varying by width[1]
-  // over width[2] metres. bank: how high the run's sides curve up at its edge (m); past it the valley side carries on up
-  // to `rise` half-widths out. bend: how much higher the outside of a bend is (m per 1/m of curve per m out). cliff: the
-  // rock walls' height and how far they spread (m); rough: bumps in the rock (m). undulate: the floor rolls with Rolling
-  // ice's waves at this height. grade: the drop per metre down the run. pull: how much of gravity she feels; air drag
-  // has her settle at `top` m/s (70 km/h) on a slope of `settle` (the run winds, so its own slope is less than grade,
-  // and carving through the bends costs speed), and she never goes faster. Slopes there push her sideways as well, so
-  // the banks turn her back into the run.
-  // v3-look53 (Mark: "make the sides little more gentler slope but also go higher"): the walls 30 m high spread over
-  // 20 m (were 16 m over 7 m).
+  // Canyon, rebuilt in v3-look56 (core/track.js, render/slide.js; Mark: "make it more like halfpipe simple, flatter
+  // bottom and curved side wide bobsled or waterslide type with looping ... the track also does spiral and twists like
+  // waterslide"): an ice trough on pillars winding down a snowy hillside. Before it (v3-look50 to 55) it was a frozen
+  // river between rock walls, a height field of sine bends (in git history at v3-look55).
+  // Across: floor, half the flat floor's width (m); side, the curved sides' radius (m) and how steep they are at the lip
+  // (degrees); lip, the lip's width and shell, how thick the trough is under the ice (m).
+  // Along, laid a metre at a time from sections chosen in turn (seeded by `seed`, so the same run every visit):
+  // straights, bends, spirals (turning 450 to 810 degrees, each turn passing under the one before) and twists (a bend
+  // one way straight into one the other way), each with its range of lengths (m), angles (degrees) and radii (m), and
+  // its drop (m per m, made steeper when the run is high above the hillside and gentler when it is low). Curves ease in
+  // over `ease` metres. It banks into bends: roll[0] degrees per 1/m of curve, at most roll[1], averaged over rollEase
+  // metres either way, so it twists over from one bend to the next. hill: the hillside drops this much per metre toward
+  // -z; the run keeps between height[0] and height[1] metres above it. Where one part of the run passes over another
+  // there are at least `clear` metres between them; side by side, their centre lines are at least `apart` apart.
+  // pillar: one every pillar[0] metres, pillar[1] m thick.
+  // pull: how much of gravity she feels; air drag has her settle at `top` m/s (70 km/h) on a slope of `settle`, and she
+  // never goes faster. The slopes push her sideways too, so the sides turn her back in.
   canyon: {
-    bends: [
-      [18, 180, 0.4],
-      [7, 90, 2.1],
-      [2, 45, 4.0],
-    ],
-    width: [8, 2.5, 120],
-    bank: 2.6,
-    rise: 2.2,
-    bend: 15,
-    cliff: [30, 20],
-    rough: 1.6,
-    undulate: 0.45,
-    grade: 0.12,
+    seed: 7,
+    floor: 4,
+    side: [5.5, 58],
+    lip: 0.6,
+    shell: 0.7,
+    straight: { len: [45, 100], grade: 0.085 },
+    bend: { deg: [70, 160], radius: [34, 50], grade: 0.08 },
+    spiral: { deg: [450, 810], radius: [25, 30], grade: 0.08 },
+    twist: { deg: [55, 80], radius: [34, 44], grade: 0.085 },
+    ease: 18,
+    roll: [650, 21],
+    rollEase: 16,
+    hill: 0.13,
+    height: [12, 48],
+    clear: 9,
+    apart: 24,
+    pillar: [9, 0.45],
+    // she keeps this far inside the lips (m)
+    edge: 0.5,
     pull: 0.85,
     top: 19.4,
     settle: 0.07,
-    // she can go up the banks this far past the run's edge (m), no further: there the rock begins
-    edge: 1.2,
-    // the view swings round to look down the run (v3-look52, Mark: "camera swings so it can be relatively perpendicular
-    // to the parallels of the canyon wall"), so the walls run up the screen: it faces along the run from where she is
-    // to `ahead` metres further down, turning toward that at `ease` (1/s). The left thumb steers as the screen shows.
-    // It also keeps over the run (v3-look53: in a bend, straight back from her could be inside the canyon's side):
-    // from over[0] of the run's half width out from its middle it is drawn back in, never past over[1]; and it rises
-    // to stay `clear` metres above the ice under it and on the way to her.
-    view: { ahead: 24, ease: 1.3, over: [0.45, 0.85], clear: 2 },
+    // the view (v3-look56, Mark: "the camera can be more zoomed in and lower tilted up to look more at the horizon,
+    // parallel to the track"): it chases her from back[] metres behind her along the run, side of the way out toward
+    // her across it, high[] metres over the ice under her (air more in a jump), looking at a point a metre over the ice
+    // ahead[] metres beyond her; each [slow, fast]. Sideways it sits `wide` times as far back. clear: never nearer the
+    // ice than this (m). fov: how tall the view is (degrees) [upright, sideways], fovFast more at speed: upright a phone
+    // shows only a narrow slice across, so it is taller than elsewhere (38) to show the trough's sides.
+    view: {
+      back: [5.5, 8],
+      high: [2.1, 2.6],
+      air: 1.2,
+      ahead: [5, 12],
+      side: 0.8,
+      wide: 1.1,
+      clear: 1.3,
+      fov: [62, 44],
+      fovFast: 8,
+    },
   },
   // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.
   // ink: 'pencil' (thin graphite that the paper's tooth breaks up), 'pen' (a broad calligraphy nib: thick across the

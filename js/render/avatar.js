@@ -119,12 +119,13 @@ function costumeMaterial(map, normalMap, mask, U, look) {
 // Never below the ice (v3-look43): cloth that would pass through it in a deep crouch lies on it instead. Goes after
 // skinning. The mirror image is drawn flipped (its model matrix turns it upside down), so there the same rule keeps it
 // below the surface. On rolling ice (v3-look47) the surface is the height field's (ICE_DECL goes in the shader's
-// declarations).
+// declarations). Down the Canyon's run (v3-look56) it is the plane of the ice under her, and only near it: the duet
+// partner can be on another part of the run.
 const ICE_DECL = ICE_GLSL;
 const ABOVE_ICE = `
 { vec4 wq = modelMatrix * vec4(transformed, 1.0); float fl = sign(determinant(mat3(modelMatrix)));
   float gy = uWaves > 0.0 || uCanyon > 0.5 ? iceH(wq.xz, 1.0) : 0.0;
-  if ((wq.y - gy) * fl < 0.012) { wq.y = gy + 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; } }`;
+  if ((wq.y - gy) * fl < 0.012 && (uCanyon < 0.5 || (wq.y - gy) * fl > -3.0)) { wq.y = gy + 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; } }`;
 
 // A mirror crystal: a tiny flat facet (n: its normal, tilted at random) that reflects the sky and flashes white when it
 // turns to the sun or a spotlight, twinkling a little as it moves. Used on Tesa's bodice and gown.

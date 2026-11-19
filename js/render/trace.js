@@ -4,7 +4,7 @@
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { TAU } from '../core/math.js';
-import { ICE_GLSL, ICE_UNIFORMS } from '../core/terrain.js';
+import { ICE_GLSL, ICE_UNIFORMS, uCanyon, iceY, iceSlope } from '../core/terrain.js';
 
 export const PALETTES = [
   { name: 'Speed', bySpeed: true, stops: [0x74d99a, 0x78aefc, 0xff8cc2] }, // pastel green when slow, blue at cruising speed, pink flat out
@@ -87,8 +87,9 @@ ${ICE_GLSL}
   if (uInk > 0) transformed.z *= 1.7;
   transformed.xz *= uScale;
   vInkP = (instanceMatrix * vec4(transformed, 1.0)).xz;
-  // rolling ice: the line lies on it (each corner of each mark at the height of the ice there)
-  if (uWaves > 0.0 || uCanyon > 0.5) transformed.y += iceH(vInkP, 1.0);`,
+  // rolling ice: the line lies on it (each corner of each mark at the height of the ice there); down the Canyon's run
+  // each mark is placed on the ice already (place())
+  if (uWaves > 0.0) transformed.y += iceH(vInkP, 1.0);`,
       );
     sh.fragmentShader =
       `uniform float uPunch;
@@ -123,7 +124,8 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
   const geo = new THREE.PlaneGeometry(T.width, T.length);
   geo.rotateX(-Math.PI / 2);
   const tmpM = new THREE.Matrix4(),
-    tmpC = new THREE.Color();
+    tmpC = new THREE.Color(),
+    G2 = [0, 0];
   let ink = null;
   let blocks = [],
     prints = [],
@@ -149,7 +151,31 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     }
     const c = Math.cos(rot),
       s = Math.sin(rot);
-    tmpM.set(c * w, 0, s, x, 0, 1, 0, 0.02, -s * w, 0, c, z, 0, 0, 0, 1);
+    if (uCanyon.value) {
+      // down the Canyon's run (v3-look56): on the ice there, tilted with it, 2 cm off it
+      iceSlope(x, z, G2);
+      const gx = G2[0],
+        gz = G2[1],
+        l = 0.02 / Math.hypot(gx, 1, gz);
+      tmpM.set(
+        c * w,
+        0,
+        s,
+        x - gx * l,
+        (gx * c - gz * s) * w,
+        1,
+        gx * s + gz * c,
+        iceY(x, z) + l,
+        -s * w,
+        0,
+        c,
+        z - gz * l,
+        0,
+        0,
+        0,
+        1,
+      );
+    } else tmpM.set(c * w, 0, s, x, 0, 1, 0, 0.02, -s * w, 0, c, z, 0, 0, 0, 1);
     blk.setMatrixAt(k, tmpM);
     blk.setColorAt(k, tmpC.setHex(colorInt));
     const sa = blk.geometry.attributes.aSpd;

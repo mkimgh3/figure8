@@ -9,7 +9,7 @@
 // where it lies.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
-import { ICE_GLSL, uWaves, uCanyon, terrainOn } from '../core/terrain.js';
+import { ICE_GLSL, uWaves, uCanyon } from '../core/terrain.js';
 
 function canvasTex(size, draw, srgb) {
   const c = document.createElement('canvas');
@@ -309,30 +309,6 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
     // seen from above, a slope hardly changes how the ice is lit, so the waves are drawn up a little: slopes that face
     // the sun brighter, slopes that face away darker, crests paler and hollows a deeper blue
     sh.fragmentShader = sh.fragmentShader
-      // The canyon at night (v3-look53, Mark: "remove the green streaks on the ground but do simulate light from aurora
-      // reflecting off the ice"): no ribbons drawn on the ice. Instead the sky's curtains (as sky.js draws them) seen in
-      // the ice as in a mirror, broadened because the ice is not polished, so they lie as soft bands of light that
-      // slide over it as the view moves and bend over its rolls; brighter where the ice is seen at a glancing angle, as
-      // a reflection is. And a faint wash of their light over everything, the snow and rock too. Kept faint, so the
-      // night stays blue and the line stands out.
-      .replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
-  if (uCanyon > 0.5 && uAurora > 0.0) {
-    vec3 aV = normalize(cameraPosition - vWPos), aN = normalize(vRollN), aR = reflect(-aV, aN);
-    float at = uTime * 0.05, near = 1.0 - uOverview;
-    float curtain = 0.5 + 0.5 * sin(aR.x * 9.0 + sin(aR.z * 5.0 + at) * 2.0 + at * 1.5);
-    float sky = smoothstep(0.03, 0.3, aR.y) * (1.0 - 0.5 * smoothstep(0.55, 1.0, aR.y));
-    vec3 aCol = mix(uAur1, uAur2, clamp(aR.z * 0.5 + 0.5, 0.0, 1.0) * 0.55);
-    float fres = 0.04 + 0.96 * pow(1.0 - clamp(dot(aN, aV), 0.0, 1.0), 5.0);
-    float glow = fbm(vWPos.xz * 0.012 + vec2(at * 0.7, -at * 0.4));
-    // only the smooth ice mirrors it: not the rock, nor its bumps where they run down onto the banks
-    float smoothIce = (1.0 - smoothstep(0.0, 0.35, vWall)) * smoothstep(0.8, 0.95, aN.y);
-    float mirror = curtain * curtain * sky * (0.03 + 1.1 * fres) * smoothIce;
-    float wash = 0.035 * (0.4 + 0.6 * clamp(aN.y, 0.0, 1.0));
-    totalEmissiveRadiance += aCol * uAurora * (mirror + wash) * (0.55 + 0.9 * glow) * near;
-  }`,
-      )
       .replace(
         '#include <common>',
         '#include <common>\nvarying vec3 vRollN; varying float vRollH, vWall; uniform float uRelief, uRise;',
@@ -346,22 +322,16 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
         '#include <color_fragment>',
         `#include <color_fragment>
   diffuseColor.rgb *= clamp((1.0 + uRelief * dot(vRollN.xz, normalize(uSunDir.xz))) * (1.0 + uRise * vRollH), 0.4, 1.8);
-  // the canyon's walls: banded grey rock where steep, snow where they level off
-  if (vWall > 0.01) {
-    float band = 0.72 + 0.28 * sin(vWPos.y * 2.1 + sin(vWPos.x * 0.37 + vWPos.z * 0.29) * 3.0);
-    vec3 wallC = mix(vec3(0.105, 0.115, 0.14) * band, vec3(0.62, 0.67, 0.75), smoothstep(0.72, 0.9, vRollN.y));
-    diffuseColor.rgb = mix(diffuseColor.rgb, wallC, vWall);
-  }`,
+`,
       );
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',
         '#include <common>\nuniform vec4 uFade; varying vec3 vRollN; varying float vRollH, vWall;' +
           ICE_GLSL +
-          // the height here: the canyon's, or Rolling ice's times amp; und: the rolling part, wall: the canyon's rock
+          // the height here: Rolling ice's times amp; und: the rolling part; wall: 0 (it was the old canyon's rock)
           `
 float rollH(vec2 p, float det, float amp, out float und, out float wall) {
-  if (uCanyon > 0.5) return canyonH(p, det, und, wall);
   und = amp * iceRawD(p, det);
   wall = 0.0;
   return und;
@@ -426,9 +396,76 @@ float rollH(vec2 p, float det, float amp, out float und, out float wall) {
   rolling.renderOrder = -2;
   rolling.frustumCulled = false;
   rolling.visible = false;
-  // every frame: centre the rolling ice on (x, z), or put it away on flat ice. The canyon has no flat plane round it.
+  // ---- the Canyon's run (v3-look56, render/slide.js): the same ice inside the trough. Its uv is metres across and
+  // along the run, so the scratches follow it; it writes depth, since the run passes over itself.
+  // At night (v3-look53, Mark: "remove the green streaks on the ground but do simulate light from aurora reflecting off
+  // the ice"): no ribbons drawn on it. Instead the sky's curtains (as sky.js draws them) seen in the ice as in a mirror,
+  // broadened because the ice is not polished, so they lie as soft bands of light that slide over it as the view moves;
+  // brighter where the ice is seen at a glancing angle, as a reflection is. And a faint wash of their light.
+  const tmat = mat.clone();
+  tmat.color = mat.color;
+  tmat.depthWrite = true;
+  tmat.onBeforeCompile = (sh) => {
+    base(sh);
+    // where the floor's edges are, metres across the trough from its left lip
+    const K = CFG.canyon,
+      fe = (K.side[0] * K.side[1] * Math.PI) / 180;
+    sh.uniforms.uEdge = { value: new THREE.Vector2(fe, fe + 2 * K.floor) };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vTrackN;\nvarying vec2 vTUv;')
+      .replace(
+        '#include <uv_vertex>',
+        `#include <uv_vertex>
+#ifdef USE_MAP
+  vMapUv = uv / 16.0;
+#endif
+#ifdef USE_ROUGHNESSMAP
+  vRoughnessMapUv = uv / 16.0;
+#endif
+  vTUv = uv;`,
+      )
+      .replace(
+        '#include <beginnormal_vertex>',
+        '#include <beginnormal_vertex>\n  vTrackN = normalize(mat3(modelMatrix) * objectNormal);',
+      );
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vTrackN;\nvarying vec2 vTUv;\nuniform vec2 uEdge;')
+      // the floor's edges marked with a fine darker line, and the sides a deeper blue the steeper they are, so the
+      // trough's shape reads
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+  float fe = min(abs(vTUv.x - uEdge.x), abs(vTUv.x - uEdge.y));
+  diffuseColor.rgb *= 1.0 - 0.4 * (1.0 - smoothstep(0.05, 0.13, fe));
+  diffuseColor.rgb *= mix(1.0, 0.72, smoothstep(0.1, 0.8, 1.0 - normalize(vTrackN).y));`,
+      )
+      // the glare of the sun or a follow spot off the curved sides: kept from blowing out into a white blur
+      .replace(
+        '#include <aomap_fragment>',
+        '#include <aomap_fragment>\nreflectedLight.directSpecular = min(reflectedLight.directSpecular, vec3(0.12));',
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+  if (uAurora > 0.0) {
+    vec3 aV = normalize(cameraPosition - vWPos), aN = normalize(vTrackN), aR = reflect(-aV, aN);
+    float at = uTime * 0.05;
+    float curtain = 0.5 + 0.5 * sin(aR.x * 9.0 + sin(aR.z * 5.0 + at) * 2.0 + at * 1.5);
+    float sky = smoothstep(0.03, 0.3, aR.y) * (1.0 - 0.5 * smoothstep(0.55, 1.0, aR.y));
+    vec3 aCol = mix(uAur1, uAur2, clamp(aR.z * 0.5 + 0.5, 0.0, 1.0) * 0.55);
+    float fres = 0.04 + 0.96 * pow(1.0 - clamp(dot(aN, aV), 0.0, 1.0), 5.0);
+    float glow = fbm(vWPos.xz * 0.012 + vec2(at * 0.7, -at * 0.4));
+    float mirror = curtain * curtain * sky * (0.03 + 1.1 * fres) * (0.3 + 0.7 * smoothstep(0.75, 0.95, aN.y));
+    float wash = 0.035 * (0.4 + 0.6 * clamp(aN.y, 0.0, 1.0));
+    totalEmissiveRadiance += aCol * uAurora * (mirror + wash) * (0.55 + 0.9 * glow);
+  }`,
+      );
+  };
+  tmat.customProgramCacheKey = () => 'track-ice';
+  // every frame: centre the rolling ice on (x, z), or put it away on flat ice. The Canyon has no lake (its run stands
+  // on a snowy hillside, render/slide.js).
   const follow = (x, z, show) => {
-    const on = show && terrainOn();
+    const on = show && uWaves.value > 0;
     rolling.visible = on;
     mesh.visible = show && !uCanyon.value;
     rolling.position.set(x, 0, z);
@@ -440,8 +477,9 @@ float rollH(vec2 p, float det, float amp, out float und, out float wall) {
     follow,
     uniforms: U,
     material: mat,
+    trackMaterial: tmat,
     set envMapIntensity(v) {
-      mat.envMapIntensity = rmat.envMapIntensity = v;
+      mat.envMapIntensity = rmat.envMapIntensity = tmat.envMapIntensity = v;
     },
   };
 }

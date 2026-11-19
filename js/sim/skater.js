@@ -3,7 +3,8 @@ import { CFG } from '../config.js';
 import { TAU, clamp, wrap } from '../core/math.js';
 import { createFall } from '../moves/fall.js';
 import { createStumble } from '../moves/stumble.js';
-import { iceY, iceSlope, uWaves, uCanyon, canyonOff, canyonWidth, canyonAcross } from '../core/terrain.js';
+import { iceY, iceSlope, uWaves, uCanyon } from '../core/terrain.js';
+import { track, trackNear, ensureTrack, lips } from '../core/track.js';
 
 const COUNT = ['', 'Single', 'Double', 'Triple', 'Quad', 'Quint'];
 
@@ -58,7 +59,8 @@ export function createSkater(emit) {
   };
   const C = CFG.steer,
     SLOPE = [0, 0],
-    ACROSS = [0, 0];
+    NEAR = { s: 0, th: 0, y: 0, bank: 0, d: 0, dist: 0 },
+    LIPS = [0, 0];
   const speed = () => Math.hypot(S.vx, S.vz);
   const ensureSpeed = (min) => {
     if (speed() < min) {
@@ -348,22 +350,42 @@ export function createSkater(emit) {
         (S.move && S.move.id !== 'fall' ? 1.2 * dt : 0); // recent curving and figures
     S.x += S.vx * dt;
     S.z += S.vz * dt;
-    // the canyon's rock walls: she cannot climb them, but slides along them, keeping the speed that runs along the wall
+    // the Canyon's run (v3-look56): she stays inside the trough, edge metres below its lips, and below its closed top
+    // end; against them she slides along, keeping the speed that runs along them. Where she is along the run is where
+    // the run's height field looks (track.hint).
     if (canyon) {
-      const off = canyonOff(S.x, S.z),
-        edge = canyonWidth(S.z) + CFG.canyon.edge;
-      if (Math.abs(off) > edge) {
-        const n = canyonAcross(S.z, ACROSS),
-          sg = Math.sign(off),
-          out = Math.abs(off) - edge,
-          vn = (S.vx * n[0] + S.vz * n[1]) * sg;
-        S.x -= n[0] * sg * out;
-        S.z -= n[1] * sg * out;
+      const n = trackNear(S.x, S.z, NEAR),
+        nx = -Math.cos(n.th),
+        nz = Math.sin(n.th),
+        m = CFG.canyon.edge;
+      lips(n.bank, LIPS);
+      let out = 0;
+      if (n.d > LIPS[1] - m) out = n.d - LIPS[1] + m;
+      else if (n.d < LIPS[0] + m) out = n.d - LIPS[0] - m;
+      if (out) {
+        const sg = Math.sign(out),
+          vn = (S.vx * nx + S.vz * nz) * sg;
+        S.x -= nx * out;
+        S.z -= nz * out;
         if (vn > 0) {
-          S.vx -= n[0] * sg * vn;
-          S.vz -= n[1] * sg * vn;
+          S.vx -= nx * sg * vn;
+          S.vz -= nz * sg * vn;
         }
       }
+      const top = track.S0 + 3;
+      if (n.s < top) {
+        const tx = Math.sin(n.th),
+          tz = Math.cos(n.th),
+          vt = S.vx * tx + S.vz * tz;
+        S.x += tx * (top - n.s);
+        S.z += tz * (top - n.s);
+        if (vt < 0) {
+          S.vx -= tx * vt;
+          S.vz -= tz * vt;
+        }
+      }
+      track.hint = Math.max(top, n.s);
+      ensureTrack(track.hint + 300);
     }
     S.gy = iceY(S.x, S.z);
     iceSlope(S.x, S.z, SLOPE);

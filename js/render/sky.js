@@ -32,9 +32,36 @@ export function createSky(renderer) {
         gl_FragColor = vec4(c, 1.0); }`,
   });
   dome.add(new THREE.Mesh(geo, mat));
+  // The sky seen (v3-look56): down the Canyon's run the view looks out level, so the dome is drawn behind everything,
+  // round the camera (scene.js places it). The same colours, through the same tone mapping as the rest.
+  const backdrop = new THREE.Mesh(
+    new THREE.SphereGeometry(10, 48, 24),
+    new THREE.ShaderMaterial({
+      uniforms: U,
+      side: THREE.BackSide,
+      depthWrite: false,
+      depthTest: false,
+      vertexShader: mat.vertexShader,
+      // stars a pixel or two across (the dome's cells are for a blurred reflection, and seen they were squares)
+      fragmentShader: mat.fragmentShader
+        .replace('floor(d * 160.0)', 'floor(d * 900.0)')
+        .replace('step(0.996,', 'step(0.99987,')
+        .replace(
+          'gl_FragColor = vec4(c, 1.0); }',
+          `gl_FragColor = vec4(c, 1.0);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,
+        ),
+    }),
+  );
+  backdrop.renderOrder = -10;
+  backdrop.frustumCulled = false;
+  backdrop.visible = false;
   const pm = new THREE.PMREMGenerator(renderer);
   let env = null;
   return {
+    backdrop,
     // look: an entry of CFG.looks; sunDir: unit vector towards the sun
     set(look, sunDir) {
       U.uZen.value.setHex(look.sky[0]);
