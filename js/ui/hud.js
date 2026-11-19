@@ -73,6 +73,20 @@ export function createHud(coarse) {
     if (room > 0 && w > room)
       totalEl.style.fontSize = (parseFloat(getComputedStyle(totalEl).fontSize) * room) / w + 'px';
   }
+  // The tutorial is a column on the left under the score chip: the chip's height (--chiph) moves it down when a long
+  // best jump makes the chip taller (v3-look46: it ran into the tutorial's tabs), and upright the score card goes below
+  // the steps (--tpanelh, the steps' height)
+  if (window.ResizeObserver) {
+    const panel = $('tpanel'),
+      root = document.documentElement;
+    new ResizeObserver(() => {
+      if (scoreEl.offsetHeight) root.style.setProperty('--chiph', scoreEl.offsetHeight + 'px');
+      if (panel.offsetHeight) root.style.setProperty('--tpanelh', panel.offsetHeight + 'px');
+    }).observe(scoreEl);
+    new ResizeObserver(() => {
+      if (panel.offsetHeight) root.style.setProperty('--tpanelh', panel.offsetHeight + 'px');
+    }).observe(panel);
+  }
   hint.textContent = coarse
     ? 'Left thumb steers. Right finger: double tap to jump. Tutorial mode, on the front page, teaches every skill.'
     : 'WASD steers. Space jumps, A or D rotates in the air.';

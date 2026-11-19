@@ -66,17 +66,19 @@ export function createSkater(emit) {
   const busy = () => !S.grounded || (S.move && S.move.id === 'fall');
 
   // ---- moves: anything she does on the ice besides plain skating. See moves/README.md for the template.
-  function endMove() {
+  // how: nothing when the move ran its course; 'move' when another move took over, 'jump' when she took off, 'crash'
+  // when she ran into something. A move cut short scores only what it did, and nothing if she crashed (v3-look46).
+  function endMove(how) {
     const m = S.move;
     if (!m) return;
     S.move = null;
     S.yawX = 0;
-    if (m.end) m.end();
+    if (m.end) m.end(how);
   }
   function startMove(m) {
     if (!S.grounded) return false;
     if (S.move && S.move.id === 'fall') return false;
-    endMove();
+    endMove('move');
     S.move = m;
     if (m.start) m.start();
     return true;
@@ -99,7 +101,7 @@ export function createSkater(emit) {
   // boost: a launch pad throws her this many times faster off the ice than her own legs would
   function jump(boost) {
     if (busy()) return false;
-    endMove();
+    endMove('jump');
     S.takeBack = S.back;
     S.combo = S.back && S.landT < CFG.jump.comboWindow && S.cleanLand;
     S.vy =
@@ -207,7 +209,7 @@ export function createSkater(emit) {
     if (S.move && (S.move.id === 'fall' || S.move.id === 'stumble')) return false;
     // Infinite and Tutorial: she bounces off and stumbles instead of going down
     if (S.forgiving) {
-      if (S.grounded) endMove();
+      if (S.grounded) endMove('crash');
       S.yawX = 0;
       S.bonus *= 0.5;
       S.vx = nx * 3;
@@ -217,7 +219,7 @@ export function createSkater(emit) {
       return true;
     }
     S.bonus = 0;
-    if (S.grounded) endMove();
+    if (S.grounded) endMove('crash');
     S.move = null;
     S.yawX = 0;
     S.grounded = true;
@@ -345,11 +347,16 @@ export function createSkater(emit) {
     return !S.takeBack && r < 1 ? 'Waltz jump' : jumpType(S.spin >= 0);
   };
   // every finished move that counts leaves her with some extra speed to spend, the more the move was worth
+  // (less for a kind of move she has done in the last bonus.repeatWindow seconds: bonus.repeat times for each)
   const MOVES = { twizzles: 1, twirl: 1, spiral: 1, eagle: 1, hydro: 1, dance: 1, turn: 1, leap: 1, stop: 1 };
+  let moveHist = [];
   const emitMove = (type, data) => {
     if (type === 'element' && data && MOVES[data.kind] && data.counted !== false) {
-      const B = CFG.bonus,
-        gain = B.move[0] + B.move[1] * (data.base || 0),
+      const B = CFG.bonus;
+      moveHist = moveHist.filter((h) => S.clock - h.t <= B.repeatWindow);
+      const reps = moveHist.filter((h) => h.kind === data.kind).length;
+      moveHist.push({ kind: data.kind, t: S.clock });
+      const gain = (B.move[0] + B.move[1] * (data.base || 0)) * Math.pow(B.repeat, reps),
         before = S.bonus,
         v = speed();
       S.bonus = Math.min(B.max, S.bonus + gain);

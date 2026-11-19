@@ -28,7 +28,9 @@ export function createScene(canvas) {
   let ratio = 1;
   // Glow: the scene is drawn into an off-screen image, its brightest parts (sun glints, sequins, lines at night) are blurred
   // and added back, then the film-like tone mapping is applied. The blur works at a quarter of the screen's resolution to stay cheap.
-  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+  // (v3-look46: 2x edge smoothing in it, not 4x; on a phone's dense screen the edges look the same, and it is a
+  // full-screen image in half floats, so each sample costs)
+  const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 2 });
   const composer = new EffectComposer(renderer, rt),
     bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.5, 1.8);
   composer.addPass(new RenderPass(scene, camera));
@@ -152,6 +154,9 @@ export function createScene(canvas) {
       l.intensity = spotNow * 3.0;
       l.visible = spotNow > 0.01;
     });
+    // with the follow spot casting her shadow, the dim night sun casts none (v3-look46): one shadow map less to draw
+    // every frame, and one less for every lit pixel to look up
+    sun.castShadow = !(spots[0].castShadow && spotNow > 0.5);
   }
 
   // ---- looks (time of day)
@@ -247,7 +252,7 @@ export function createScene(canvas) {
     tgt = new THREE.Vector3(0, 0.9, 0);
   let zoomT = 0,
     camSp = 0,
-    // her speed, smoothed more slowly, for the portrait pull-back (so a push or a landing does not make the view pump)
+    // her speed, smoothed more slowly, for the upright view's distance (so a push or a landing does not make it pump)
     pullSp = 0,
     dark = false,
     lookAhead = 1,
@@ -343,11 +348,12 @@ export function createScene(canvas) {
     // tilt: a little more side-on at speed and in the air, so height and pace read; back to the drawing view when slow
     air += ((S.grounded && S.visY < 0.05 ? 0 : 1) - air) * (1 - Math.exp(-(S.grounded ? 2.5 : 6) * dt));
     distK += (distGoal - distK) * (1 - Math.exp(-2 * dt));
-    // portrait: the view sits further back, and further still the faster she goes, easing back in as she slows
-    const portrait =
-      camera.aspect < 1
-        ? C.portrait * (1 + C.portraitFast * clamp((pullSp - C.portraitFrom) / C.portraitSpan, 0, 1))
-        : 1;
+    // upright: close when she is slow, further back the faster she goes, easing back in as she slows; sideways: closer
+    const pullT = clamp((pullSp - C.portraitFrom) / C.portraitSpan, 0, 1),
+      portrait =
+        camera.aspect < 1
+          ? C.portraitNear + (C.portraitFar - C.portraitNear) * pullT * pullT * (3 - 2 * pullT)
+          : C.landscape;
     showK += ((showOn ? 1 : 0) - showK) * (1 - Math.exp(-4 * dt));
     const tilt = (C.tilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
       dist = (DIST + camSp * C.speedLift) * distK * portrait;

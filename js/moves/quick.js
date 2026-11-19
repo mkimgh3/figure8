@@ -15,13 +15,18 @@ export function createTurn(S, api) {
       S.yawX = dir * Math.PI * sstep(0.15, 0.85, u);
       return u < 1;
     },
-    end() {
+    // how: see endMove in skater.js. Cut short before half way round, she has not turned; past it she has, and it is
+    // worth the share of the turn she made (nothing if she crashed)
+    end(how) {
+      const done = how ? clamp(t / T_ALL, 0, 1) : 1;
+      if (done < 0.5) return;
       S.back = !S.back;
       api.emit('element', {
         kind: 'turn',
         name: 'Three-turn',
         detail: S.back ? 'now backward' : 'now forward',
-        base: CFG.points.turn,
+        base: CFG.points.turn * done,
+        counted: how !== 'crash',
       });
     },
     blade(out) {
@@ -76,12 +81,16 @@ export function createStop(S, api, dir) {
       S.yawX = ((dir * Math.PI) / 2) * sstep(0, K.snap, st.t) * (1 - up);
       return up < 1;
     },
-    end() {
+    // how: see endMove in skater.js. Cut short, it is worth the share of her speed she had shed, and counts only past
+    // half of it (never after a crash)
+    end(how) {
+      const shed = st.stopped || !how ? 1 : clamp(1 - api.speed() / Math.max(v0, 0.1), 0, 1);
       api.emit('element', {
         kind: 'stop',
         name: 'Hockey stop',
         detail: 'from ' + Math.round(v0 * 3.6) + ' km/h',
-        base: CFG.points.stop * clamp(v0 / CFG.steer.maxSpeed, 0.25, 1),
+        base: CFG.points.stop * clamp(v0 / CFG.steer.maxSpeed, 0.25, 1) * shed,
+        counted: how !== 'crash' && shed >= 0.5,
       });
     },
     skid: () => (st.stopped ? 0 : 1),
@@ -132,8 +141,17 @@ export function createLeap(S, api) {
       if (x > 0.15 && x < 0.85) S.visY = 0.6 * Math.sin(((x - 0.15) / 0.7) * Math.PI);
       return x < 1;
     },
-    end() {
-      api.emit('element', { kind: 'leap', name: 'Split leap', detail: 'travelling', base: CFG.points.leap });
+    // how: see endMove in skater.js. Cut short, it counts only once she was past the top of the leap, for the share
+    // of it she made (never after a crash)
+    end(how) {
+      const done = how ? u() : 1;
+      api.emit('element', {
+        kind: 'leap',
+        name: 'Split leap',
+        detail: 'travelling',
+        base: CFG.points.leap * done,
+        counted: how !== 'crash' && done >= 0.5,
+      });
     },
     blade(out) {
       const x = u();

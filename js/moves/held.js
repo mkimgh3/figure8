@@ -37,12 +37,15 @@ function held(S, api, o) {
         if (st.t < o.minTime) return true;
         return st.held && st.t <= CFG.held.maxTime && !(o.coast && api.speed() < CFG.held.endSpeed);
       },
-      end() {
+      // how: see endMove in skater.js. Scored by the time held, so one cut short is already worth less; a crash
+      // out of it counts for nothing
+      end(how) {
         api.emit('element', {
           kind: o.id,
           name: o.name,
           detail: st.t.toFixed(1) + ' seconds held',
           base: dimin(P[o.id][0], st.t, P[o.id][1]),
+          counted: how !== 'crash',
         });
       },
     },

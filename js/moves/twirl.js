@@ -32,16 +32,19 @@ export function createTwirl(S, api, seed) {
       }
       return true;
     },
-    end() {
-      const turns = Math.abs(st.goal) / TAU,
+    // how: see endMove in skater.js. Cut short, it is the turns she had made, not the ones the finger had asked for
+    // (nothing after a crash)
+    end(how) {
+      const a = how ? st.angle : st.goal,
+        turns = Math.abs(a) / TAU,
         P = CFG.points;
-      if (Math.round(st.goal / Math.PI) % 2 !== 0) S.back = !S.back;
+      if (Math.round(a / Math.PI) % 2 !== 0) S.back = !S.back;
       api.emit('element', {
         kind: 'twizzles',
         name: 'Twizzles',
         detail: turns.toFixed(1) + ' turns',
         base: dimin(P.twizzles[0], turns, P.twizzles[1]),
-        counted: turns >= 1,
+        counted: turns >= 1 && how !== 'crash',
       });
     },
     // each turn draws a loop: wide and round, following a smoothed angle so the line curls instead of zigzagging

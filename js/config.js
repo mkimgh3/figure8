@@ -73,6 +73,12 @@ export const CFG = {
     spinDown: 1.5,
     // spinning with the left thumb not pushing, her travel speed dies away over about this many seconds
     spinCoast: 2.5,
+    // What choreography is worth (v3-look46; until then it was the seconds alone). Each second counts as `still` when she
+    // only holds gestures, plus `travel` at travelSpeed m/s or more, plus `spin` in a fast spin (0.7 of it in a slow one),
+    // at most 1 in all; points.dance turns those seconds into value. Then variety: each kind she has shown (calm
+    // gestures, sharp ones, a slow spin, a fast spin, travelling for travelTime seconds) adds `kind` to a share that
+    // starts at `base`, so all five give the full value and one alone gives 0.6 of it.
+    score: { still: 0.35, travel: 0.35, spin: 0.3, travelSpeed: 4, travelTime: 1, base: 0.5, kind: 0.1 },
   },
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7 },
   // fraction of a turn off a clean half or whole turn
@@ -85,7 +91,20 @@ export const CFG = {
   fall: { seconds: 1.15, boostSeconds: 3, boostAccel: 3.2, repeatWindow: 5 }, // only a first fall gets help back up to speed; any fall within repeatWindow seconds of the last gets none, and restarts the wait
   // Speed beyond what steering alone can reach is earned by landing jumps: the better and bigger the jump, the more. It fades slowly and a fall loses it.
   // Every other finished move earns it too: move[0] plus move[1] for each point of the move's base value. Each m/s of it also lifts her next jump (jump.vyPerBonus).
-  bonus: { perfect: 1.1, clean: 0.6, shaky: 0, perRotation: 0.45, max: 6, fade: 0.22, kick: 0.6, move: [0.3, 0.35] },
+  // A move of the same kind as one in the last repeatWindow seconds earns repeat times as much for each such one
+  // (v3-look46: until then three-turns one after another kept earning the full bonus).
+  bonus: {
+    perfect: 1.1,
+    clean: 0.6,
+    shaky: 0,
+    perRotation: 0.45,
+    max: 6,
+    fade: 0.22,
+    kick: 0.6,
+    move: [0.3, 0.35],
+    repeat: 0.6,
+    repeatWindow: 20,
+  },
   // Points, on the scale of real figure skating: jumps carry the big base values, everything else is worth a few points at most.
   points: {
     jumps: {
@@ -102,6 +121,9 @@ export const CFG = {
     fall: -1,
     jumpCombo: [1, 1, 1.5, 2, 2.5],
     jumpComboWindow: 2.5, // 2nd, 3rd, 4th jump in a row: one combination element, the later jumps worth more
+    // at most this many jumps in one combination, as in real skating; the next one starts a new element (v3-look46:
+    // Mark's screenshot had ten hops, waltz jumps and half loops chained into one, its name running down the screen)
+    comboMax: 3,
     chainWindow: 3,
     artistry: 0.3, // elements linked within chainWindow seconds; each new kind adds artistry x kinds so far
     // Everything that lasts: [most it can be worth, how quickly it gets there]. Value = most x (1 - e^(-amount / quickness)),
@@ -110,7 +132,7 @@ export const CFG = {
     spiral: [1.6, 2],
     eagle: [1.6, 2],
     hydro: [2.0, 2],
-    dance: [3.0, 6], // per second
+    dance: [3.6, 6], // per active second (dance.score)
     turn: 0.3,
     leap: 0.6,
     stop: 0.8, // stop: from full speed; less from slower
@@ -119,7 +141,10 @@ export const CFG = {
       [4.5, 1.5],
       [1.6, 1.25],
     ],
-    repeat: [1, 0.7, 0.5], // the same element again straight away is worth less
+    // an element done again within repeatWindow seconds is worth less: the second time 0.7, the third and on 0.5
+    // (v3-look46: counted over that time; until then only straight after itself, so A, B, A, B was never marked down)
+    repeat: [1, 0.7, 0.5],
+    repeatWindow: 20,
   },
   // Icicles: every `spacing` metres of new line sheds perSpot glints that sink (m/s) into the ice and fade over `seconds`.
   // (v3-look36: fewer, smaller and dimmer than before; at 4 glints and brightness 1.5 they read as stitching beside the line)
@@ -137,14 +162,17 @@ export const CFG = {
     lookAhead: 0.22,
     lookMax: 2.2,
     minOverview: 16,
-    portrait: 1.2, // how much further back the view sits when the screen is taller than it is wide
-    // In portrait it pulls back further with speed: from portraitFrom (m/s) it eases out, reaching portraitFast more
-    // (0.7: 70% further back) at portraitFrom + portraitSpan (14 m/s, 50 km/h), and eases back in as she slows.
-    // portraitEase (1/s): how quickly it follows her speed.
-    portraitFast: 0.7,
-    portraitFrom: 4,
+    // how far back the view sits when the screen is wider than it is tall (v3-look46: closer, Mark: "zoom in a bit")
+    landscape: 0.82,
+    // Upright, the view follows her speed (v3-look46, Mark: "zoomed in when slow and zoomed out when fast"): portraitNear
+    // times the usual distance up to portraitFrom (m/s), easing out to portraitFar at portraitFrom + portraitSpan
+    // (11.5 m/s, about 41 km/h), and back in as she slows. portraitEase (1/s): how quickly it follows her speed, slow
+    // enough that a push or a landing does not make the view pump. Before v3-look46: 1.2 slow to 2.04 at 14 m/s.
+    portraitNear: 0.85,
+    portraitFar: 2.2,
+    portraitFrom: 1.5,
     portraitSpan: 10,
-    portraitEase: 1,
+    portraitEase: 1.4,
     // The front page (v3-look40): the view comes round low in front of her, `elev` degrees above level, as close as fits
     // her from `low` to `high` metres (her blades to her hands overhead) into the space between the status bar and the
     // choices, and `half` metres either side of her (the coat flying open). `ease` (1/s): how quickly the framing follows

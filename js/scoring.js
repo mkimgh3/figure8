@@ -1,6 +1,7 @@
 // Points, laid out the way a skating judges' sheet reads. Every scored element has four numbers:
 //   base   what the element is worth (real figure-skating values for jumps)
-//   goe    grade of execution: how well it was done (landing quality; less for repeating the same element straight away)
+//   goe    grade of execution: how well it was done (landing quality; less for an element done again within
+//          points.repeatWindow seconds)
 //   art    what the skating around it adds (a jump out of figures, jump combinations, linking different kinds of element)
 //   pts    the total
 // Jumps landed one straight after another are one combination element, named like "Triple Salchow + Double toe loop".
@@ -43,8 +44,8 @@ export function createScoring(saved) {
     chain = fresh(),
     inRow = 0,
     lastJumpEnd = -99,
-    lastName = '',
-    reps = 0,
+    // the elements of the last points.repeatWindow seconds, { key, t }, for the repeat penalty
+    recent = [],
     combo = null;
   const copy = (e) => ({ name: e.name, code: e.code, base: e.base, goe: e.goe, art: e.art, pts: e.pts });
   function record(e, replaces) {
@@ -58,17 +59,20 @@ export function createScoring(saved) {
     if (e.jump && (!st.bestJump || e.pts > st.bestJump.pts)) st.bestJump = copy(e);
     return e;
   }
-  function score(kind, name, base, quality, entry, code) {
+  // key: what counts as the same element again (a stumbled jump is still that jump)
+  function score(kind, name, base, quality, entry, code, key) {
     if (!(chain.n > 0 && startT - chain.lastEnd <= P.chainWindow)) chain = fresh();
     let mult = 1;
     if (kind === 'jump') {
-      inRow = startT - lastJumpEnd <= P.jumpComboWindow ? inRow + 1 : 1;
+      inRow = startT - lastJumpEnd <= P.jumpComboWindow && inRow < P.comboMax ? inRow + 1 : 1;
       mult = P.jumpCombo[Math.min(inRow, P.jumpCombo.length - 1)];
       lastJumpEnd = clock;
     } else inRow = 0;
-    reps = name === lastName ? reps + 1 : 0;
-    lastName = name;
-    const rep = P.repeat[Math.min(reps, P.repeat.length - 1)];
+    key = key || name;
+    recent = recent.filter((r) => clock - r.t <= P.repeatWindow);
+    const reps = recent.filter((r) => r.key === key).length,
+      rep = P.repeat[Math.min(reps, P.repeat.length - 1)];
+    recent.push({ key, t: clock });
     let link = 0;
     if (!chain.kinds[kind]) {
       chain.kinds[kind] = 1;
@@ -98,7 +102,7 @@ export function createScoring(saved) {
       if (d.grade === 'fall') {
         chain = fresh();
         inRow = 0;
-        lastName = '';
+        recent = [];
         combo = null;
         st.falls++;
         const pts = r1(-Math.min(st.total, -P.fall));
@@ -121,7 +125,7 @@ export function createScoring(saved) {
           break;
         }
       const q = d.grade === 'stumble' ? CFG.stumble.quality : P.quality[d.grade],
-        e = score('jump', d.grade === 'stumble' ? d.name + ', stumbled' : d.name, base, q, entry, codeOf(d));
+        e = score('jump', d.grade === 'stumble' ? d.name + ', stumbled' : d.name, base, q, entry, codeOf(d), d.name);
       st.jumps++;
       if (inRow >= 2 && combo && st.list[0] === combo) {
         // straight out of the last landing: one combination
@@ -149,7 +153,7 @@ export function createScoring(saved) {
       Object.assign(st, { total: 0, jumps: 0, falls: 0, best: null, bestJump: null, time: 0, list: [] });
       chain = fresh();
       inRow = 0;
-      lastName = '';
+      recent = [];
       combo = null;
     },
     serialise: () => ({

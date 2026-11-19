@@ -109,6 +109,11 @@ export function createDance(S, api) {
       dir: 0,
       tog: 0,
       weave: 0,
+      // what it is worth (CFG.dance.score): the active seconds, the kinds of thing she has shown, and the seconds she has
+      // spent travelling fast
+      work: 0,
+      kinds: {},
+      travelT: 0,
     };
   // gain: how far the spin has wound up, 0 (two thumb circles to one turn of hers) to 1 (one to one). It builds while a spin is kept going, fades
   // when it is not, and is kept on the skater between dances, so a spin taken up again carries on from what was left. w: her turning speed while winding down.
@@ -249,6 +254,23 @@ export function createDance(S, api) {
               ? 2
               : 1
             : 0;
+      // what this moment adds to her score: holding gestures, travelling, spinning (at most a whole second's worth)
+      {
+        const sc = K.score,
+          v = api.speed();
+        st.work +=
+          dt *
+          Math.min(
+            1,
+            sc.still + sc.travel * Math.min(1, v / sc.travelSpeed) + (st.spin ? sc.spin * (st.spin > 1 ? 1 : 0.7) : 0),
+          );
+        if (v >= sc.travelSpeed && (st.travelT += dt) >= sc.travelTime) st.kinds.travel = 1;
+        // the kinds she has shown, from the thumb's mood and the spin (not from the poses drawn, so it scores the same
+        // whether or not anything is on screen)
+        if (st.spin) st.kinds[st.spin > 1 ? 'fast' : 'spin'] = 1;
+        else if (st.mood < 0.4) st.kinds.calm = 1;
+        else if (st.mood > 0.6) st.kinds.sharp = 1;
+      }
       if (st.held && st.spin > 0) gain = Math.min(1, gain + dt / K.gainRise);
       else gain *= Math.exp(-dt / K.gainFade);
       S.spinGain = gain;
@@ -275,7 +297,9 @@ export function createDance(S, api) {
       }
       return true;
     },
-    end() {
+    // how: see endMove in skater.js. It is scored on what she did (CFG.dance.score), so one cut short is already worth
+    // less; a crash out of it counts for nothing
+    end(how) {
       S.flipYaw = wrap(cur.yaw + turned);
       S.flipK = 2.6; // her body eases back round to face the way she is going
       const m = st.t > 0 ? st.moodSum / st.t : 0;
@@ -287,8 +311,10 @@ export function createDance(S, api) {
           ' seconds, ' +
           (m < 0.33 ? 'flowing' : m > 0.6 ? 'sharp' : 'mixed') +
           (st.turns > 9 ? ', ' + (st.turns / 6.2832).toFixed(1) + ' turns' : ''),
-        base: dimin(CFG.points.dance[0], st.t, CFG.points.dance[1]),
-        counted: st.t >= K.minScore,
+        base:
+          dimin(CFG.points.dance[0], st.work, CFG.points.dance[1]) *
+          (K.score.base + K.score.kind * Object.keys(st.kinds).length),
+        counted: st.t >= K.minScore && how !== 'crash',
       });
     },
     // how fast she is turning in a spin (rad/s), which flares the skirts and the hair (v3-look38: the spins inside

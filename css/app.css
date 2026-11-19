@@ -123,6 +123,7 @@ button:focus-visible {
 #tlab {
   margin: 0 0 7px;
 }
+/* at most two lines: a long combination's full name is on the scoreboard */
 #bjname {
   font-size: 11px;
   font-weight: 750;
@@ -130,6 +131,11 @@ button:focus-visible {
   margin: 1px 0 4px;
   white-space: normal;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 #bjname:empty {
   display: none;
@@ -957,22 +963,39 @@ body.front #board {
   #fstart {
     min-height: 42px;
   }
-  /* the tutorial moves to a column on the left, under the score chip, so it never covers the skater in the middle */
-  #tut,
-  #tsel,
+}
+/* the tutorial: a column on the left, under the score chip, so it never covers the skater in the middle (until v3-look46
+   it sat in the middle under the speed when upright, where its tabs ran into the score); it starts below the chip
+   however tall a long best jump makes it (--chiph, measured in hud.js) */
+#tut,
+#tsel,
+#tpanel {
+  position: fixed;
+  left: var(--sl);
+}
+#tut {
+  top: calc(var(--st) + max(116px, var(--chiph, 0px) + 8px));
+}
+#tsel {
+  top: calc(var(--st) + max(154px, var(--chiph, 0px) + 46px));
+}
+#tpanel {
+  top: calc(var(--st) + max(190px, var(--chiph, 0px) + 82px));
+  width: 240px;
+}
+@media (orientation: portrait) {
   #tpanel {
+    width: 270px;
+  }
+  /* upright in Tutorial mode, an element's score card goes below the steps, not over the tabs (Broadcast keeps its
+     own, a lower third at the bottom, and its tutorial on the right) */
+  body.play-tutorial:not(.ui-broadcast) #pop,
+  body.play-tutorial.ui-minimal #pop {
     position: fixed;
-    left: var(--sl);
-  }
-  #tut {
-    top: calc(var(--st) + 116px);
-  }
-  #tsel {
-    top: calc(var(--st) + 154px);
-  }
-  #tpanel {
-    top: calc(var(--st) + 190px);
-    width: 240px;
+    left: 0;
+    right: 0;
+    margin: 0;
+    top: calc(var(--st) + max(190px, var(--chiph, 0px) + 82px) + var(--tpanelh, 110px) + 14px);
   }
 }
 
@@ -1727,16 +1750,19 @@ body.paused.ui-minimal #speedo {
 /* keep the styles' own pieces apart */
 .ui-broadcast #tut {
   position: fixed;
+  left: auto;
   right: var(--sr);
   top: calc(var(--st) + 102px);
 }
 .ui-broadcast #tsel {
   position: fixed;
+  left: auto;
   right: var(--sr);
   top: calc(var(--st) + 142px);
 }
 .ui-broadcast #tpanel {
   position: fixed;
+  left: auto;
   right: var(--sr);
   top: calc(var(--st) + 180px);
   width: 230px;
