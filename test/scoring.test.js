@@ -222,5 +222,34 @@ function dance(spin, steer, v0) {
   ok('and never more than the most choreography is worth', lively && lively.base <= P.dance[0], lively && lively.base);
 }
 
+// hip hop (v3-look48): both thumbs moving at random brings it out; moving in step, the same way or mirrored, does not
+function thumbs(kind) {
+  const r = rig(),
+    d = createDance(r.S, r.game);
+  r.S.vz = 3;
+  r.game.startMove(d);
+  let a = 0;
+  for (let k = 0; k < 3 / 0.016; k++) {
+    a += 0.4 + Math.random();
+    const b = kind === 'random' ? Math.random() * 6.283 : kind === 'mirror' ? Math.PI - a : a;
+    // speeds 400 px/s each; cos of the angle between them, and with the left one mirrored
+    d.feed(400, 0.016, 400, Math.cos(a - b), -Math.cos(a + b));
+    r.game.update(0.016, { x: 0, y: 0.3 });
+  }
+  return { hip: d.state.hip, sync: +d.state.sync.toFixed(2), d, r };
+}
+{
+  const rnd = thumbs('random'),
+    same = thumbs('same'),
+    mir = thumbs('mirror');
+  ok('thumbs moving at random: hip hop', rnd.hip, rnd.sync);
+  ok('thumbs moving the same way: no hip hop', !same.hip && same.sync > 0.9, same.sync);
+  ok('thumbs mirrored like a pair of arms: no hip hop', !mir.hip && mir.sync > 0.9, mir.sync);
+  ok('hip hop turns her steering down', rnd.d.steer < 1 && same.d.steer === 1);
+  rnd.r.game.endMove();
+  const e = rnd.r.out[0];
+  ok('and is named in the element', e && /hip hop/.test(e.detail), e && e.detail);
+}
+
 console.log(failed ? '\n' + failed + ' FAILED' : '\nall passed');
 process.exit(failed ? 1 : 0);

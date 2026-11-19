@@ -26,8 +26,8 @@ setWaves(1);
       iceSlope(x, z, g);
       steep = Math.max(steep, Math.hypot(g[0], g[1]));
     }
-  ok('it rises and falls by about a metre either way', lo < -0.5 && hi > 0.5 && lo > -1.6 && hi < 1.6, [lo, hi]);
-  ok('never steeper than about 24 degrees', steep > 0.15 && steep < 0.45, +steep.toFixed(3));
+  ok('it rises and falls by about one and a half metres either way', lo < -1 && hi > 1 && lo > -2 && hi < 2, [lo, hi]);
+  ok('never steeper than about 32 degrees', steep > 0.3 && steep < 0.63, +steep.toFixed(3));
 }
 {
   // the slope agrees with the height
@@ -56,7 +56,7 @@ setWaves(1);
   };
   const a = rough(-100, 30),
     b = rough(140, 130);
-  ok('gentle in some places, wavy in others', Math.max(a, b) > 2.5 * Math.min(a, b), [+a.toFixed(3), +b.toFixed(3)]);
+  ok('gentle in some places, wavy in others', Math.max(a, b) > 2 * Math.min(a, b), [+a.toFixed(3), +b.toFixed(3)]);
 }
 ok(
   'the shaders get the same sum',

@@ -12,7 +12,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { HIP } from './model.js';
 import { createHair } from './hair.js';
 import { starDot } from './atmos.js';
-import { ICE_GLSL, uWaves } from '../core/terrain.js';
+import { ICE_GLSL, uWaves, iceMirror } from '../core/terrain.js';
 
 const LIFT = 0.045;
 const WIND = { x: 1.8, y: 0.75 }; // a breeze over the lake, metres per second (same way the snow drifts)                                   // how far the blades raise her above where her shoes were
@@ -1576,34 +1576,8 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           }
           if (reflect) {
             // the mirror: her reflection in the ice under her (on rolling ice, in its slope there)
-            {
-              const gx = S.gx || 0,
-                gz = S.gz || 0,
-                l = Math.hypot(gx, 1, gz),
-                nx = -gx / l,
-                ny = 1 / l,
-                nz = -gz / l,
-                d2 = 2 * (nx * S.x + ny * (S.gy || 0) + nz * S.z);
-              R.set(
-                1 - 2 * nx * nx,
-                -2 * nx * ny,
-                -2 * nx * nz,
-                d2 * nx,
-                -2 * ny * nx,
-                1 - 2 * ny * ny,
-                -2 * ny * nz,
-                d2 * ny,
-                -2 * nz * nx,
-                -2 * nz * ny,
-                1 - 2 * nz * nz,
-                d2 * nz,
-                0,
-                0,
-                0,
-                1,
-              );
-              if (strands) strands.parts.forEach((s) => s.mirror.matrixWorld.copy(R));
-            }
+            iceMirror(S, R);
+            if (strands) strands.parts.forEach((s) => s.mirror.matrixWorld.copy(R));
             mirrors.forEach((r, i) => {
               r.matrix.multiplyMatrices(R, skinned[i].bindMatrix);
               r.matrixWorld.copy(r.matrix);

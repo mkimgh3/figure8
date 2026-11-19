@@ -332,7 +332,37 @@ export function createModels(scene) {
     }),
   );
 
-  const chars = [ava, max, ka];
+  // Bjorn, a polar bear (v3-look48): his own body is built in code by bear.js on these joints; this simple figure only
+  // stands in for the moment before that. dims: the limbs' sizes, which bear.js reads too.
+  const b = new THREE.Group();
+  b.position.y = -HIP;
+  b.visible = false;
+  body.add(b);
+  const mFur = mat(0xf1ece0, 6),
+    mBootB = mat(0x15161c, 60);
+  add(ball(0.27, 1, 1.25, 0.9), mFur, b, 0, 1.08, 0.02);
+  add(ball(0.13, 1, 1, 1.1), mFur, b, 0, 1.6, 0.05);
+  const bearDims = {
+    shoulder: 0.25,
+    shoulderY: 1.35,
+    upper: [0.1, 0.088, 0.27],
+    fore: [0.086, 0.079, 0.24],
+    hand: 0.075,
+    upperMat: mFur,
+    skin: mFur,
+    hip: 0.11,
+    thigh: [0.145, 0.112],
+    shin: [0.102, 0.086],
+    legMat: mFur,
+    boot: 0.07,
+    bootMat: mBootB,
+  };
+  const bj = Object.assign(
+    { name: 'Bjorn', inner: b, scale: 1.15, skirt: new THREE.Group(), hair: null, bear: true, dims: bearDims },
+    limbs(b, bearDims),
+  );
+
+  const chars = [ava, max, ka, bj];
   let index = 0;
   return {
     hero,

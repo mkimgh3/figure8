@@ -79,6 +79,12 @@ export const CFG = {
     // gestures, sharp ones, a slow spin, a fast spin, travelling for travelTime seconds) adds `kind` to a share that
     // starts at `base`, so all five give the full value and one alone gives 0.6 of it.
     score: { still: 0.35, travel: 0.35, spin: 0.3, travelSpeed: 4, travelTime: 1, base: 0.5, kind: 0.1 },
+    // Hip hop (v3-look48): both thumbs moving (faster than moveSpeed), each frame scored by how much in step they are (1:
+    // the same way, or mirrored like a pair of arms; about 0.4 at random), smoothed at syncRate (1/s). Above inStep the
+    // elegant gestures, below outOfStep hip hop, held while both have moved within `linger` seconds. Steps on the beat at
+    // bpm; the groove dips her `dip` metres on every beat and sways her hips `sway` radians; the left thumb steers at
+    // `steer` of the usual while she dances it.
+    hiphop: { bpm: 96, syncRate: 2, inStep: 0.75, outOfStep: 0.6, linger: 0.6, dip: 0.05, sway: 0.07, steer: 0.35 },
   },
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7 },
   // fraction of a turn off a clean half or whole turn
@@ -277,13 +283,12 @@ export const CFG = {
   ],
   // Places. camera: how much further back the view sits. paper: a blank sheet instead of the lake (see `paper` below).
   // waves: how high the ice rises and falls (CFG.waves; 0 or left out: flat). tilt: degrees more side-on the view is,
-  // so the slopes show. Rolling ice (v3-look47) comes last so the
-  // places saved before it keep their numbers.
+  // so the slopes show. Rolling ice (v3-look47) comes last so the places saved before it keep their numbers.
   places: [
     { name: 'Open lake', trees: false },
     { name: 'Islands', trees: true, camera: 1.35 },
     { name: 'Paper', trees: false, paper: true },
-    { name: 'Rolling ice', trees: false, waves: 1, tilt: 14 },
+    { name: 'Rolling ice', trees: false, waves: 1, tilt: 18 },
   ],
   // Rolling ice (v3-look47, Mark: "undulating ice, various, gentle to wavy"; core/terrain.js). Each wave: [height (m),
   // wavelength (m), direction (degrees), phase]. gentle: long low swells everywhere. wavy: shorter waves, only where the
@@ -293,29 +298,32 @@ export const CFG = {
   // grid: the ice drawn as a mesh round the view, out to `radius` metres (rings `step` apart at the middle, `grow` more
   // for every metre out, `sides` round), the waves easing out between fade[0] and fade[1] of the radius, and the short
   // wavy ones already between detail[0] and detail[1] metres, where the rings are too far apart to draw them.
+  // v3-look48 (Mark: "rolling wave looks good, make it more dramatic"): the swells about twice as high (plus or minus
+  // 1 m on their own), the wavy crests half as high again and a little longer, wavy stretches more common, the view 4
+  // degrees more side-on; slopes pull a little less (0.6 to 0.45) so she still climbs the steeper faces.
   waves: {
     gentle: [
-      [0.22, 26, 20, 0],
-      [0.17, 37, 115, 1.7],
-      [0.13, 52, 250, 4.1],
+      [0.45, 30, 20, 0],
+      [0.32, 44, 115, 1.7],
+      [0.22, 60, 250, 4.1],
     ],
     wavy: [
-      [0.15, 6, 65, 0.6],
-      [0.12, 7.8, 82, 2.9],
-      [0.1, 9.6, 47, 5.2],
+      [0.23, 7, 65, 0.6],
+      [0.18, 9, 82, 2.9],
+      [0.13, 11.5, 47, 5.2],
     ],
     patch: [
       [1, 170, 35, 0.3],
       [1, 230, 140, 2.2],
     ],
-    mix: [-0.2, 0.6],
-    warp: [2.5, 0.11, 0.13],
-    pull: 0.6,
+    mix: [-0.4, 0.4],
+    warp: [3, 0.11, 0.13],
+    pull: 0.45,
     minSpeed: 0.3,
     // how much brighter a slope facing the sun is drawn (and darker facing away), per unit of slope; and a crest (paler)
     // or hollow (deeper blue), per metre up or down
-    relief: 3.5,
-    rise: 0.5,
+    relief: 3,
+    rise: 0.32,
     grid: { radius: 150, step: 0.3, grow: 0.025, sides: 256, fade: [0.55, 0.95], detail: [35, 70] },
   },
   // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.

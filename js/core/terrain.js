@@ -57,6 +57,36 @@ export function iceSlope(x, z, out) {
   return out;
 }
 
+// A skater's reflection: the mirror in the ice under her (on rolling ice, in its slope there), from S (x, z, gy, gx,
+// gz), written into M (anything with a three.js Matrix4's set()).
+export function iceMirror(S, M) {
+  const gx = S.gx || 0,
+    gz = S.gz || 0,
+    l = Math.hypot(gx, 1, gz),
+    nx = -gx / l,
+    ny = 1 / l,
+    nz = -gz / l,
+    d2 = 2 * (nx * S.x + ny * (S.gy || 0) + nz * S.z);
+  return M.set(
+    1 - 2 * nx * nx,
+    -2 * nx * ny,
+    -2 * nx * nz,
+    d2 * nx,
+    -2 * ny * nx,
+    1 - 2 * ny * ny,
+    -2 * ny * nz,
+    d2 * ny,
+    -2 * nz * nx,
+    -2 * nz * ny,
+    1 - 2 * nz * nz,
+    d2 * nz,
+    0,
+    0,
+    0,
+    1,
+  );
+}
+
 // GLSL: float iceRaw(vec2 p), the height before uWaves (p = world x, z); iceRawD(p, d) with only d of the wavy part
 // (the far rim of the rolling ice, where its rings are too far apart for short waves)
 const f = (v) => (Number.isInteger(v) ? v.toFixed(1) : v.toFixed(6));

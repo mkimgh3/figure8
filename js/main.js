@@ -9,6 +9,7 @@ import { createSkater } from './sim/skater.js';
 import { createScene } from './render/scene.js';
 import { createModels } from './render/model.js';
 import { loadAvatar } from './render/avatar.js';
+import { createBear } from './render/bear.js';
 import { createPoser } from './render/poses.js';
 import { createTrace, PALETTES } from './render/trace.js';
 import { createRing } from './render/ring.js';
@@ -30,7 +31,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look47';
+const BUILD = 'v3-look48';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -51,8 +52,8 @@ const hud = createHud(world.coarse),
 // Each skater's realistic body (Microsoft Rocketbox avatars, MIT licence) loads in the background the first time that
 // skater is chosen; until it arrives the simple figure stands in.
 const avU = { uTime: { value: 0 }, uSparkle: { value: 1 } },
-  avatars = [null, null, null],
-  asked = [false, false, false];
+  avatars = [null, null, null, null],
+  asked = [false, false, false, false];
 const texOf = (n) => ({
   body: `assets/${n}_body.jpg`,
   bodyN: `assets/${n}_body_n.jpg`,
@@ -251,10 +252,16 @@ AV_OPTS[2] = {
   hockey: true,
   look: { iridescence: 0, sheen: 0xaab8e0, sheenAmt: 0.2, rough: 0.72, sparkle: 0 },
 };
+// Bjorn, the polar bear (v3-look48): his body is built in code (bear.js), at once, the first time he is chosen
+AV_OPTS[3] = { bear: true };
 // load a skater's realistic body the first time it is needed
 const ensureAvatar = (i) => {
   if (asked[i] || !AV_OPTS[i]) return;
   asked[i] = true;
+  if (AV_OPTS[i].bear) {
+    avatars[i] = createBear(models, i, world.scene);
+    return showAvatar();
+  }
   loadAvatar(models, i, AV_OPTS[i], avU, (a) => {
     avatars[i] = a;
     a.night(CFG.looks[lookIx].night ? 1 : 0);

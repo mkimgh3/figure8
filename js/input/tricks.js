@@ -147,7 +147,15 @@ export function createTricks(game, taps, log) {
   function feed(dt, t) {
     const sb = stroke.speedAt(t),
       sa = left && !leftLifted ? left.speedAt(t) : 0;
-    own.feed(sb, dt, sa, sa > 1 && sb > 1 ? (left.vx * stroke.vx + left.vy * stroke.vy) / (sa * sb) : 0);
+    const k = sa > 1 && sb > 1 ? 1 / (sa * sb) : 0;
+    // how alike the two thumbs' directions are, and the same with the left thumb's mirrored left to right
+    own.feed(
+      sb,
+      dt,
+      sa,
+      k && (left.vx * stroke.vx + left.vy * stroke.vy) * k,
+      k && (-left.vx * stroke.vx + left.vy * stroke.vy) * k,
+    );
   }
   const leftPoints = () => {
     if (!left) return undefined;

@@ -1,5 +1,5 @@
 {
- "build": "v3-look47",
+ "build": "v3-look48",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -45,6 +45,7 @@
   "js/moves/twirl.js",
   "js/render/atmos.js",
   "js/render/avatar.js",
+  "js/render/bear.js",
   "js/render/hair.js",
   "js/render/ice.js",
   "js/render/icicles.js",

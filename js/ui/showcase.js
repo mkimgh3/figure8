@@ -54,6 +54,16 @@ const STICK = [
   { name: 'wide', lean: -0.1, fL: 0, lLx: 0.3, lLk: 0.4, aLz: -1.55, aLe: -0.05, aRz: 1.55, aRe: -0.05 },                                     // arms wide, the stick out to the side
   FLEX,
 ];
+// Bjorn, the polar bear (v3-look48): big and friendly
+// prettier-ignore
+const BEAR = [
+  WAVE,
+  { name: 'belly', lean: -0.08, aLx: -0.55, aRx: -0.55, aLz: 0.3, aRz: -0.3, aLe: -1.35, aRe: -1.35 },                                     // both paws on his belly
+  { name: 'roar', lean: -0.12, dy: -0.03, aLz: -2.3, aRz: 2.3, aLx: -0.5, aRx: -0.5, aLe: -1.1, aRe: -1.1 },                                // paws up, claws out
+  { name: 'hug', lean: 0.1, aLz: -1.25, aRz: 1.25, aLx: -0.85, aRx: -0.85, aLe: -0.7, aRe: -0.7 },                                          // arms open for a hug
+  FLEX,
+  TADA,
+];
 // spun fast: the tight spin positions (Rook spins the stick over his head)
 // prettier-ignore
 const SPINS = [
@@ -63,6 +73,7 @@ const SPINS = [
   ],
   [{ name: 'spin, arms in', lean: 0, fL: 0, lLx: -0.55, lLk: 1.1, lLz: 0.15, aLz: 0.45, aRz: -0.45, aLx: -0.75, aRx: -0.75, aLe: -2.0, aRe: -2.0 }],
   [{ name: 'stick spin', lean: 0, fL: 0, lLx: -0.3, lLk: 1.2, lLz: 0.12, aLz: -3.3, aRz: 3.3, aLx: 0.15, aRx: 0.15, aLe: -0.3, aRe: -0.3 }],
+  [{ name: 'spin, arms in', lean: 0, fL: 0, lLx: -0.55, lLk: 1.1, lLz: 0.15, aLz: 0.45, aRz: -0.45, aLx: -0.75, aRx: -0.75, aLe: -2.0, aRe: -2.0 }],
 ];
 // as the spin dies away: a flourish, held
 // prettier-ignore
@@ -70,8 +81,9 @@ const FINISH = [
   { name: 'flourish', lean: 0.42, dy: -0.025, fL: 0, lRx: -0.8, lRk: 0.7, lLx: 0.75, lLk: 0.1, lLz: -0.1, aLz: -2.25, aRz: 2.25, aLx: 0.25, aRx: 0.25, aLe: -0.1, aRe: -0.1 },
   { name: 'flourish', lean: 0.3, dy: -0.02, fL: 0, lRx: -0.6, lRk: 0.5, lLx: 0.6, lLk: 0.1, aLz: -1.45, aRz: 1.45, aLx: -0.2, aRx: -0.2, aLe: -0.1, aRe: -0.1 },
   STICK[1],
+  { name: 'flourish', lean: 0.3, dy: -0.02, fL: 0, lRx: -0.6, lRk: 0.5, lLx: 0.6, lLk: 0.1, aLz: -1.45, aRz: 1.45, aLx: -0.2, aRx: -0.2, aLe: -0.1, aRe: -0.1 },
 ];
-const SETS = [GRACE, BOLD, STICK];
+const SETS = [GRACE, BOLD, STICK, BEAR];
 const ease = (u) => u * u * u * (u * (u * 6 - 15) + 10);
 
 export function createShowcase(S, el, skip, who, onTurn) {
