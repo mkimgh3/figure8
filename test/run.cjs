@@ -695,6 +695,61 @@ const { open } = require('./smoke.cjs');
   ok('nothing moves while paused', x0 === (await p.evaluate(() => window.__game.S.x + window.__game.S.z)));
   await p.tap('#zoom');
   await sleep(2000);
+  // the canyon has no overview: Scores pauses on the scoreboard over the view as it was, which is then left undrawn
+  {
+    const was = await p.evaluate(() => {
+      const g = window.__game,
+        S = g.S,
+        was = [S.x, S.z, S.vx, S.vz];
+      g.setPlace(4);
+      return was;
+    });
+    await sleep(1000);
+    await p.tap('#zoom');
+    await sleep(2500);
+    await ev('pointerdown', 1, 150, 480);
+    await ev('pointerdown', 2, 240, 480);
+    for (let i = 1; i <= 10; i++) {
+      await ev('pointermove', 1, 150 - i * 5, 480);
+      await ev('pointermove', 2, 240 + i * 5, 480);
+      await sleep(30);
+    }
+    await ev('pointerup', 2, 290, 480);
+    await ev('pointerup', 1, 100, 480);
+    const st = await p.evaluate(async () => {
+      const g = window.__game,
+        f0 = g.world.renderer.info.render.frame;
+      await new Promise((r) => setTimeout(r, 600));
+      return {
+        e: g.view.e,
+        zoomed: g.view.zoomed,
+        zf: g.view.zf,
+        still: document.body.classList.contains('still') && document.body.classList.contains('paused'),
+        drawn: g.world.renderer.info.render.frame - f0,
+        foot: document.getElementById('bfoot').textContent,
+      };
+    });
+    ok(
+      'in the canyon Scores shows the scoreboard without zooming out, and stops drawing',
+      st.e < 0.02 && st.zoomed && st.zf === 1 && st.still && st.drawn === 0 && !/pinch/.test(st.foot),
+      st,
+    );
+    await p.tap('#zoom');
+    await sleep(800);
+    const back = await p.evaluate((was) => {
+      const g = window.__game,
+        S = g.S,
+        f0 = g.world.renderer.info.render.frame;
+      const r = { zoomed: g.view.zoomed, still: document.body.classList.contains('still') };
+      g.setPlace(0);
+      [S.x, S.z, S.vx, S.vz] = was;
+      return new Promise((res) =>
+        setTimeout(() => res(Object.assign(r, { drawn: g.world.renderer.info.render.frame - f0 })), 500),
+      );
+    }, was);
+    ok('and Skate goes back to skating and drawing', !back.zoomed && !back.still && back.drawn > 0, back);
+    await sleep(1000);
+  }
   // menu + log
   await p.tap('#menu');
   await sleep(300);

@@ -31,7 +31,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look54';
+const BUILD = 'v3-look55';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -300,6 +300,7 @@ const applyScene = () => {
   world.setLook(look);
   world.setPaper(sheet);
   world.setPlace(place);
+  boardStill();
   forest.set(place.trees);
   trace.ink(sheet);
   trace.glow(look.lineGlow || 1);
@@ -401,9 +402,19 @@ const game = createSkater((type, d) => {
 });
 const S = game.S,
   tricks = createTricks(game, taps, log);
+// The scoreboard over the overview, or (the canyon, where there is no overview: view.still) over the view as it was
+const boardStill = () => {
+  const still = world.view.still;
+  document.body.classList.toggle('still', still);
+  hud.text(
+    'bfoot',
+    still ? 'Paused. Tap Skate to skate on.' : 'Paused. Drag to move around, pinch to zoom. Tap Skate to skate on.',
+  );
+};
 const setZoom = () => {
   const z = world.toggleZoom();
   hud.text('zoom', z ? 'Skate' : 'Scores');
+  boardStill();
   hud.board(z, score.state);
   if (z) {
     hud.stick(false);
@@ -761,6 +772,8 @@ function matchEdges(now) {
   if (edgeMeta) edgeMeta.setAttribute('content', css);
 }
 const menuOpen = () => document.getElementById('sheet').style.display === 'flex';
+let stillKey = '',
+  stillUntil = 0;
 function frame(now) {
   // real: the time this frame took; dt: the game's step, held to 0.05 s so a slow frame does not throw her about
   const real = (now - last) / 1000,
@@ -888,12 +901,28 @@ function frame(now) {
     world.showcase(true, front.band(now));
     drawSkater(dt, now, showcase);
   }
-  world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
-  forest.update(S.x, S.z);
-  trace.sharpen(world.view.e);
+  // paused on the scoreboard in the canyon the view stands still: it is drawn for a moment after anything that changes
+  // it (the time of day, a skater loading, the menu, turning the phone), then left on screen as it is
+  let draw = true;
+  if (world.view.still && !front.open) {
+    const shown = [lookIx, placeIx, models.index, !!avatars[models.index], world.qualityName, uiIx, menuOpen()],
+      key = shown.join() + ',' + innerWidth + 'x' + innerHeight;
+    if (key !== stillKey) {
+      stillKey = key;
+      stillUntil = now + 1500;
+    }
+    draw = now < stillUntil;
+  } else stillKey = '';
+  if (draw) {
+    world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
+    forest.update(S.x, S.z);
+    trace.sharpen(world.view.e);
+  }
   hud.update(dt, game.speed(), trace.colorAt(S.skated));
-  world.render();
-  matchEdges(now);
+  if (draw) {
+    world.render();
+    matchEdges(now);
+  }
   requestAnimationFrame(frame);
 }
 hud.swatch(PALETTES[trace.palette].css, PALETTES[trace.palette].name);

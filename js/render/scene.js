@@ -250,8 +250,11 @@ export function createScene(canvas) {
   setLook(look);
 
   // ---- camera
-  // yaw: how far the view is swung round from looking toward -z (radians, toward +x), as drawn; only down the canyon
-  const view = { zoomed: false, zf: 1, px: 0, pz: 0, zMax: 4, ppm: 20, e: 0, yaw: 0 };
+  // yaw: how far the view is swung round from looking toward -z (radians, toward +x), as drawn; only down the canyon.
+  // still: paused on the scoreboard without the overview (the canyon, v3-look55: from high up it is only a patch of
+  // rough ground in the dark), so the view stays where it was and nothing pans or pinches
+  const view = { zoomed: false, zf: 1, px: 0, pz: 0, zMax: 4, ppm: 20, e: 0, yaw: 0, still: false };
+  let noOverview = false;
   let tanHalf = Math.tan((C.fov * Math.PI) / 360),
     fovNow = C.fov;
   const far = { x: 0, z: 0, h: 60 },
@@ -350,6 +353,7 @@ export function createScene(canvas) {
     view.px = 0;
     view.pz = 0;
     view.zoomed = !view.zoomed;
+    view.still = view.zoomed && noOverview;
     return view.zoomed;
   }
   function update(game, dt, bounds, uScale) {
@@ -365,7 +369,7 @@ export function createScene(canvas) {
     blob.quaternion.setFromUnitVectors(UP, _n.set(-S.gx, 1, -S.gz).normalize()).multiply(FLAT);
     blob.scale.setScalar(1 + lift * 0.5);
     blob.material.opacity = 1 / (1 + lift * 2.5);
-    zoomT += ((view.zoomed ? 1 : 0) - zoomT) * (1 - Math.exp(-4.5 * dt));
+    zoomT += ((view.zoomed && !view.still ? 1 : 0) - zoomT) * (1 - Math.exp(-4.5 * dt));
     let minX = S.x,
       maxX = S.x,
       minZ = S.z,
@@ -513,6 +517,8 @@ export function createScene(canvas) {
   const setPlace = (p) => {
     distGoal = p.camera || 1;
     tiltGoal = p.tilt || 0;
+    noOverview = !!p.canyon;
+    view.still = view.zoomed && noOverview;
   };
   // called every few seconds with the measured frame rate: in Auto, step down a level when the phone cannot keep up
   const adapt = (fps) => {

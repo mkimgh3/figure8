@@ -75,7 +75,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     } catch (err) {}
     const now = performance.now();
     hud.touched();
-    if (view.zoomed && steer.id !== null && trickId === null && !pinch.on && pinch.id2 === null) {
+    if (view.zoomed && !view.still && steer.id !== null && trickId === null && !pinch.on && pinch.id2 === null) {
       // zoomed out: a second finger pinches and pans
       Object.assign(pinch, {
         on: true,
@@ -134,7 +134,8 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
     }
     const now = performance.now();
     if (e.pointerId === steer.id && view.zoomed) {
-      // zoomed out: one finger drags the view around
+      // zoomed out: one finger drags the view around (paused on the scoreboard in the canyon, nothing moves)
+      if (view.still) return;
       view.px -= (e.clientX - steer.cx) / view.ppm;
       view.pz -= (e.clientY - steer.cy) / view.ppm;
       steer.cx = e.clientX;
@@ -206,7 +207,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
   canvas.addEventListener(
     'wheel',
     (e) => {
-      if (!view.zoomed) return;
+      if (!view.zoomed || view.still) return;
       e.preventDefault();
       view.zf = clamp(view.zf * Math.exp(-e.deltaY * 0.0015), 1, view.zMax);
       if (view.zf >= view.zMax * 0.97) onPinchClose();

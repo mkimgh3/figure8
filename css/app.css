@@ -616,6 +616,12 @@ body.paused #hint,
 body.paused #vig {
   display: none;
 }
+/* the canyon has no overview to look at (body.still), so upright the scoreboard may grow up to just under the score chip */
+@media (orientation: portrait), (min-height: 521px) {
+  body.still #board {
+    max-height: calc(100% - var(--sb) - var(--st) - max(116px, var(--chiph, 0px) + 12px));
+  }
+}
 #bhead {
   display: flex;
   justify-content: space-between;
