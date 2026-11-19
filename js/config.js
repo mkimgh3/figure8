@@ -333,62 +333,68 @@ export const CFG = {
     rise: 0.32,
     grid: { radius: 150, step: 0.3, grow: 0.025, sides: 256, fade: [0.55, 0.95], detail: [35, 70] },
   },
-  // Canyon, rebuilt in v3-look56 (core/track.js, render/slide.js; Mark: "make it more like halfpipe simple, flatter
-  // bottom and curved side wide bobsled or waterslide type with looping ... the track also does spiral and twists like
-  // waterslide"): an ice trough on pillars winding down a snowy hillside. Before it (v3-look50 to 55) it was a frozen
-  // river between rock walls, a height field of sine bends (in git history at v3-look55).
-  // Across: floor, half the flat floor's width (m); side, the curved sides' radius (m) and how steep they are at the lip
-  // (degrees); lip, the lip's width and shell, how thick the trough is under the ice (m).
+  // Canyon, rebuilt in v3-look56 (core/track.js, render/slide.js) as an ice slide on pillars winding down a snowy
+  // hillside (Mark: "bobsled or waterslide type with looping ... the track also does spiral and twists like
+  // waterslide"), and in v3-look57 closed into a tube (Mark: "instead of half pipe design, lets try full pipe design like
+  // going through a tunnel or large tube ... also increase steepness and therefore max speed"). Before v3-look56 it was
+  // a frozen river between rock walls (in git history at v3-look55); v3-look56's open trough is at v3-look56.
+  // Across: tube, the tube's radius inside (m); reach, how far round its wall from the bottom she can ride (degrees
+  // either way; the rest is ceiling); shell, how thick its wall is (m); she keeps `edge` metres inside the reach.
   // Along, laid a metre at a time from sections chosen in turn (seeded by `seed`, so the same run every visit):
   // straights, bends, spirals (turning 450 to 810 degrees, each turn passing under the one before) and twists (a bend
   // one way straight into one the other way), each with its range of lengths (m), angles (degrees) and radii (m), and
   // its drop (m per m, made steeper when the run is high above the hillside and gentler when it is low). Curves ease in
   // over `ease` metres. It banks into bends: roll[0] degrees per 1/m of curve, at most roll[1], averaged over rollEase
-  // metres either way, so it twists over from one bend to the next. hill: the hillside drops this much per metre toward
-  // -z; the run keeps between height[0] and height[1] metres above it. Where one part of the run passes over another
-  // there are at least `clear` metres between them; side by side, their centre lines are at least `apart` apart.
-  // pillar: one every pillar[0] metres, pillar[1] m thick.
-  // pull: how much of gravity she feels; air drag has her settle at `top` m/s (70 km/h) on a slope of `settle`, and she
-  // never goes faster. The slopes push her sideways too, so the sides turn her back in.
+  // metres either way; in a round tube the bank shows as the lines inside turning (`twistLook` times the bank), so it
+  // twists over from one bend to the next. hill: the hillside drops this much per metre toward -z; the run keeps
+  // between height[0] and height[1] metres above it. Where one part of the run passes over another there are at least
+  // `clear` metres between them; side by side, their centre lines are at least `apart` apart. pillar: one every
+  // pillar[0] metres, pillar[1] m thick. rings: a ring of light round the inside every rings[0] metres, rings[1] wide.
+  // pull: how much of gravity she feels; air drag has her settle at `top` m/s (120 km/h) on a slope of `settle`, and
+  // she never goes faster. The tube's curve pushes her sideways too, so in bends she rides up the outside.
+  // v3-look57: steeper (straights 0.085 to 0.15) and faster (top 70 to 120 km/h), so the curves are wider (at 120 km/h
+  // a bend of 34 m would need more wall than the tube has).
   canyon: {
     seed: 7,
-    floor: 4,
-    side: [5.5, 58],
-    lip: 0.6,
-    shell: 0.7,
-    straight: { len: [45, 100], grade: 0.085 },
-    bend: { deg: [70, 160], radius: [34, 50], grade: 0.08 },
-    spiral: { deg: [450, 810], radius: [25, 30], grade: 0.08 },
-    twist: { deg: [55, 80], radius: [34, 44], grade: 0.085 },
-    ease: 18,
-    roll: [650, 21],
-    rollEase: 16,
-    hill: 0.13,
-    height: [12, 48],
-    clear: 9,
-    apart: 24,
-    pillar: [9, 0.45],
-    // she keeps this far inside the lips (m)
-    edge: 0.5,
+    tube: 6.5,
+    reach: 75,
+    shell: 0.6,
+    edge: 0.4,
+    straight: { len: [60, 140], grade: 0.15 },
+    bend: { deg: [60, 150], radius: [70, 110], grade: 0.14 },
+    spiral: { deg: [450, 810], radius: [50, 60], grade: 0.11 },
+    twist: { deg: [45, 70], radius: [65, 85], grade: 0.14 },
+    ease: 26,
+    roll: [1500, 24],
+    rollEase: 22,
+    twistLook: 2,
+    hill: 0.2,
+    height: [16, 95],
+    clear: 17,
+    apart: 20,
+    pillar: [10, 0.55],
+    rings: [12, 0.4],
     pull: 0.85,
-    top: 19.4,
-    settle: 0.07,
+    top: 33.3,
+    settle: 0.12,
     // the view (v3-look56, Mark: "the camera can be more zoomed in and lower tilted up to look more at the horizon,
     // parallel to the track"): it chases her from back[] metres behind her along the run, side of the way out toward
     // her across it, high[] metres over the ice under her (air more in a jump), looking at a point a metre over the ice
-    // ahead[] metres beyond her; each [slow, fast]. Sideways it sits `wide` times as far back. clear: never nearer the
-    // ice than this (m). fov: how tall the view is (degrees) [upright, sideways], fovFast more at speed: upright a phone
-    // shows only a narrow slice across, so it is taller than elsewhere (38) to show the trough's sides.
+    // ahead[] metres beyond her; each [slow, fast]. Sideways it sits `wide` times as far back. fov: how tall the view is
+    // (degrees) [upright, sideways], fovFast more at speed: upright a phone shows only a narrow slice across, so it is
+    // taller than elsewhere (38). In the tube (v3-look57) it keeps `inside` metres in from the wall, and turns `roll` of
+    // the way with her as she rides up the wall.
     view: {
-      back: [5.5, 8],
-      high: [2.1, 2.6],
+      back: [5.5, 9],
+      high: [2.1, 2.5],
       air: 1.2,
-      ahead: [5, 12],
+      ahead: [5, 14],
       side: 0.8,
       wide: 1.1,
-      clear: 1.3,
-      fov: [62, 44],
-      fovFast: 8,
+      inside: 1.1,
+      roll: 0.45,
+      fov: [66, 48],
+      fovFast: 10,
     },
   },
   // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.

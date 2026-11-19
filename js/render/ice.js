@@ -191,6 +191,9 @@ export function createIce(renderer) {
     // rolling ice: where the rolling mesh is (x, z) and how far it reaches (0: not there), so the flat plane leaves it
     // a hole; and how high the waves are
     uHole: { value: new THREE.Vector3() },
+    // the Canyon's tube (v3-look57): rings of light (spacing, width, brightness) and the daylight through its ice
+    uRing: { value: new THREE.Vector3(CFG.canyon.rings[0], CFG.canyon.rings[1], 0.3) },
+    uThru: { value: new THREE.Color(0, 0, 0) },
     uWaves,
     uCanyon,
   };
@@ -396,8 +399,13 @@ float rollH(vec2 p, float det, float amp, out float und, out float wall) {
   rolling.renderOrder = -2;
   rolling.frustumCulled = false;
   rolling.visible = false;
-  // ---- the Canyon's run (v3-look56, render/slide.js): the same ice inside the trough. Its uv is metres across and
-  // along the run, so the scratches follow it; it writes depth, since the run passes over itself.
+  // ---- the Canyon's run (v3-look56, render/slide.js): the same ice inside the tube (an open trough in v3-look56). Its
+  // uv is metres round and along the run, so the scratches follow it; it writes depth, since the run passes over itself.
+  // Inside the tube (v3-look57, Mark: "it will require adjustment like lighting"): it is lit as ice is, through itself
+  // (the tube casts no shadow into itself), and glows: the daylight coming through, most where the wall faces down (the
+  // ceiling), in the sky's colour (uThru), and rings of light round it every CFG.canyon.rings[0] metres (uRing: spacing,
+  // width, brightness), faint by day, bright at night. Four fine lines run along it, turning with the bank, so the tube
+  // is seen to twist.
   // At night (v3-look53, Mark: "remove the green streaks on the ground but do simulate light from aurora reflecting off
   // the ice"): no ribbons drawn on it. Instead the sky's curtains (as sky.js draws them) seen in the ice as in a mirror,
   // broadened because the ice is not polished, so they lie as soft bands of light that slide over it as the view moves;
@@ -407,10 +415,8 @@ float rollH(vec2 p, float det, float amp, out float und, out float wall) {
   tmat.depthWrite = true;
   tmat.onBeforeCompile = (sh) => {
     base(sh);
-    // where the floor's edges are, metres across the trough from its left lip
-    const K = CFG.canyon,
-      fe = (K.side[0] * K.side[1] * Math.PI) / 180;
-    sh.uniforms.uEdge = { value: new THREE.Vector2(fe, fe + 2 * K.floor) };
+    // how far round the tube is (m), for the lines along it
+    sh.uniforms.uRound = { value: 2 * Math.PI * CFG.canyon.tube };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vTrackN;\nvarying vec2 vTUv;')
       .replace(
@@ -429,13 +435,16 @@ float rollH(vec2 p, float det, float amp, out float und, out float wall) {
         '#include <beginnormal_vertex>\n  vTrackN = normalize(mat3(modelMatrix) * objectNormal);',
       );
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vTrackN;\nvarying vec2 vTUv;\nuniform vec2 uEdge;')
-      // the floor's edges marked with a fine darker line, and the sides a deeper blue the steeper they are, so the
-      // trough's shape reads
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vTrackN;\nvarying vec2 vTUv;\nuniform float uRound;\nuniform vec3 uRing, uThru;',
+      )
+      // four fine darker lines along the tube (45 degrees either side of the bottom and of the top), and the walls a
+      // deeper blue the steeper they are, so its shape reads
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-  float fe = min(abs(vTUv.x - uEdge.x), abs(vTUv.x - uEdge.y));
+  float fe = abs(fract(vTUv.x * 4.0 / uRound) - 0.5) * uRound * 0.25;
   diffuseColor.rgb *= 1.0 - 0.4 * (1.0 - smoothstep(0.05, 0.13, fe));
   diffuseColor.rgb *= mix(1.0, 0.72, smoothstep(0.1, 0.8, 1.0 - normalize(vTrackN).y));`,
       )
@@ -457,7 +466,13 @@ float rollH(vec2 p, float det, float amp, out float und, out float wall) {
     float glow = fbm(vWPos.xz * 0.012 + vec2(at * 0.7, -at * 0.4));
     float mirror = curtain * curtain * sky * (0.03 + 1.1 * fres) * (0.3 + 0.7 * smoothstep(0.75, 0.95, aN.y));
     float wash = 0.035 * (0.4 + 0.6 * clamp(aN.y, 0.0, 1.0));
-    totalEmissiveRadiance += aCol * uAurora * (mirror + wash) * (0.55 + 0.9 * glow);
+    totalEmissiveRadiance += aCol * uAurora * (mirror + wash) * (0.55 + 0.9 * glow) * 0.6;
+  }
+  {
+    float down = clamp(-normalize(vTrackN).y, 0.0, 1.0);
+    totalEmissiveRadiance += uThru * (0.25 + 0.75 * down);
+    float rd = abs(fract(vTUv.y / uRing.x + 0.5) - 0.5) * uRing.x;
+    totalEmissiveRadiance += vec3(0.72, 0.9, 1.0) * uRing.z * (1.0 - smoothstep(uRing.y * 0.5, uRing.y * 0.5 + 0.12, rd));
   }`,
       );
   };

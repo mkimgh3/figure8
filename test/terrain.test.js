@@ -1,18 +1,7 @@
 // Rolling ice (core/terrain.js) and the skater on it: flat when it is off, slopes that speed her up and slow her down,
 // and jumps measured from the ice under her.
 import { iceY, iceSlope, setTerrain, ICE_GLSL } from '../js/core/terrain.js';
-import {
-  track,
-  ensureTrack,
-  resetTrack,
-  trackPoint,
-  trackNear,
-  across,
-  lips,
-  hillY,
-  LIP_HEIGHT,
-  HALF,
-} from '../js/core/track.js';
+import { track, ensureTrack, resetTrack, trackPoint, trackNear, across, lips, hillY, TUBE } from '../js/core/track.js';
 const setWaves = (w) => setTerrain({ waves: w });
 import { createSkater } from '../js/sim/skater.js';
 import { CFG } from '../js/config.js';
@@ -184,28 +173,21 @@ ensureTrack(4000);
   ok('it never comes near itself unless it passes well under', clash === 0, clash);
   ok('it spirals: it passes under itself', track.spirals.length >= 2 && under > 10, [track.spirals.length, under]);
   ok('it stays above the hillside', low > 5, +low.toFixed(1));
-  const L = [0, 0];
+  const L = [0, 0],
+    q = TUBE * Math.SQRT1_2;
   lips(0, L);
   ok(
-    'across it: a flat floor, sides curving up to the lips',
+    'across it: the round bottom of a tube, the same however it is banked',
     across(0, 0) === 0 &&
-      across(CFG.canyon.floor - 0.01, 0) === 0 &&
-      across(CFG.canyon.floor + 2, 0) > 0.2 &&
-      Math.abs(across(L[1], 0) - LIP_HEIGHT) < 1e-6 &&
-      Math.abs(L[1] - HALF) < 1e-6,
-    [across(CFG.canyon.floor + 2, 0), across(L[1], 0)],
+      Math.abs(across(q, 0) - TUBE * (1 - Math.SQRT1_2)) < 1e-9 &&
+      across(-q, 0.3) === across(q, 0) &&
+      Math.abs(L[1] - TUBE * Math.sin((CFG.canyon.reach * Math.PI) / 180)) < 1e-9 &&
+      L[0] === -L[1],
+    [across(q, 0), L],
   );
   let step = 0;
-  for (const p of [-0.35, 0, 0.35]) {
-    lips(p, L);
-    for (let d = L[0]; d < L[1]; d += 0.01) step = Math.max(step, Math.abs(across(d + 0.01, p) - across(d, p)));
-  }
-  ok('and the ice is all one surface, banked or not', step < 0.06, +step.toFixed(3));
-  lips(0.3, L);
-  ok('banked, one side stands higher than the other', across(L[1], 0.3) > across(L[0], 0.3) + 2, [
-    across(L[0], 0.3),
-    across(L[1], 0.3),
-  ]);
+  for (let d = L[0]; d < L[1]; d += 0.01) step = Math.max(step, Math.abs(across(d + 0.01, 0) - across(d, 0)));
+  ok('and the ice is all one surface up to as far as she can ride', step < 0.05, +step.toFixed(3));
   const P = trackPoint(777, {}),
     N = trackNear(P.x, P.z, {}, 777);
   ok(
@@ -248,16 +230,13 @@ function ride(steer, secs) {
 {
   const r = ride(true, 90);
   ok(
-    'steered down the run she nears 70 km/h and never passes it',
-    r.top * 3.6 > 60 && r.top <= CFG.canyon.top + 1e-9,
+    'steered down the run she passes 80 km/h and never 120',
+    r.top * 3.6 > 80 && r.top <= CFG.canyon.top + 1e-9,
     +(r.top * 3.6).toFixed(1),
   );
-  ok('and stays inside the trough, through its spirals', r.out <= 0 && r.s > 1300, [
-    +r.out.toFixed(2),
-    Math.round(r.s),
-  ]);
+  ok('and stays inside the tube, through its spirals', r.out <= 0 && r.s > 1600, [+r.out.toFixed(2), Math.round(r.s)]);
   const f = ride(false, 60);
-  ok('let go, its sides keep turning her back in and it carries her on down', f.out <= 0 && f.s > 400, [
+  ok('let go, the tube keeps turning her back in and it carries her on down', f.out <= 0 && f.s > 600, [
     +f.out.toFixed(2),
     Math.round(f.s),
   ]);

@@ -1,60 +1,28 @@
-// The Canyon's run drawn (v3-look56; its shape is core/track.js): an ice trough, white outside, on pillars down to the
-// hillside, built in pieces CHUNK metres long as she nears them and dropped once she is well past. Across, one closed
-// loop: the left lip, the ice from lip to lip, the right lip, then down the outside, under and back up. Each part has
-// its own vertices so the trough's corners stay sharp. Where a spiral passes over its own lower turns there are no
-// pillars under it (they would stand in the turn below); a tower stands in the spiral's middle instead.
+// The Canyon's run drawn (its shape is core/track.js): since v3-look57 a tube of ice, white outside, on pillars down to
+// the hillside (v3-look56: an open trough), built in pieces CHUNK metres long as she nears them and dropped once she is
+// well past. Across: the ice inside, round from the bottom, and the shell outside, each a ring of points turned with the
+// run's bank (TWIST times it, so the lines inside twist over between bends). Where a spiral passes over its own lower
+// turns there are no pillars under it (they would stand in the turn below); a tower stands in the spiral's middle.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
-import { track, ensureTrack, trackPoint, profile, LIP_HEIGHT, HALF, hillY } from '../core/track.js';
+import { track, ensureTrack, trackPoint, profile, TUBE, hillY } from '../core/track.js';
 
 const CHUNK = 96,
   BEHIND = 260,
-  AHEAD = 1100;
+  AHEAD = 1100,
+  // metres between rings of points along the run
+  STEP = 2;
 
 export function createSlide(scene, iceMat) {
   const K = CFG.canyon,
     group = new THREE.Group(),
-    inner = profile(9, 6),
-    L = K.lip,
     D = K.shell,
-    // the parts across: [points (across, up), material (0 ice, 1 shell)]
+    TWIST = K.twistLook,
+    // the parts across: [points (across, up), material (0 ice, 1 shell)]; the shell's points go round the other way so
+    // its faces look outward
     parts = [
-      [
-        [
-          [-HALF - L, LIP_HEIGHT],
-          [-HALF, LIP_HEIGHT],
-        ],
-        1,
-      ],
-      [inner, 0],
-      [
-        [
-          [HALF, LIP_HEIGHT],
-          [HALF + L, LIP_HEIGHT],
-        ],
-        1,
-      ],
-      [
-        [
-          [HALF + L, LIP_HEIGHT],
-          [HALF + L, -D],
-        ],
-        1,
-      ],
-      [
-        [
-          [HALF + L, -D],
-          [-HALF - L, -D],
-        ],
-        1,
-      ],
-      [
-        [
-          [-HALF - L, -D],
-          [-HALF - L, LIP_HEIGHT],
-        ],
-        1,
-      ],
+      [profile(40), 0],
+      [profile(24, TUBE + D).reverse(), 1],
     ];
   // the ice's parts first, then the shell's, so each material is one draw
   parts.sort((a, b) => a[1] - b[1]);
@@ -84,7 +52,7 @@ export function createSlide(scene, iceMat) {
     const X = track.X,
       Z = track.Z,
       Y = track.Y,
-      r = HALF + L + 1.5;
+      r = TUBE + D + 1.5;
     for (let j = 0; j < X.length; j += 2) {
       if (Math.abs(j - i) < 30 || Y[j] > y) continue;
       const dx = X[j] - x,
@@ -116,20 +84,24 @@ export function createSlide(scene, iceMat) {
       const acc = [0];
       for (let k = 1; k < n; k++)
         acc.push(acc[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
-      for (let s = s0; s <= s1; s++) {
+      for (let s = s0; s <= s1; s += STEP) {
         trackPoint(s, P);
-        const c1 = Math.cos(P.bank),
-          sn = Math.sin(P.bank),
+        const tw = P.bank * TWIST,
+          c1 = Math.cos(tw),
+          sn = Math.sin(tw),
           nx = -Math.cos(P.th),
           nz = Math.sin(P.th);
         for (let k = 0; k < n; k++) {
-          const a = pts[k][0] * c1 - pts[k][1] * sn,
-            b = pts[k][0] * sn + pts[k][1] * c1;
+          // turned about the tube's middle (TUBE up from the centre line)
+          const pa = pts[k][0],
+            pb = pts[k][1] - TUBE,
+            a = pa * c1 - pb * sn,
+            b = pa * sn + pb * c1 + TUBE;
           pos.push(P.x + nx * a, P.y + b, P.z + nz * a);
           uv.push(acc[k], s);
         }
       }
-      const rows = s1 - s0;
+      const rows = (s1 - s0) / STEP;
       for (let j = 0; j < rows; j++)
         for (let k = 0; k < n - 1; k++) {
           const a = base + j * n + k,
@@ -147,8 +119,9 @@ export function createSlide(scene, iceMat) {
     groups.forEach(([a, n, m]) => geo.addGroup(a, n, m));
     geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, [iceMat, shell]);
-    mesh.castShadow = mesh.receiveShadow = true;
-    // pillars: one every K.pillar[0] metres under the middle of the trough, down to the hillside, where nothing of the
+    // light comes through the ice: the tube casts no shadow into itself (she still casts hers on it)
+    mesh.receiveShadow = true;
+    // pillars: one every K.pillar[0] metres under the middle of the tube, down to the hillside, where nothing of the
     // run lies under it
     const spots = [];
     for (let s = Math.ceil(s0 / K.pillar[0]) * K.pillar[0]; s < s1; s += K.pillar[0]) {

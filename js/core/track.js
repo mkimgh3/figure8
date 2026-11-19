@@ -48,54 +48,33 @@ export const track = {
   },
 };
 
-// ---- the shape across the run
-// Half the flat floor's width, the sides' radius and how steep they get at the lip
-const F = K.floor,
-  R = K.side[0],
-  A = K.side[1] * DEG;
-// how high the ice is (m above the centre line) at `d` metres across it (+ to the right, seen going down the run), when
-// the run is banked `p` radians (+: its right side up). The floor tilts with the bank, the sides are circles; past the
-// lips the line of the lip carries on.
+// ---- the shape across the run: a round tube (v3-look57; v3-look56 was an open trough with a flat floor), its bottom
+// on the centre line. Round, it is the same shape however it is banked: the bank shows only in the lines drawn inside.
+const RT = K.tube,
+  REACH = K.reach * DEG;
+// how high the ice is (m above the centre line) at `d` metres across the run (+ to the right, seen going down it):
+// the tube's lower half, and level with its middle past its sides. (p, the bank, does not change it.)
 export function across(d, p) {
-  const c = Math.cos(p),
-    s = Math.sin(p);
-  if (d >= -F * c && d <= F * c) return (d * s) / c;
-  if (d > 0) {
-    const cx = F * c - R * s,
-      cy = F * s + R * c,
-      e = cx + R * Math.sin(A + p);
-    if (d <= e) return cy - Math.sqrt(Math.max(0, R * R - (d - cx) * (d - cx)));
-    return cy - R * Math.cos(A + p) + ((d - e) * s) / c;
-  }
-  const cx = -F * c - R * s,
-    cy = -F * s + R * c,
-    e = cx - R * Math.sin(A - p);
-  if (d >= e) return cy - Math.sqrt(Math.max(0, R * R - (d - cx) * (d - cx)));
-  return cy - R * Math.cos(A - p) + ((d - e) * s) / c;
+  const q = Math.min(Math.abs(d), RT);
+  return RT - Math.sqrt(RT * RT - q * q);
 }
-// where the lips are across the run when it is banked p: out[0] left (negative), out[1] right
+// how far across she can ride up the wall: out[0] left (negative), out[1] right
 export function lips(p, out) {
-  out[0] = -F * Math.cos(p) - R * Math.sin(p) - R * Math.sin(A - p);
-  out[1] = F * Math.cos(p) - R * Math.sin(p) + R * Math.sin(A + p);
+  out[0] = -RT * Math.sin(REACH);
+  out[1] = RT * Math.sin(REACH);
   return out;
 }
-// the shape as points (across, up) in the run's own frame, before banking: the inside of the trough from the left lip to
-// the right one, `n` steps up each side and `m` across the floor
-export function profile(n, m) {
+// the tube's inside as points (across, up) in the run's own frame, `n` steps round from the bottom (anticlockwise seen
+// down the run, so its faces look inward; the first point repeats at the end), radius r
+export function profile(n, r = RT) {
   const pts = [];
-  for (let i = n; i > 0; i--) {
-    const a = (A * i) / n;
-    pts.push([-F - R * Math.sin(a), R - R * Math.cos(a)]);
-  }
-  for (let i = 0; i <= m; i++) pts.push([-F + (2 * F * i) / m, 0]);
-  for (let i = 1; i <= n; i++) {
-    const a = (A * i) / n;
-    pts.push([F + R * Math.sin(a), R - R * Math.cos(a)]);
+  for (let i = 0; i <= n; i++) {
+    const t = (2 * Math.PI * i) / n;
+    pts.push([r * Math.sin(t), RT - r * Math.cos(t)]);
   }
   return pts;
 }
-export const LIP_HEIGHT = R - R * Math.cos(A),
-  HALF = F + R * Math.sin(A);
+export const TUBE = RT;
 
 // the hillside under the run: it drops toward -z
 export const hillY = (z) => K.hill * z;
@@ -224,7 +203,7 @@ function grow() {
   };
   // turn back toward downhill if heading well off it, then straight on down
   const straightDown = (len, g) => () => {
-    if (Math.abs(dev) > 25 * DEG) lay(Math.round(Math.abs(dev) * 40), -Math.sign(dev) / 40, g);
+    if (Math.abs(dev) > 25 * DEG) lay(Math.round(Math.abs(dev) * 75), -Math.sign(dev) / 75, g);
     lay(len, 0, g);
   };
   const side = rnd() < 0.5 ? 1 : -1;

@@ -4,7 +4,7 @@ import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { clamp } from '../core/math.js';
 import { uCanyon, iceY } from '../core/terrain.js';
-import { track, trackPoint, trackNear } from '../core/track.js';
+import { track, trackPoint, trackNear, TUBE } from '../core/track.js';
 import { createIce } from './ice.js';
 import { createSlide } from './slide.js';
 import { createSky } from './sky.js';
@@ -200,6 +200,9 @@ export function createScene(canvas) {
     U.uGlitter.value = l.glitter || 0;
     scene.environment = sky.set(l, sunDir);
     haze.color.setHex(l.sky[1]);
+    // the Canyon's tube: daylight through its ice in the sky's colour, and its rings of light, brighter at night
+    U.uThru.value.setHex(l.sky[1]).multiplyScalar(l.night ? 0.05 : 0.16);
+    U.uRing.value.z = l.night ? 1.7 : 0.35;
     atmos.look(l);
     spotOn = l.spot || 0;
     glowOn = !!q.glow && l.glow[0] > 0; // glow only at night, for the line: by day it only hazes the ice
@@ -278,8 +281,6 @@ export function createScene(canvas) {
     lookAhead = 1,
     // the view's swing round (radians), before zooming out takes it away
     swing = 0,
-    // how far the view is lifted to stay clear of the canyon's sides (m)
-    lift = 0,
     air = 0,
     time = 0;
   const DIST = Math.hypot(C.closeHeight, C.closeBack);
@@ -320,7 +321,15 @@ export function createScene(canvas) {
     shot.ox += (ox - shot.ox) * k;
     shot.oy += (oy - shot.oy) * k;
     shL.set(S.x, S.gy + mid, S.z);
-    shP.set(S.x, S.gy + mid + shot.d * sinE, S.z + shot.d * cosE);
+    // in the Canyon's tube, back along the run from her (there its walls are round her); elsewhere to the south
+    let bx = 0,
+      bz = 1;
+    if (uCanyon.value) {
+      trackNear(S.x, S.z, NR);
+      bx = -Math.sin(NR.th);
+      bz = -Math.cos(NR.th);
+    }
+    shP.set(S.x + bx * shot.d * cosE, S.gy + mid + shot.d * sinE, S.z + bz * shot.d * cosE);
   }
   let distK = 1,
     distGoal = 1, // some places are seen from a little further back
@@ -331,12 +340,14 @@ export function createScene(canvas) {
   // horizon, parallel to the track") the view chases her: from `back` metres behind her along the run itself (so in a
   // bend or a spiral it is still over the trough), `side` of the way out toward where she is across it, `high` metres
   // over the ice under her, looking at a point a metre over the ice `ahead` metres beyond her the way the run heads. Each
-  // [slow, fast]. Then it rises, if it must, to stay `clear` above the ice under it, less and less of that along the way
-  // to her middle; at once, settling back slowly.
+  // [slow, fast]. Inside the tube (v3-look57) it keeps `inside` metres in from the wall, and as she rides up the wall it
+  // turns `roll` of the way with her.
   const TP = { x: 0, y: 0, z: 0, th: 0, bank: 0 },
     NR = { s: 0, th: 0, y: 0, bank: 0, d: 0, dist: 0 },
-    aim = new THREE.Vector3();
-  let sideNow = 0;
+    aim = new THREE.Vector3(),
+    chaseUp = new THREE.Vector3(0, 1, 0);
+  let sideNow = 0,
+    rollNow = 0;
   function chase(S, dt) {
     const V = CFG.canyon.view,
       f = clamp((camSp - 3) / 14, 0, 1),
@@ -345,23 +356,28 @@ export function createScene(canvas) {
       high = mix(V.high) + V.air * air;
     trackNear(S.x, S.z, NR);
     sideNow += (NR.d * V.side - sideNow) * (1 - Math.exp(-4 * dt));
+    // how far round the tube she is (radians from the bottom, + up its right side): the view turns part of that way
+    const round = Math.asin(clamp(NR.d / TUBE, -1, 1));
+    rollNow += (round * V.roll - rollNow) * (1 - Math.exp(-4 * dt));
     trackPoint(NR.s - back, TP);
-    camP.set(TP.x - Math.cos(TP.th) * sideNow, camGy + high, TP.z + Math.sin(TP.th) * sideNow);
+    // inside the tube: no nearer its wall than `inside` (from the tube's middle, TUBE over the centre line there)
+    let a = sideNow,
+      b = camGy + high - TP.y - TUBE;
+    const r = Math.hypot(a, b),
+      most = TUBE - V.inside;
+    if (r > most) {
+      a *= most / r;
+      b *= most / r;
+    }
+    const nx = -Math.cos(TP.th),
+      nz = Math.sin(TP.th);
+    camP.set(TP.x + nx * a, TP.y + TUBE + b, TP.z + nz * a);
+    chaseUp.set(-nx * Math.sin(rollNow), Math.cos(rollNow), -nz * Math.sin(rollNow));
     // ahead of her the way the run heads where she is (so in a bend she stays in the middle of the view)
     const ah = mix(V.ahead);
     aim.x = S.x + Math.sin(NR.th) * ah;
     aim.z = S.z + Math.cos(NR.th) * ah;
     aim.y = iceY(aim.x, aim.z) + 1 + (S.gy + S.y - camGy) * 0.5;
-    let need = 0;
-    for (let i = 0; i < 6; i++) {
-      const t = i * 0.15,
-        x = camP.x + (S.x - camP.x) * t,
-        z = camP.z + (S.z - camP.z) * t,
-        y = camP.y + (S.gy + 1 - camP.y) * t;
-      need = Math.max(need, (iceY(x, z) + V.clear * (1 - t) + 0.3 * t - y) / (1 - t));
-    }
-    lift = need > lift ? need : lift + (need - lift) * (1 - Math.exp(-2 * dt));
-    camP.y += lift;
   }
   function toggleZoom() {
     view.zf = 1;
@@ -404,10 +420,8 @@ export function createScene(canvas) {
     far.h += (needH - far.h) * kf;
     camSp += (sp - camSp) * (1 - Math.exp(-2 * dt));
     // the height of the ice under her, smoothed; snapped when she arrives somewhere new (a new place, the top of the run)
-    if (Math.abs(S.gy - camGy) > 8) {
-      camGy = S.gy;
-      lift = 0;
-    } else camGy += (S.gy - camGy) * (1 - Math.exp(-3 * dt));
+    if (Math.abs(S.gy - camGy) > 8) camGy = S.gy;
+    else camGy += (S.gy - camGy) * (1 - Math.exp(-3 * dt));
     pullSp += (sp - pullSp) * (1 - Math.exp(-C.portraitEase * dt));
     const fast = clamp((camSp - 5) / 8, 0, 1),
       CV = CFG.canyon.view,
@@ -487,7 +501,7 @@ export function createScene(canvas) {
     scene.fog = sky.backdrop.visible ? haze : null;
     sky.backdrop.position.copy(camP);
     // the screen's up: the way the view faces; down the Canyon's run, where the view looks out nearly level, straight up
-    if (uCanyon.value) camera.up.set(0, 1, 0);
+    if (uCanyon.value) camera.up.copy(chaseUp).lerp(UP, showK).normalize();
     else camera.up.set(-Math.sin(upYaw), 0, -Math.cos(upYaw));
     camera.lookAt(camL);
     view.ppm = window.innerHeight / (2 * h * tanHalf);
