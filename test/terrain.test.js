@@ -1,6 +1,7 @@
 // Rolling ice (core/terrain.js) and the skater on it: flat when it is off, slopes that speed her up and slow her down,
 // and jumps measured from the ice under her.
-import { iceY, iceSlope, setWaves, ICE_GLSL } from '../js/core/terrain.js';
+import { iceY, iceSlope, setTerrain, ICE_GLSL, canyonCentre, canyonOff, canyonWidth } from '../js/core/terrain.js';
+const setWaves = (w) => setTerrain({ waves: w });
 import { createSkater } from '../js/sim/skater.js';
 import { CFG } from '../js/config.js';
 let failed = 0;
@@ -60,7 +61,9 @@ setWaves(1);
 }
 ok(
   'the shaders get the same sum',
-  /float iceRawD\(vec2 p, float d\)/.test(ICE_GLSL) && /float iceRaw\(vec2 p\)/.test(ICE_GLSL),
+  /float iceRawD\(vec2 p, float d\)/.test(ICE_GLSL) &&
+    /float iceH\(vec2 p, float d\)/.test(ICE_GLSL) &&
+    /float canyonH/.test(ICE_GLSL),
 );
 
 // ---- the skater
@@ -145,6 +148,70 @@ setWaves(0);
     r.game.speed(),
   );
 }
+
+// ---- the canyon (v3-look50)
+setTerrain(CFG.places.find((p) => p.canyon));
+{
+  const at = (z, across) => {
+    const c = canyonCentre(z);
+    return iceY(c + across, z);
+  };
+  ok('the canyon runs downhill toward -z', at(-200, 0) < at(0, 0) - 15 && at(-400, 0) < at(-200, 0) - 15, [
+    at(0, 0),
+    at(-200, 0),
+    at(-400, 0),
+  ]);
+  const z = -57,
+    w = canyonWidth(z),
+    mid = at(z, 0);
+  ok('its sides curve up into banks', at(z, w) > mid + 1.5 && at(z, -w) > mid + 1.5, [mid, at(z, w), at(z, -w)]);
+  ok('and the rock walls stand high beyond them', at(z, w + 8) > mid + 14 && at(z, -w - 8) > mid + 14, [
+    at(z, w + 8),
+    at(z, -w - 8),
+  ]);
+  ok('the run is at its middle where the centre line says', Math.abs(canyonOff(canyonCentre(z), z)) < 1e-9);
+}
+{
+  // a run down it, steered down the middle
+  const g = createSkater(() => {}),
+    S = g.S;
+  S.x = canyonCentre(0);
+  S.facing = Math.PI;
+  S.vz = -2;
+  let top = 0,
+    off = 0;
+  for (let t = 0; t < 45; t += 0.016) {
+    const za = S.z - 6,
+      tx = canyonCentre(za) - S.x,
+      tz = za - S.z,
+      l = Math.hypot(tx, tz);
+    g.update(0.016, { x: tx / l, y: tz / l });
+    top = Math.max(top, g.speed());
+    off = Math.max(off, Math.abs(canyonOff(S.x, S.z)) / canyonWidth(S.z));
+  }
+  ok(
+    'steered down the run she nears 70 km/h and never passes it',
+    top * 3.6 > 60 && top <= CFG.canyon.top + 1e-9,
+    +(top * 3.6).toFixed(1),
+  );
+  ok('and stays in the run', off < 1, +off.toFixed(2));
+}
+{
+  // let go, the banks still keep her in
+  const g = createSkater(() => {}),
+    S = g.S;
+  S.x = canyonCentre(-300);
+  S.z = -300;
+  S.facing = Math.PI;
+  S.vz = -15;
+  let off = 0;
+  for (let t = 0; t < 20; t += 0.016) {
+    g.update(0.016, { x: 0, y: 0 });
+    off = Math.max(off, Math.abs(canyonOff(S.x, S.z)) / canyonWidth(S.z));
+  }
+  ok('let go at speed, the banks turn her back into the run', off < 1.5, +off.toFixed(2));
+}
+setTerrain(null);
 
 console.log(failed ? '\n' + failed + ' FAILED' : '\nall passed');
 process.exit(failed ? 1 : 0);

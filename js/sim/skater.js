@@ -3,7 +3,7 @@ import { CFG } from '../config.js';
 import { TAU, clamp, wrap } from '../core/math.js';
 import { createFall } from '../moves/fall.js';
 import { createStumble } from '../moves/stumble.js';
-import { iceY, iceSlope, uWaves } from '../core/terrain.js';
+import { iceY, iceSlope, uWaves, uCanyon, canyonOff, canyonWidth, canyonAcross } from '../core/terrain.js';
 
 const COUNT = ['', 'Single', 'Double', 'Triple', 'Quad', 'Quint'];
 
@@ -57,7 +57,8 @@ export function createSkater(emit) {
     forgiving: false,
   };
   const C = CFG.steer,
-    SLOPE = [0, 0];
+    SLOPE = [0, 0],
+    ACROSS = [0, 0];
   const speed = () => Math.hypot(S.vx, S.vz);
   const ensureSpeed = (min) => {
     if (speed() < min) {
@@ -259,6 +260,8 @@ export function createSkater(emit) {
     S.inOn = inMag > 0.15;
     let sp = speed(),
       pushing = false;
+    // the canyon: gravity carries her, so the thumb neither holds her back nor lets her glide to a stop (see below)
+    const canyon = uCanyon.value > 0;
     if (S.grounded) {
       const m = S.move,
         steerK = m ? (m.steer === undefined ? 1 : m.steer) : 1;
@@ -295,20 +298,35 @@ export function createSkater(emit) {
                   (Math.abs(da) > 1.6 ? 0.3 : 1) *
                   dt,
             );
-          else ns = Math.max(tv, sp - C.easeOff * dt);
+          else ns = canyon ? sp : Math.max(tv, sp - C.easeOff * dt);
           ns = Math.max(0, ns - Math.abs(tn) * sp * 0.06);
           dir += tn; // tight carving costs a little speed
           S.vx = Math.sin(dir) * ns;
           S.vz = Math.cos(dir) * ns;
         }
-      } else if (!m) {
+      } else if (!m && !canyon) {
         const f = Math.exp(-C.glideDecay * dt);
         S.vx *= f;
         S.vz *= f;
       }
+      // the canyon (v3-look50): the whole pull of the slope, so the run carries her down and its banks turn her back into
+      // it, and air drag that grows with the square of her speed, so on a slope of CFG.canyon.settle she settles at
+      // CFG.canyon.top (70 km/h); no faster on any slope
+      if (canyon) {
+        const K = CFG.canyon,
+          a = K.pull * 9.81;
+        S.vx -= a * S.gx * dt;
+        S.vz -= a * S.gz * dt;
+        const v = speed();
+        if (v > 0.01) {
+          const nv = Math.min(K.top, Math.max(0, v - ((a * K.settle) / (K.top * K.top)) * v * v * dt));
+          S.vx *= nv / v;
+          S.vz *= nv / v;
+        }
+      }
       // rolling ice: downhill speeds her up and uphill slows her, along the way she is going (it never turns her, and
       // never stops her dead or sends her back)
-      if (uWaves.value) {
+      else if (uWaves.value) {
         const v = speed();
         if (v > 0.05) {
           const a = (-CFG.waves.pull * 9.81 * (S.gx * S.vx + S.gz * S.vz)) / v,
@@ -330,6 +348,23 @@ export function createSkater(emit) {
         (S.move && S.move.id !== 'fall' ? 1.2 * dt : 0); // recent curving and figures
     S.x += S.vx * dt;
     S.z += S.vz * dt;
+    // the canyon's rock walls: she cannot climb them, but slides along them, keeping the speed that runs along the wall
+    if (canyon) {
+      const off = canyonOff(S.x, S.z),
+        edge = canyonWidth(S.z) + CFG.canyon.edge;
+      if (Math.abs(off) > edge) {
+        const n = canyonAcross(S.z, ACROSS),
+          sg = Math.sign(off),
+          out = Math.abs(off) - edge,
+          vn = (S.vx * n[0] + S.vz * n[1]) * sg;
+        S.x -= n[0] * sg * out;
+        S.z -= n[1] * sg * out;
+        if (vn > 0) {
+          S.vx -= n[0] * sg * vn;
+          S.vz -= n[1] * sg * vn;
+        }
+      }
+    }
     S.gy = iceY(S.x, S.z);
     iceSlope(S.x, S.z, SLOPE);
     S.gx = SLOPE[0];

@@ -4,7 +4,7 @@
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { TAU } from '../core/math.js';
-import { ICE_GLSL, uWaves } from '../core/terrain.js';
+import { ICE_GLSL, ICE_UNIFORMS } from '../core/terrain.js';
 
 export const PALETTES = [
   { name: 'Speed', bySpeed: true, stops: [0x74d99a, 0x78aefc, 0xff8cc2] }, // pastel green when slow, blue at cruising speed, pink flat out
@@ -65,10 +65,10 @@ export function createTrace(scene) {
     polygonOffsetUnits: -4,
   });
   mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, { uScale, uWide, uPunch, uInk, uInkCol, uNib, uThin, uFast, uWaves });
+    Object.assign(sh.uniforms, { uScale, uWide, uPunch, uInk, uInkCol, uNib, uThin, uFast }, ICE_UNIFORMS);
     // pen: a broad nib draws thick across its edge and a hairline along it, and thinner the faster it moves
     sh.vertexShader =
-      `uniform float uScale, uWide, uNib, uThin, uFast, uWaves;
+      `uniform float uScale, uWide, uNib, uThin, uFast;
 uniform int uInk;
 attribute float aSpd;
 varying vec2 vInkP;
@@ -88,7 +88,7 @@ ${ICE_GLSL}
   transformed.xz *= uScale;
   vInkP = (instanceMatrix * vec4(transformed, 1.0)).xz;
   // rolling ice: the line lies on it (each corner of each mark at the height of the ice there)
-  if (uWaves > 0.0) transformed.y += uWaves * iceRaw(vInkP);`,
+  if (uWaves > 0.0 || uCanyon > 0.5) transformed.y += iceH(vInkP, 1.0);`,
       );
     sh.fragmentShader =
       `uniform float uPunch;

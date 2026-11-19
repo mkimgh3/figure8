@@ -9,7 +9,7 @@
 // where it lies.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
-import { ICE_GLSL, uWaves } from '../core/terrain.js';
+import { ICE_GLSL, uWaves, uCanyon, terrainOn } from '../core/terrain.js';
 
 function canvasTex(size, draw, srgb) {
   const c = document.createElement('canvas');
@@ -192,6 +192,7 @@ export function createIce(renderer) {
     // a hole; and how high the waves are
     uHole: { value: new THREE.Vector3() },
     uWaves,
+    uCanyon,
   };
   const mat = new THREE.MeshStandardMaterial({
     color: 0xd9e9f8,
@@ -310,7 +311,7 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
     sh.fragmentShader = sh.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying vec3 vRollN; varying float vRollH; uniform float uRelief, uRise;',
+        '#include <common>\nvarying vec3 vRollN; varying float vRollH, vWall; uniform float uRelief, uRise;',
       )
       // the glare of the sun or a follow spot off a slope turned to the view: kept from blowing out into a white blur
       .replace(
@@ -320,19 +321,33 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-  diffuseColor.rgb *= clamp((1.0 + uRelief * dot(vRollN.xz, normalize(uSunDir.xz))) * (1.0 + uRise * vRollH), 0.4, 1.8);`,
+  diffuseColor.rgb *= clamp((1.0 + uRelief * dot(vRollN.xz, normalize(uSunDir.xz))) * (1.0 + uRise * vRollH), 0.4, 1.8);
+  // the canyon's walls: banded grey rock where steep, snow where they level off
+  if (vWall > 0.01) {
+    float band = 0.72 + 0.28 * sin(vWPos.y * 2.1 + sin(vWPos.x * 0.37 + vWPos.z * 0.29) * 3.0);
+    vec3 wallC = mix(vec3(0.105, 0.115, 0.14) * band, vec3(0.62, 0.67, 0.75), smoothstep(0.72, 0.9, vRollN.y));
+    diffuseColor.rgb = mix(diffuseColor.rgb, wallC, vWall);
+  }`,
       );
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform float uWaves; uniform vec4 uFade; varying vec3 vRollN; varying float vRollH;' +
-          ICE_GLSL,
+        '#include <common>\nuniform vec4 uFade; varying vec3 vRollN; varying float vRollH, vWall;' +
+          ICE_GLSL +
+          // the height here: the canyon's, or Rolling ice's times amp; und: the rolling part, wall: the canyon's rock
+          `
+float rollH(vec2 p, float det, float amp, out float und, out float wall) {
+  if (uCanyon > 0.5) return canyonH(p, det, und, wall);
+  und = amp * iceRawD(p, det);
+  wall = 0.0;
+  return und;
+}`,
       )
       .replace(
         '#include <uv_vertex>',
         `vec2 iwp = (modelMatrix * vec4(position, 1.0)).xz;
   float idist = distance(iwp, modelMatrix[3].xz), idet = 1.0 - smoothstep(uFade.x, uFade.y, idist);
-  float iamp = uWaves * (1.0 - smoothstep(uFade.z, uFade.w, idist));
+  float iamp = uWaves * (1.0 - smoothstep(uFade.z, uFade.w, idist)), iu, iw;
 #include <uv_vertex>
 #ifdef USE_MAP
   vMapUv = vec2(iwp.x, -iwp.y) / 16.0;
@@ -344,8 +359,8 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
       .replace(
         '#include <beginnormal_vertex>',
         `vec3 objectNormal = normalize(vec3(
-    -(iceRawD(iwp + vec2(0.25, 0.0), idet) - iceRawD(iwp - vec2(0.25, 0.0), idet)) * 2.0 * iamp, 1.0,
-    -(iceRawD(iwp + vec2(0.0, 0.25), idet) - iceRawD(iwp - vec2(0.0, 0.25), idet)) * 2.0 * iamp));
+    -(rollH(iwp + vec2(0.25, 0.0), idet, iamp, iu, iw) - rollH(iwp - vec2(0.25, 0.0), idet, iamp, iu, iw)) * 2.0, 1.0,
+    -(rollH(iwp + vec2(0.0, 0.25), idet, iamp, iu, iw) - rollH(iwp - vec2(0.0, 0.25), idet, iamp, iu, iw)) * 2.0));
   vRollN = objectNormal;
 #ifdef USE_TANGENT
   vec3 objectTangent = vec3(tangent.xyz);
@@ -353,7 +368,7 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
       )
       .replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvRollH = iamp * iceRawD(iwp, idet);\ntransformed.y += vRollH;',
+        '#include <begin_vertex>\ntransformed.y += rollH(iwp, idet, iamp, vRollH, vWall);',
       );
   };
   rmat.customProgramCacheKey = () => 'rolling-ice';
@@ -387,10 +402,11 @@ float fbm(vec2 p) { return 0.55 * vnoise(p) + 0.3 * vnoise(p * 2.03 + 7.1) + 0.1
   rolling.renderOrder = -2;
   rolling.frustumCulled = false;
   rolling.visible = false;
-  // every frame: centre the rolling ice on (x, z), or put it away on flat ice
+  // every frame: centre the rolling ice on (x, z), or put it away on flat ice. The canyon has no flat plane round it.
   const follow = (x, z, show) => {
-    const on = show && uWaves.value > 0;
+    const on = show && terrainOn();
     rolling.visible = on;
+    mesh.visible = show && !uCanyon.value;
     rolling.position.set(x, 0, z);
     U.uHole.value.set(x, z, on ? G.radius - 0.5 : 0);
   };

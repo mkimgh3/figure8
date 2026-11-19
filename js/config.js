@@ -86,6 +86,8 @@ export const CFG = {
     // `steer` of the usual while she dances it.
     hiphop: { bpm: 96, syncRate: 2, inStep: 0.75, outOfStep: 0.6, linger: 0.6, dip: 0.05, sway: 0.07, steer: 0.35 },
   },
+  // the speed tuck (render/poses.js), from `from` m/s (50 km/h), fully at `full` (61 km/h): reached in the Canyon
+  tuck: { from: 14, full: 17 },
   // Bjorn's dash on all fours (v3-look48, an easter egg): skating at `speed` m/s or more with his path turning less than
   // `turn` rad/s for `after` seconds, he drops onto all fours: body pitched forward `lean` radians, hips `y` metres up.
   dash: { speed: 5, turn: 0.3, after: 2.5, lean: 1.35, y: 0.61 },
@@ -292,6 +294,7 @@ export const CFG = {
     { name: 'Islands', trees: true, camera: 1.35 },
     { name: 'Paper', trees: false, paper: true },
     { name: 'Rolling ice', trees: false, waves: 1, tilt: 18 },
+    { name: 'Canyon', trees: false, canyon: true, tilt: 16 },
   ],
   // Rolling ice (v3-look47, Mark: "undulating ice, various, gentle to wavy"; core/terrain.js). Each wave: [height (m),
   // wavelength (m), direction (degrees), phase]. gentle: long low swells everywhere. wavy: shorter waves, only where the
@@ -328,6 +331,35 @@ export const CFG = {
     relief: 3,
     rise: 0.32,
     grid: { radius: 150, step: 0.3, grow: 0.025, sides: 256, fade: [0.55, 0.95], detail: [35, 70] },
+  },
+  // Canyon (v3-look50, core/terrain.js): a frozen river running downhill toward -z between rock walls.
+  // bends: the centre line, [sideways (m), wavelength (m), phase]. width: half the run's width (m), varying by width[1]
+  // over width[2] metres. bank: how high the run's sides curve up at its edge (m); past it the valley side carries on up
+  // to `rise` half-widths out. bend: how much higher the outside of a bend is (m per 1/m of curve per m out). cliff: the
+  // rock walls' height and how far they spread (m); rough: bumps in the rock (m). undulate: the floor rolls with Rolling
+  // ice's waves at this height. grade: the drop per metre down the run. pull: how much of gravity she feels; air drag
+  // has her settle at `top` m/s (70 km/h) on a slope of `settle` (the run winds, so its own slope is less than grade,
+  // and carving through the bends costs speed), and she never goes faster. Slopes there push her sideways as well, so
+  // the banks turn her back into the run.
+  canyon: {
+    bends: [
+      [18, 180, 0.4],
+      [7, 90, 2.1],
+      [2, 45, 4.0],
+    ],
+    width: [8, 2.5, 120],
+    bank: 2.6,
+    rise: 2.2,
+    bend: 15,
+    cliff: [16, 7],
+    rough: 1.6,
+    undulate: 0.45,
+    grade: 0.12,
+    pull: 0.85,
+    top: 19.4,
+    settle: 0.07,
+    // she can go up the banks this far past the run's edge (m), no further: there the rock begins
+    edge: 1.2,
   },
   // Paper, one sheet for each time of day: the surface colour and grain (0..1), and how her blade draws.
   // ink: 'pencil' (thin graphite that the paper's tooth breaks up), 'pen' (a broad calligraphy nib: thick across the

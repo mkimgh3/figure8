@@ -57,6 +57,28 @@ export const STANCE = {
 };
 // landing a jump: the stick thrown up in his right hand, the left arm out
 export const CELEBRATE = { aLz: -2.75, aLx: -0.15, aLe: -0.15, aRz: 1.15, aRx: -0.2, aRe: -0.4 };
+// Speeding (v3-look50, Mark: "all characters speeding pose"): above CFG.tuck.from m/s, fully at `full`, every skater
+// folds into a speed tuck: deep in the knees, chest down over them, arms laid back along the body. Rook keeps his hands on
+// the stick and only crouches.
+const TUCK_SPEED = {
+  lean: 0.95,
+  bodyY: HIP - 0.25,
+  roll: 0,
+  fL: 1,
+  fR: 1,
+  lLx: -1.85,
+  lRx: -1.85,
+  lLk: 1.43,
+  lRk: 1.43,
+  lLz: -0.05,
+  lRz: 0.05,
+  aLx: 0.55,
+  aRx: 0.55,
+  aLz: -0.12,
+  aRz: 0.12,
+  aLe: -0.3,
+  aRe: -0.3,
+};
 const CARVE = { from: 0.1, full: 0.4, minSpeed: 1.2, easeIn: 2.6, easeOut: 1.1, change: [1.6, 2.4], hold: [0.6, 2.2] }; // from/full: how fast her path is turning (rad/s) where the arms begin to flow and where they fully do, at minSpeed m/s or more; easeIn, easeOut: how gently they come in and go back (1/s); change, hold: seconds to move to the next gesture and to rest in it
 
 export function createPoser(model) {
@@ -219,6 +241,18 @@ export function createPoser(model) {
       T.lRk += STANCE.knee;
       T.lLz -= pL * 0.18 * g;
       T.lRz += pR * 0.18 * g;
+    }
+    // speeding: the tuck, over everything else she does on the ice except a move
+    if (S.grounded && !m) {
+      const K = CFG.tuck,
+        w = clamp((sp - K.from) / (K.full - K.from), 0, 1) * (1 - hustle);
+      if (w > 0) {
+        const e = w * w * (3 - 2 * w);
+        for (const k in TUCK_SPEED) {
+          if (hockey && ARMS.includes(k)) continue;
+          T[k] += (TUCK_SPEED[k] - T[k]) * e;
+        }
+      }
     }
     let rate = 13;
     if (!S.grounded) {

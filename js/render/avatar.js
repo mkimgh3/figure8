@@ -12,7 +12,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { HIP } from './model.js';
 import { createHair } from './hair.js';
 import { starDot } from './atmos.js';
-import { ICE_GLSL, uWaves, iceMirror } from '../core/terrain.js';
+import { ICE_GLSL, ICE_UNIFORMS, iceMirror } from '../core/terrain.js';
 
 const LIFT = 0.045;
 const WIND = { x: 1.8, y: 0.75 }; // a breeze over the lake, metres per second (same way the snow drifts)                                   // how far the blades raise her above where her shoes were
@@ -120,10 +120,10 @@ function costumeMaterial(map, normalMap, mask, U, look) {
 // skinning. The mirror image is drawn flipped (its model matrix turns it upside down), so there the same rule keeps it
 // below the surface. On rolling ice (v3-look47) the surface is the height field's (ICE_DECL goes in the shader's
 // declarations).
-const ICE_DECL = '\nuniform float uWaves;' + ICE_GLSL;
+const ICE_DECL = ICE_GLSL;
 const ABOVE_ICE = `
 { vec4 wq = modelMatrix * vec4(transformed, 1.0); float fl = sign(determinant(mat3(modelMatrix)));
-  float gy = uWaves > 0.0 ? uWaves * iceRaw(wq.xz) : 0.0;
+  float gy = uWaves > 0.0 || uCanyon > 0.5 ? iceH(wq.xz, 1.0) : 0.0;
   if ((wq.y - gy) * fl < 0.012) { wq.y = gy + 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; } }`;
 
 // A mirror crystal: a tiny flat facet (n: its normal, tilted at random) that reflects the sky and flashes white when it
@@ -167,7 +167,7 @@ function furShells(base, o) {
         envMapIntensity: 0.7,
       });
     m.onBeforeCompile = (sh) => {
-      sh.uniforms.uWaves = uWaves;
+      Object.assign(sh.uniforms, ICE_UNIFORMS);
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nattribute vec2 furUv;\nvarying vec2 vFur, vFr;' + ICE_DECL)
         .replace('#include <morphnormal_vertex>', '#include <morphnormal_vertex>\nvec3 furN = normalize(objectNormal);')
@@ -409,7 +409,7 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = U.uTime;
     sh.uniforms.uSparkle = U.uSparkle;
-    sh.uniforms.uWaves = uWaves;
+    Object.assign(sh.uniforms, ICE_UNIFORMS);
     sh.vertexShader = sh.vertexShader
       .replace(
         '#include <common>',
