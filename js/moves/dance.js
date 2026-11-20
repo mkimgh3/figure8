@@ -46,6 +46,15 @@ const CALM = [
   { lean: 0.3, fL: 0, lLx: 2.95, lLk: 1.05, lRk: 0.08, aLz: -2.85, aRz: 2.85, aLx: -0.95, aRx: -0.95, aLe: -0.7, aRe: -0.7 },                            // Biellmann: the free leg drawn up behind to her head, both hands up to it
   { roll: 0.75, lean: 0.35, dy: -0.4, fL: 0, lRx: -1.65, lRk: 2.2, lLx: 0.75, lLk: 0.05, lLz: -0.35, aLz: -1.3, aRz: 1.3, aLx: -0.3, aRx: -0.3, aLe: -0.1, aRe: -0.1 }, // hydroblade: low over the ice on a deep edge
   { lean: -0.12, dy: -0.06, lLx: 0.12, lRx: 0.12, lLk: 0.08, lRk: 0.08, lLz: -0.5, lRz: 0.5, aLz: -1.5, aRz: 1.5, aLe: -0.08, aRe: -0.08, yaw: 1.3 },    // spread eagle: feet turned out heel to heel, arms wide
+  // v3-look68: from ballet and modern dance (Mark: "like ballet and modern dance ... moments of intentional upper and lower body movement")
+  { lean: -0.12, fL: 0, lLx: -1.5, lLk: 0.03, lRk: 0.08, aLz: -1.5, aRz: 1.5, aLx: 0.1, aRx: 0.1, aLe: -0.08, aRe: -0.08 },                              // battement: the free leg thrown high in front, arms wide
+  { roll: -0.22, fL: 0, lLz: -1.3, lLk: 0.03, lRk: 0.06, aLz: -1.45, aRz: 2.6, aLe: -0.05, aRe: -0.4 },                                                // side extension: the free leg high to the side, the far arm overhead
+  { lean: -0.03, fL: 0, lLx: -1.2, lLk: 1.9, lRk: 0.05, aLz: -2.6, aRz: 1.5, aLe: -0.45, aRe: -0.1 },                                                  // passe: the knee drawn up, foot by the standing knee, one arm curved overhead
+  { dy: -0.16, lean: 0.55, lLk: 0.7, lRk: 0.7, lLx: -0.75, lRx: -0.75, aLx: -1.1, aRx: -1.1, aLz: -0.25, aRz: 0.25, aLe: -1.0, aRe: -1.0 },            // contraction: hollowed over bent knees, arms rounded low in front
+  { dy: -0.24, lean: 0.03, lLz: -0.5, lRz: 0.5, lLk: 1.0, lRk: 1.0, lLx: -0.5, lRx: -0.5, aLz: -1.45, aRz: 1.45, aLe: -0.3, aRe: -0.3 },               // plie: deep and wide, arms held out
+  { roll: -0.5, fL: 0, lLz: -1.0, lLk: 0.03, lRk: 0.05, aLz: -1.6, aRz: 2.9, aLe: -0.03, aRe: -0.03 },                                                  // tilt: tipped right over to one side, the free leg rising the other way, arms in one line
+  { lean: -0.5, fL: 0, lLx: -1.0, lLk: 0.05, lRk: 0.15, aLz: -2.2, aRz: 2.2, aLx: -0.6, aRx: -0.6, aLe: -0.2, aRe: -0.2 },                              // layout: arched right back, the free leg kicked forward, arms flung back
+  { lean: 0.05, roll: 0.12, fL: 0, lLx: 0.45, lLk: 0.03, aLz: -2.35, aLe: -0.03, aRz: 0.45, aRx: 0.35, aRe: -0.03, yaw: 0.3 },                          // allonge: one long line from a hand high in front to the other low behind
 ];
 const LOW = { dy: -0.14, lLx: -0.55, lRx: -0.55, lLk: 0.85, lRk: 0.85, lLz: -0.3, lRz: 0.3 }; // the grounded stance street moves start from
 // prettier-ignore
@@ -119,6 +128,14 @@ const NAMES = {
     'Biellmann',
     'Hydroblade',
     'Spread eagle',
+    'Battement',
+    'Side extension',
+    'Passé',
+    'Contraction',
+    'Plié',
+    'Tilt',
+    'Layout',
+    'Allongé',
   ],
   sharp: [
     'Cocked arm',
@@ -208,7 +225,43 @@ const describe = (p) => {
     side: clamp(q.roll * 2 + q.yaw * 0.5 + (Math.abs(q.aRz) - Math.abs(q.aLz)) * 0.45, -1, 1),
   };
 };
-const DESC = { calm: CALM.map(describe), sharp: SHARP.map(describe) };
+// The same for a pose's arms alone and for its legs and trunk alone (v3-look68: an accent moves one or the other).
+// Legs: the free leg lifted high or the back arched: up; hips low or bowed over: down.
+const ARMK = ['aLx', 'aRx', 'aLz', 'aRz', 'aLe', 'aRe'],
+  LEGK = ['roll', 'lean', 'dy', 'fL', 'fR', 'lLx', 'lRx', 'lLz', 'lRz', 'lLk', 'lRk'];
+const describeArms = (p) => {
+  const q = full(p);
+  return {
+    level: clamp(((Math.abs(q.aLz) + Math.abs(q.aRz)) / 2 - 1.3) / 1.3, -1, 1),
+    open: clamp(1 - (Math.abs(q.aLe) + Math.abs(q.aRe)) / 1.6, -1, 1),
+    side: clamp((Math.abs(q.aRz) - Math.abs(q.aLz)) * 0.7 + (q.aRx - q.aLx) * 0.3, -1, 1),
+  };
+};
+const describeLegs = (p) => {
+  const q = full(p),
+    // how high the free leg is carried, in front, to the side or behind
+    lift =
+      q.fL === 0
+        ? Math.max(-q.lLx, Math.abs(q.lLz), q.lLx * 0.7)
+        : q.fR === 0
+          ? Math.max(-q.lRx, Math.abs(q.lRz), q.lRx * 0.7)
+          : 0;
+  return {
+    level: clamp(
+      Math.max(0, lift - 0.4) / 0.9 + q.dy / 0.22 - Math.max(0, q.lean - 0.3) * 0.7 - Math.min(0, q.lean) * 0.6,
+      -1,
+      1,
+    ),
+    open: 0,
+    side: clamp(q.roll * 2 + q.yaw * 0.4 - (q.lLz + q.lRz) * 0.5, -1, 1),
+  };
+};
+const DESC = {
+  calm: CALM.map(describe),
+  sharp: SHARP.map(describe),
+  arms: CALM.map(describeArms),
+  legs: CALM.map(describeLegs),
+};
 const mirror = (p) =>
   Object.assign({}, p, {
     roll: -p.roll,
@@ -265,6 +318,10 @@ export function createDance(S, api) {
       // the same, where the thumbs have been lately (eased over a second or so): what the next pose is chosen by, so a
       // thumb looping round does not ask for a new pose every half loop (v3-look65)
       sl: { level: 0, side: 0, open: 0 },
+      // (v3-look68) en: how energetic the right thumb is, 0 drifting to 1 quick and busy; accents: how many of its
+      // sharp jabs she has answered with an accent
+      en: 0,
+      accents: 0,
     };
   const X = K.express,
     // the right thumb's resting place on the glass (it follows the thumb slowly), and the thumbs' usual distance apart
@@ -275,10 +332,20 @@ export function createDance(S, api) {
     // where each joint is being led: it follows the pose a moment behind, and the joint's spring follows it, so a new
     // pose is begun gently instead of with a kick (v3-look65)
     lead = {},
-    lately = { calm: [], sharp: [] };
+    lately = { calm: [], sharp: [], arms: [], legs: [] },
+    // the right thumb's velocity over the last moment (seconds, px/s, px/s; flat), for reading its jabs
+    trail = [];
   for (const k of KEYS) vel[k] = 0;
   // seconds since the pose last changed
-  let since = 0;
+  let since = 0,
+    // the feed's own clock, seconds since the last accent, the jab waiting to be answered (its direction on the glass),
+    // and whether the next accent is the arms' turn
+    ft = 0,
+    sinceHit = 9,
+    hit = null,
+    upper = false,
+    // how much her body follows the thumbs directly just now (eased, so going into a spin position does not jolt it)
+    amp = X.live;
   const named = (n) => {
     if (n && !st.parts.includes(n)) st.parts.push(n);
   };
@@ -435,9 +502,69 @@ export function createDance(S, api) {
       hold = (0.2 + Math.random() * 0.3) * (1.4 - 0.6 * st.mood);
     } else {
       // (v3-look65) a pose is taken over 1.1 to 2.4 seconds, a little quicker when the thumbs are quick
-      dur = (1.3 + Math.random() * 0.9) * (1.1 - 0.25 * st.mood);
-      hold = 0.3 + Math.random() * 0.8;
+      // (v3-look68) and up to twice as quick again while the thumb is energetic
+      const brisk = 1 - X.quick * st.en;
+      dur = (1.3 + Math.random() * 0.9) * (1.1 - 0.25 * st.mood) * brisk;
+      hold = (0.3 + Math.random() * 0.8) * brisk;
     }
+  }
+  // An accent (v3-look68). Mark, with a log of his thumb jabbing and scribbling fast: "in these movements we can do
+  // some more faster transition, like ballet and modern dance, not just about smooth transition but moments of
+  // intentional upper and lower body movement fast and slow". Each sharp jab of the right thumb is answered at once
+  // by a quick, deliberate movement of her arms alone or her legs and trunk alone, in turn, the rest of her held: the
+  // shape that best matches the jab (up the glass: arms high, a kick, an arch; down: arms low, a plie, a lunge; to
+  // one side: that way), taken from the same elegant positions, in about a third of a second on the same springs, so
+  // it is quick but never a jump. It is rhythm, not a trigger: there is no gesture to make for a particular move.
+  function accent(h) {
+    upper = !upper;
+    const key = upper ? 'arms' : 'legs',
+      D = DESC[key],
+      was = lately[key],
+      A = X.accent,
+      level = clamp(A.place * st.fx.level - A.way * h.y, -1, 1),
+      side = clamp(A.place * st.fx.side + A.way * h.x, -1, 1);
+    let best = -Infinity,
+      i = 0,
+      flip = false;
+    for (let k = 0; k < CALM.length; k++) {
+      const d = D[k],
+        age = was.indexOf(k),
+        base =
+          -X.wLevel * (d.level - level) ** 2 -
+          X.wOpen * (d.open - st.fx.open) ** 2 -
+          (age < 0 ? 0 : X.repeat / (age + 1));
+      for (const m of [false, true]) {
+        const sc = base - X.wSide * ((m ? -d.side : d.side) - side) ** 2 + Math.random() * X.chance;
+        if (sc > best) {
+          best = sc;
+          i = k;
+          flip = m;
+        }
+      }
+    }
+    was.unshift(i);
+    if (was.length > X.memory) was.pop();
+    let P = full(CALM[i]);
+    if (flip) P = mirror(P);
+    to = Object.assign({}, to);
+    // how far the joint with furthest to go has to travel: a big movement is given a little longer, so it is quick
+    // but nothing whips
+    let far = 0;
+    for (const k of upper ? ARMK : LEGK) {
+      far = Math.max(far, Math.abs(P[k] - cur[k]));
+      to[k] = P[k];
+    }
+    // a pose is known by its legs: the arms alone do not make it one of her moves
+    if (!upper) named(NAMES.calm[i]);
+    // she is where the thumbs are, so she does not leave it at once for that
+    want.level = st.sl.level;
+    want.side = st.sl.side;
+    want.open = st.sl.open;
+    u = 0;
+    since = 0;
+    dur = Math.max(A.dur * (0.85 + 0.3 * Math.random()), far * A.perRad);
+    hold = A.hold * (0.6 + 0.8 * Math.random());
+    st.accents++;
   }
   return {
     id: 'dance',
@@ -493,6 +620,38 @@ export function createDance(S, api) {
         st.sl.level += (f.level - st.sl.level) * ks;
         st.sl.side += (f.side - st.sl.side) * ks;
         st.sl.open += (f.open - st.sl.open) * ks;
+        // (v3-look68) how energetic the thumb is: quick to rise, slower to settle
+        const A = X.accent,
+          sp = Math.hypot(ex.rvx, ex.rvy),
+          e = clamp((sp - A.calmPx) / (A.livelyPx - A.calmPx), 0, 1);
+        st.en += (e - st.en) * (1 - Math.exp(-(e > st.en ? A.rise : A.fall) * dt));
+        // and its jabs: the thumb moving fast the opposite way from a moment ago (a zigzag's corner), or fast out of
+        // near stillness. A thumb going round in a loop does neither.
+        ft += dt;
+        sinceHit += dt;
+        trail.push(ft, ex.rvx, ex.rvy);
+        while (trail[0] < ft - A.window) trail.splice(0, 3);
+        if (sp > A.hitPx && sinceHit >= A.gap) {
+          let ox = 0,
+            oy = 0,
+            slow = sp;
+          for (let i = 0; i < trail.length; i += 3) {
+            const v = Math.hypot(trail[i + 1], trail[i + 2]);
+            if (trail[i] <= ft - A.back) {
+              ox = trail[i + 1];
+              oy = trail[i + 2];
+            }
+            if (v < slow) slow = v;
+          }
+          const os = Math.hypot(ox, oy);
+          if (
+            (os > A.hitPx * 0.6 && (ox * ex.rvx + oy * ex.rvy) / (os * sp) < A.turnCos) ||
+            (sp > A.burstPx && slow < A.still)
+          ) {
+            hit = { x: ex.rvx / sp, y: ex.rvy / sp };
+            sinceHit = 0;
+          }
+        }
       }
       const both = sa > K.moveSpeed && sb > K.moveSpeed;
       if (both) {
@@ -582,6 +741,10 @@ export function createDance(S, api) {
       else gain *= Math.exp(-dt / K.gainFade);
       S.spinGain = gain;
       S.spinGainT = S.clock;
+      // how much quicker everything goes when the thumb is energetic (v3-look68)
+      const brisk = 1 - X.quick * st.en,
+        jab = hit;
+      hit = null;
       if (
         begun &&
         (st.held
@@ -589,6 +752,8 @@ export function createDance(S, api) {
           : st.spin > 0 && st.spin !== spinSet)
       )
         next(); // into a spin, out of one, or from the open shape to the tight one
+      else if (jab && begun && st.held && !inSpin && st.spin < 2 && !st.hip)
+        accent(jab); // the thumb jabbed: an accent, at once
       else if (begun && st.held && st.spin === 0 && st.hip !== hipSet)
         next(); // into hip hop, or out of it into the elegant gestures, at once
       else if (
@@ -596,7 +761,7 @@ export function createDance(S, api) {
         st.held &&
         !inSpin &&
         u >= X.settle &&
-        since >= X.minPose &&
+        since >= X.minPose * brisk &&
         Math.abs(want.level - st.sl.level) + Math.abs(want.side - st.sl.side) + 0.5 * Math.abs(want.open - st.sl.open) >
           X.moveOn
       )
@@ -700,7 +865,7 @@ export function createDance(S, api) {
       // the left her left). She breathes, so she is never quite still.
       {
         const f = st.fx,
-          a = X.live * (1 - hw) * (inSpin ? (st.spin > 1 ? 0.55 : 0.8) : 1),
+          a = (amp += (X.live * (1 - hw) * (inSpin ? (st.spin > 1 ? 0.55 : 0.8) : 1) - amp) * 0.1),
           br = Math.sin(st.t * 0.9),
           low = Math.max(0, -f.level),
           shut = Math.max(0, -f.open);
@@ -723,7 +888,7 @@ export function createDance(S, api) {
       out.side = 0;
       kit.set(out);
       // the joints take up the dance gradually over the first moment; hip hop hits hardest
-      return (4 + (10 + 14 * Math.max(st.mood, hw)) * Math.min(1, st.t / 0.9)) * (1 + 0.4 * hw);
+      return (4 + (10 + 14 * Math.max(st.mood, hw, st.en)) * Math.min(1, st.t / 0.9)) * (1 + 0.4 * hw);
     },
   };
 }

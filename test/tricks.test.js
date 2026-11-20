@@ -541,5 +541,53 @@ for (const pause of [0, 140, 200]) {
     [...r.seen],
   );
 }
+// --- energetic thumbs (v3-look68): Mark's own strokes from his 20 Nov log, played at their recorded speed. His quick
+// jabs are each answered by an accent of her arms or her legs; his slow drifting and his loops are not; and even the
+// accents never make a joint jump.
+{
+  const F3 = JSON.parse(fs.readFileSync(new URL('./fixtures/session3.json', import.meta.url))).strokes;
+  const dance = (name) => {
+    const f = F3[name];
+    let pts = [];
+    for (let i = 0; i < f.pts.length; i += 3) pts.push([f.x0 + f.pts[i], f.y0 + f.pts[i + 1], f.pts[i + 2]]);
+    // all but `jabs` began with a jump: the dance is what came after the landing
+    if (name !== 'jabs') pts = pts.filter((q) => q[2] >= 1100);
+    const r = rig(),
+      t0 = pts[0][2],
+      T = {},
+      kit = { HIP: 0.9, set: (o) => Object.assign(T, o) };
+    r.down(pts[0]);
+    r.wait(400);
+    let k = 0,
+      prev = null,
+      jump = 0,
+      st = null;
+    for (let ms = 0; ms <= pts[pts.length - 1][2] - t0 + 500; ms += 16) {
+      r.wait(16);
+      while (k < pts.length - 2 && pts[k + 1][2] - t0 < ms) k++;
+      const a = pts[k],
+        b = pts[k + 1],
+        u = clamp01((ms - (a[2] - t0)) / Math.max(1, b[2] - a[2]));
+      if (ms <= pts[pts.length - 1][2] - t0) r.tricks.move(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, r.t);
+      const m = r.S.move;
+      if (!m || m.id !== 'dance') continue;
+      st = m.state;
+      m.pose({ bodyY: 0.9 }, kit);
+      if (prev)
+        for (const j of ['aLz', 'aRz', 'aLx', 'aRx', 'lLx', 'lRx', 'lLz', 'lRz', 'lLk', 'lRk', 'lean', 'roll'])
+          jump = Math.max(jump, Math.abs(T[j] - prev[j]));
+      prev = Object.assign({}, T);
+    }
+    return { accents: st.accents, poses: st.poses, jump: +jump.toFixed(3), parts: st.parts.length };
+  };
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  const jabs = dance('jabs'),
+    calm = dance('calm'),
+    loops = dance('loops');
+  ok('his quick jabs: each is answered by an accent, several in five seconds', jabs.accents >= 4, jabs);
+  ok('his slow drifting: no accents, and she moves as gently as before', calm.accents === 0 && calm.jump < 0.1, calm);
+  ok('his quick loops are not jabs', loops.accents <= 2, loops);
+  ok('even an accent is no jump: no joint moves more than a quarter of a radian in a frame', jabs.jump < 0.25, jabs);
+}
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);

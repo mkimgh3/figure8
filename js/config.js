@@ -114,7 +114,7 @@ export const CFG = {
       wSide: 0.7,
       chance: 0.35,
       repeat: 1.4,
-      memory: 5,
+      memory: 8,
       moveOn: 0.9,
       settle: 0.85,
       spring: 5.5,
@@ -129,6 +129,33 @@ export const CFG = {
       bow: 0.22,
       tip: 0.24,
       sink: 0.09,
+      // v3-look68, energetic thumbs. quick: how much shorter a pose's time, its hold and the wait between poses get when
+      // the right thumb is fully energetic (0.5: half). accent: the thumb's energy runs from calmPx to livelyPx (px/s),
+      // rising at `rise` and settling at `fall` (1/s). A jab is the thumb above hitPx going the other way (the cosine
+      // of the angle below turnCos) from `back` seconds earlier, or above burstPx having been below `still` within
+      // `window` seconds; at most one every `gap` seconds. Each is answered by an accent of her arms or of her legs, in
+      // turn, taken in about `dur` seconds (or `perRad` seconds for each radian its furthest joint has to go, if that is
+      // longer) and held about `hold`; it is chosen by where the thumb is (`place`) and
+      // above all by which way it jabbed (`way`).
+      quick: 0.5,
+      accent: {
+        calmPx: 300,
+        livelyPx: 650,
+        rise: 2.5,
+        fall: 1.2,
+        hitPx: 380,
+        burstPx: 600,
+        still: 150,
+        turnCos: -0.3,
+        back: 0.09,
+        window: 0.2,
+        gap: 0.45,
+        dur: 0.36,
+        perRad: 0.19,
+        hold: 0.35,
+        place: 0.4,
+        way: 0.9,
+      },
     },
     // Hip hop (v3-look48): both thumbs moving (faster than moveSpeed), each frame scored by how much in step they are (1:
     // the same way, or mirrored like a pair of arms; about 0.4 at random), smoothed at syncRate (1/s). Above inStep the
