@@ -19,7 +19,7 @@ import { clamp, wrap, dimin } from '../core/math.js';
 // A pose is the joint angles of poses.js plus dy (hip height above or below standing) and yaw (which way she turns to face).
 // The pose tables below keep one pose per row (prettier-ignore), so poses can be compared at a glance.
 // prettier-ignore
-const N = { roll: 0, lean: 0.08, dy: 0, fL: 1, fR: 1, aLx: 0, aRx: 0, aLz: -0.8, aRz: 0.8, aLe: -0.3, aRe: -0.3, lLx: 0, lRx: 0, lLz: 0, lRz: 0, lLk: 0.05, lRk: 0.05, yaw: 0 };
+const N = { roll: 0, lean: 0.08, dy: 0, fL: 1, fR: 1, aLx: 0, aRx: 0, aLz: -0.8, aRz: 0.8, aLe: -0.3, aRe: -0.3, lLx: 0, lRx: 0, lLz: 0, lRz: 0, lLk: 0.05, lRk: 0.05, yaw: 0, arch: 0 };
 const KEYS = Object.keys(N);
 // prettier-ignore
 const CALM = [
@@ -148,6 +148,7 @@ const NAMES = {
     'Bounce',
     'Point',
   ],
+  phrase: ['Offering', 'Enfolding', 'Invocation', 'Opposition', 'Cradle'],
   slow: ['Camel spin', 'Layback spin', 'Attitude spin'],
   fast: ['Scratch spin', 'Overhead spin'],
   hiphop: [
@@ -203,6 +204,35 @@ const HIPHOP = [
   // kick out: one leg flicked forward, arms snapped the other way, back into the groove
   [[{ fR: 0, lRx: -1.05, lRk: 0.05, lLk: 0.65, dy: -0.1, lean: -0.05, aLx: -0.9, aLz: -0.4, aLe: -0.3, aRx: 0.6, aRz: 0.5, aRe: -0.3 }, 1],
    [{ aLz: -0.6, aRz: 0.6, aLe: -1.2, aRe: -1.2, roll: 0.08 }, 1]],
+];
+// Phrases (v3-look69). Mark, on v3-look68's accents: "it's not just about flaying arms around, but holding arms out
+// together and one hand sliding back and lifting up while back arching, or holding arms around herself" (in the manner
+// of Martha Graham: contraction and release, the arms moved from the back). An accent of her upper body is the next
+// step of one of these: the arms in relation to each other and her torso with them. arch: how far her torso bows
+// forward (+) or arches back (-) from the hips, on top of the pose, her legs staying where they are.
+// prettier-ignore
+const PHRASES = [
+  // offering: both arms held out together; one hand slides back along the other arm; it lifts high and back as her back arches; released wide
+  [{ aLx: -1.45, aRx: -1.45, aLz: 0.05, aRz: -0.05, aLe: -0.1, aRe: -0.1, arch: 0.12 },
+   { aLx: -1.4, aLz: 0.05, aLe: -0.1, aRx: -0.9, aRz: 0.15, aRe: -1.7, arch: 0.02 },
+   { aLx: -1.25, aLz: -0.1, aLe: -0.1, aRz: 2.75, aRx: -0.5, aRe: -0.3, arch: -0.4 },
+   { aLz: -1.75, aRz: 1.75, aLx: 0, aRx: 0, aLe: -0.15, aRe: -0.15, arch: -0.3 }],
+  // enfolding: arms wrapped round herself, hollowed over; one arm unfurls up and out while the other still holds; both open high, arched
+  [{ aLz: 0.3, aRz: -0.3, aLx: -0.85, aRx: -0.85, aLe: -1.85, aRe: -1.85, arch: 0.32 },
+   { aLz: -2.35, aLx: -0.1, aLe: -0.35, aRz: -0.3, aRx: -0.85, aRe: -1.85, arch: 0.05 },
+   { aLz: -2.45, aRz: 2.45, aLx: -0.45, aRx: -0.45, aLe: -0.15, aRe: -0.15, arch: -0.34 }],
+  // invocation: both hands at her heart; pressed up overhead together, chest lifted; swept down and back like wings as she bows
+  [{ aLx: -0.95, aRx: -0.95, aLz: 0.35, aRz: -0.35, aLe: -2.05, aRe: -2.05, arch: 0.12 },
+   { aLz: -2.9, aRz: 2.9, aLx: -0.1, aRx: -0.1, aLe: -0.55, aRe: -0.55, arch: -0.18 },
+   { aLz: -0.95, aRz: 0.95, aLx: 0.95, aRx: 0.95, aLe: -0.1, aRe: -0.1, arch: 0.42 }],
+  // opposition: arms wide; one reaches forward and the other back; the forward one carves up overhead as she arches
+  [{ aLz: -1.5, aRz: 1.5, aLx: 0.1, aRx: 0.1, aLe: -0.08, aRe: -0.08, arch: 0 },
+   { aLx: -1.3, aLz: -0.15, aLe: -0.1, aRx: 0.9, aRz: 0.3, aRe: -0.1, arch: 0.18 },
+   { aLz: -2.8, aLx: -0.35, aLe: -0.2, aRx: 0.75, aRz: 0.45, aRe: -0.1, arch: -0.32 }],
+  // cradle: arms rounded low in front, bowed over them; lifted, still rounded, to her chest; opened to the sky
+  [{ aLx: -0.7, aRx: -0.7, aLz: -0.3, aRz: 0.3, aLe: -0.9, aRe: -0.9, arch: 0.42 },
+   { aLx: -1.3, aRx: -1.3, aLz: -0.35, aRz: 0.35, aLe: -1.1, aRe: -1.1, arch: 0.1 },
+   { aLz: -2.5, aRz: 2.5, aLx: -0.2, aRx: -0.2, aLe: -0.1, aRe: -0.1, arch: -0.22 }],
 ];
 // Which poses she draws on. Thumbs moving in step: the long, open, travelling shapes and the elegant gestures. Thumbs
 // going their own ways (before hip hop takes over): the twisted, closed, contrasting ones. One thumb alone: any of them.
@@ -344,6 +374,9 @@ export function createDance(S, api) {
     sinceHit = 9,
     hit = null,
     upper = false,
+    // the phrase her upper body is in the middle of: its steps, the next one, and whether it is danced mirrored
+    phrase = null,
+    lastPhrase = -1,
     // how much her body follows the thumbs directly just now (eased, so going into a spin position does not jolt it)
     amp = X.live;
   const named = (n) => {
@@ -410,6 +443,7 @@ export function createDance(S, api) {
   // the first pose is always a calm one, grown out of her skating
   function next(sharp) {
     for (const k of KEYS) from[k] = cur[k];
+    phrase = null;
     // Turning gently (the thumb looping round, as Mark's does all the time: in his 20 Nov log 56 turns in 50 seconds),
     // she goes on dancing as the thumbs shape her, and only now and then takes one of the open spin positions. Until
     // v3-look64 any turning at all was a spin, with its own positions and the thumbs' shaping nearly off, so his dances
@@ -515,9 +549,49 @@ export function createDance(S, api) {
   // shape that best matches the jab (up the glass: arms high, a kick, an arch; down: arms low, a plie, a lunge; to
   // one side: that way), taken from the same elegant positions, in about a third of a second on the same springs, so
   // it is quick but never a jump. It is rhythm, not a trigger: there is no gesture to make for a particular move.
+  // The next step of her upper body's phrase (v3-look69): a new phrase when none is under way (never the one before;
+  // mirrored to the side the thumb jabbed; a jab down the glass takes it backwards, from open to closing in). On a jab
+  // the step is taken quickly; left to itself (slow) the phrase unfolds, step by step, in its own time: so one jab
+  // gives a quick beginning and a slow, sustained finish.
+  function gesture(h, slow) {
+    const A = X.accent;
+    if (!phrase || phrase.ix >= phrase.steps.length) {
+      let r = Math.floor(Math.random() * PHRASES.length);
+      if (r === lastPhrase) r = (r + 1) % PHRASES.length;
+      lastPhrase = r;
+      const back = !!h && h.y > 0.5;
+      phrase = {
+        steps: back ? PHRASES[r].slice().reverse() : PHRASES[r],
+        ix: 0,
+        flip: h && Math.abs(h.x) > 0.3 ? h.x > 0 : Math.random() < 0.5,
+      };
+      named(NAMES.phrase[r]);
+    }
+    let P = full(phrase.steps[phrase.ix++]);
+    if (phrase.flip) P = mirror(P);
+    to = Object.assign({}, to);
+    let far = Math.abs(P.arch - cur.arch) * 2;
+    for (const k of ARMK) {
+      far = Math.max(far, Math.abs(P[k] - cur[k]));
+      to[k] = P[k];
+    }
+    to.arch = P.arch;
+    want.level = st.sl.level;
+    want.side = st.sl.side;
+    want.open = st.sl.open;
+    u = 0;
+    since = 0;
+    dur = slow
+      ? A.unfold * (0.85 + 0.3 * Math.random())
+      : Math.max(A.dur * (0.85 + 0.3 * Math.random()), far * A.perRad);
+    hold = A.hold * (0.6 + 0.8 * Math.random());
+    if (!slow) st.accents++;
+  }
+  const midPhrase = () => !!phrase && phrase.ix < phrase.steps.length;
   function accent(h) {
     upper = !upper;
-    const key = upper ? 'arms' : 'legs',
+    if (upper) return gesture(h, false);
+    const key = 'legs',
       D = DESC[key],
       was = lately[key],
       A = X.accent,
@@ -550,12 +624,11 @@ export function createDance(S, api) {
     // how far the joint with furthest to go has to travel: a big movement is given a little longer, so it is quick
     // but nothing whips
     let far = 0;
-    for (const k of upper ? ARMK : LEGK) {
+    for (const k of LEGK) {
       far = Math.max(far, Math.abs(P[k] - cur[k]));
       to[k] = P[k];
     }
-    // a pose is known by its legs: the arms alone do not make it one of her moves
-    if (!upper) named(NAMES.calm[i]);
+    named(NAMES.calm[i]);
     // she is where the thumbs are, so she does not leave it at once for that
     want.level = st.sl.level;
     want.side = st.sl.side;
@@ -760,6 +833,7 @@ export function createDance(S, api) {
         begun &&
         st.held &&
         !inSpin &&
+        !midPhrase() &&
         u >= X.settle &&
         since >= X.minPose * brisk &&
         Math.abs(want.level - st.sl.level) + Math.abs(want.side - st.sl.side) + 0.5 * Math.abs(want.open - st.sl.open) >
@@ -767,7 +841,11 @@ export function createDance(S, api) {
       )
         next(); // the thumbs have moved on from this pose (where they have been lately, not this instant): so does she
       else if (u < 1) u = Math.min(1, u + dt / dur);
-      else if (begun && (hold -= dt) <= 0 && st.held) next();
+      else if (begun && (hold -= dt) <= 0 && st.held) {
+        // a phrase begun on a jab unfolds by itself, slowly, to its end; then she flows on
+        if (midPhrase() && !inSpin && st.spin < 2) gesture(null, true);
+        else next();
+      }
       since += dt;
       // every joint on a spring toward its pose (v3-look62; until then each pose was eased in over its own time from a
       // standstill): it settles in about the pose's time, slowly for calm ones and at once for sharp ones, and keeps
@@ -839,7 +917,11 @@ export function createDance(S, api) {
         next();
       }
       // on top of the pose: a slow sway when calm, a bounce on the beat when sharp
-      for (const k of KEYS) if (k !== 'dy' && k !== 'yaw') out[k] = cur[k];
+      for (const k of KEYS) if (k !== 'dy' && k !== 'yaw' && k !== 'arch') out[k] = cur[k];
+      // her torso bowed or arched from the hips (a phrase's), the legs staying as they are
+      out.lean += cur.arch;
+      out.lLx -= cur.arch;
+      out.lRx -= cur.arch;
       const hw = st.hipW;
       out.bodyY = kit.HIP + cur.dy;
       out.roll = cur.roll + 0.07 * (1 - st.mood) * Math.sin(st.t * 1.1) * (1 - hw);
@@ -866,17 +948,20 @@ export function createDance(S, api) {
       {
         const f = st.fx,
           a = (amp += (X.live * (1 - hw) * (inSpin ? (st.spin > 1 ? 0.55 : 0.8) : 1) - amp) * 0.1),
+          // (v3-look69) the arms follow the thumb directly much less while it is energetic: jabbed up and down it made
+          // them flap with every jab ("flaying arms around"), over whatever shape they were in. Then the phrases carry them.
+          g = a * (1 - X.accent.quiet * st.en),
           br = Math.sin(st.t * 0.9),
           low = Math.max(0, -f.level),
           shut = Math.max(0, -f.open);
-        out.aLz = clamp(out.aLz - a * (X.arms * f.level + 0.45 * f.rise) - 0.05 * br, -3.2, 0.6);
+        out.aLz = clamp(out.aLz - g * (X.arms * f.level + 0.45 * f.rise) - 0.05 * br, -3.2, 0.6);
         out.aRz = clamp(
-          out.aRz + a * (X.arms * f.level + 0.45 * f.lrise) + 0.05 * Math.sin(st.t * 0.9 + 0.7),
+          out.aRz + g * (X.arms * f.level + 0.45 * f.lrise) + 0.05 * Math.sin(st.t * 0.9 + 0.7),
           -0.6,
           3.2,
         );
-        out.aLx -= a * (0.3 * f.sway + 0.25 * f.side);
-        out.aRx += a * (0.3 * f.sway + 0.25 * f.side);
+        out.aLx -= g * (0.3 * f.sway + 0.25 * f.side);
+        out.aRx += g * (0.3 * f.sway + 0.25 * f.side);
         out.aLe -= a * 0.6 * shut;
         out.aRe -= a * 0.6 * shut;
         out.lean += a * (X.bow * low - 0.14 * Math.max(0, f.level) - 0.1 * f.rise);
@@ -892,4 +977,4 @@ export function createDance(S, api) {
     },
   };
 }
-export const POSES = { N, CALM, SHARP, HIPHOP, GROOVE, NAMES, DESC };
+export const POSES = { N, CALM, SHARP, HIPHOP, GROOVE, NAMES, DESC, PHRASES };

@@ -136,7 +136,8 @@ export const CFG = {
       // `window` seconds; at most one every `gap` seconds. Each is answered by an accent of her arms or of her legs, in
       // turn, taken in about `dur` seconds (or `perRad` seconds for each radian its furthest joint has to go, if that is
       // longer) and held about `hold`; it is chosen by where the thumb is (`place`) and
-      // above all by which way it jabbed (`way`).
+      // above all by which way it jabbed (`way`). v3-look69: the arms' accents are steps of a phrase (PHRASES in
+      // dance.js); a step nobody jabs for is taken by itself in about `unfold` seconds.
       quick: 0.5,
       accent: {
         calmPx: 300,
@@ -151,7 +152,10 @@ export const CFG = {
         window: 0.2,
         gap: 0.45,
         dur: 0.36,
-        perRad: 0.19,
+        perRad: 0.23,
+        unfold: 0.85,
+        // how much less her arms follow the thumb directly when it is fully energetic (0.8: a fifth as much)
+        quiet: 0.8,
         hold: 0.35,
         place: 0.4,
         way: 0.9,
@@ -243,7 +247,8 @@ export const CFG = {
   trace: { width: 0.075, length: 0.2, spacing: 0.13, saveMax: 50000 },
   camera: {
     fov: 38,
-    fovFast: 9, // at speed the view widens instead of rising, so the ice rushes past
+    // at speed the view widens instead of rising, so the ice rushes past (v3-look69: 6, it was 9; see portraitFar)
+    fovFast: 6,
     closeHeight: 10.5,
     closeBack: 5.6,
     tilt: 28,
@@ -260,7 +265,9 @@ export const CFG = {
     // (11.5 m/s, about 41 km/h), and back in as she slows. portraitEase (1/s): how quickly it follows her speed, slow
     // enough that a push or a landing does not make the view pump. Before v3-look46: 1.2 slow to 2.04 at 14 m/s.
     portraitNear: 0.85,
-    portraitFar: 2.2,
+    // v3-look69 (Mark, after v3-look67 had eased the zoom with turning: "and now the camera zooms out too much"): far
+    // 1.65, it was 2.2, so upright at 30 km/h she is about 20 m away, not 26, and the view moves less in all.
+    portraitFar: 1.65,
     portraitFrom: 1.5,
     portraitSpan: 10,
     portraitEase: 1.4,
@@ -271,7 +278,8 @@ export const CFG = {
     // `out` going back, so it comes in promptly and eases out. Not in the Tunnel (its own chase view) or the overview.
     // v3-look67 (Mark: "zooms in too much too close a little bit too much camera zoom movement overall a bit dizzy"):
     // gentler and slower. It was from 0.45, full 2.4, zoom 0.55, in 1.4, out 0.45.
-    turn: { from: 0.6, full: 2.8, zoom: 0.76, in: 0.6, out: 0.3 },
+    // v3-look69: zoom 0.82 (from a nearer view, it needs less).
+    turn: { from: 0.6, full: 2.8, zoom: 0.82, in: 0.6, out: 0.3 },
     // The front page (v3-look40): the view comes round low in front of her, `elev` degrees above level, as close as fits
     // her from `low` to `high` metres (her blades to her hands overhead) into the space between the status bar and the
     // choices, and `half` metres either side of her (the coat flying open). `ease` (1/s): how quickly the framing follows

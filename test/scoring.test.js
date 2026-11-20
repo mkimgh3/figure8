@@ -298,7 +298,7 @@ function thumbs(kind) {
   ]);
   ok('never the same sequence twice', hi.parts.join() !== again.parts.join());
   const ELEGANT = new Set(
-    POSES.NAMES.calm.concat(POSES.NAMES.slow, POSES.NAMES.fast, ['Stick flourish', 'Stick spin']),
+    POSES.NAMES.calm.concat(POSES.NAMES.phrase, POSES.NAMES.slow, POSES.NAMES.fast, ['Stick flourish', 'Stick spin']),
   );
   ok(
     'only elegant moves: no hip hop routines and no sharp street poses (v3-look65)',
