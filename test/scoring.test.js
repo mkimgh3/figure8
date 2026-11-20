@@ -245,10 +245,44 @@ function thumbs(kind) {
   ok('thumbs moving at random: hip hop', rnd.hip, rnd.sync);
   ok('thumbs moving the same way: no hip hop', !same.hip && same.sync > 0.9, same.sync);
   ok('thumbs mirrored like a pair of arms: no hip hop', !mir.hip && mir.sync > 0.9, mir.sync);
-  ok('hip hop turns her steering down', rnd.d.steer < 1 && same.d.steer === 1);
+  ok('hip hop leaves her steering to the left thumb in full (v3-look61)', rnd.d.steer === 1 && same.d.steer === 1);
   rnd.r.game.endMove();
   const e = rnd.r.out[0];
   ok('and is named in the element', e && /hip hop/.test(e.detail), e && e.detail);
+}
+
+// ---- choreography combinations (v3-look61)
+{
+  const sc = createScoring();
+  sc.tick(1);
+  sc.choreo({ kind: 'dance', choreo: true, counted: true, base: 1.5, parts: ['Arabesque', 'Camel spin'] });
+  ok('a dance is not scored at once', sc.state.list.length === 0 && sc.choreoDue(false) === null);
+  sc.tick(2);
+  sc.mark();
+  const j = sc.jump({ grade: 'perfect', name: 'Double Axel', type: 'Axel', target: 2.5, offDeg: 2 });
+  sc.choreoJump(j, { name: 'Double Axel' });
+  sc.tick(1);
+  sc.choreo({ kind: 'dance', choreo: true, counted: true, base: 1, parts: ['Camel spin', 'Robot'] });
+  const before = sc.state.total;
+  sc.tick(CFG.choreo.window - 0.5);
+  const early = sc.choreoDue(false);
+  sc.tick(1);
+  const e = sc.choreoDue(false);
+  ok(
+    'dances and a jump within the window make one combination, scored when it closes',
+    early === null && e && e.name === 'Arabesque + Camel spin + Double Axel + Robot',
+    e && e.name,
+  );
+  ok(
+    'all artistry: no base or GOE, what the dances are worth plus jumpArt of the jump',
+    e && e.base === 0 && e.goe === 0 && Math.abs(e.art - (2.5 + CFG.choreo.jumpArt * j.pts)) < 0.11,
+    e && [e.art, j.pts],
+  );
+  ok('and it is added to the total', Math.abs(sc.state.total - before - e.art) < 0.01, [before, sc.state.total]);
+  const sc2 = createScoring();
+  sc2.choreo({ kind: 'dance', choreo: true, counted: true, base: 1, parts: ['Fan'] });
+  sc2.tick(CFG.choreo.window + 5);
+  ok('dancing keeps the window open', sc2.choreoDue(true) === null && sc2.choreoLeft() === 1);
 }
 
 console.log(failed ? '\n' + failed + ' FAILED' : '\nall passed');

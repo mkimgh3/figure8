@@ -32,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look60';
+const BUILD = 'v3-look61';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -369,6 +369,8 @@ const game = createSkater((type, d) => {
     audio.land(d.grade);
     if (!game.S.tube) spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, d.grade === 'fall' ? 40 : 22, 2.2, 6.3);
     const e = score.jump(d);
+    // a jump within a choreography combination is one of its moves too
+    score.choreoJump(e, d);
     log.jump(Object.assign({ pts: e ? e.pts : 0 }, d));
     if (d.grade === 'fall')
       hud.say('Fall', (d.name ? d.name + ' under-rotated' : 'bad landing') + ' · ' + d.offDeg + '° off', 2.4, e);
@@ -405,6 +407,12 @@ const game = createSkater((type, d) => {
     showScore();
   } else if (type === 'element') {
     if (d.counted === false) {
+      log.element(d);
+      return;
+    }
+    // choreography is not announced: it goes into a combination, scored when that closes (v3-look61, below)
+    if (d.choreo) {
+      score.choreo(d);
       log.element(d);
       return;
     }
@@ -826,6 +834,16 @@ function frame(now) {
     trace.speed = game.speed() / CFG.steer.maxSpeed;
     game.update(dt, steer);
     score.tick(dt);
+    // a choreography combination that has closed: scored now, all artistry, and announced with its moves
+    {
+      const c = score.choreoDue(!!(S.move && S.move.id === 'dance'));
+      if (c) {
+        log.element({ kind: 'choreo', name: c.name, pts: c.pts, moves: c.moves });
+        hud.say('Choreography', c.name, 3.2, c);
+        dirty = true;
+        showScore();
+      }
+    }
     if (S.move !== lastMove) {
       lastMove = S.move;
       if (S.move && S.move.id !== 'fall' && S.move.id !== 'stumble') score.mark();
@@ -858,7 +876,7 @@ function frame(now) {
       if (r > 0.3) hud.say(r.toFixed(1) + '×', game.liveName(), 0.25);
     }
     hud.padSpin(S.move && S.move.id === 'dance' ? Math.min(1, S.move.state.rate / (CFG.dance.spinFast * 1.4)) : 0);
-    hud.combo(score.chainLeft());
+    hud.combo(Math.max(score.chainLeft(), score.choreoLeft()));
     tutorial.tick(dt, { S, speed: game.speed(), armed: tricks.armed, now });
     // a shore turns her along it: she keeps the speed that runs along the coast and loses what was heading inland
     {

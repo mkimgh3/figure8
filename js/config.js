@@ -17,29 +17,50 @@ export const CFG = {
   // inside flickMs. It is read once the thumb has been still idleMs, or lifts. Anything slower or longer is a drag.
   // A twitch shorter than restPx followed by stillness counts as resting, not as a stroke.
   swipe: { flickPx: 50, flickMs: 300, restPx: 20, reversalPx: 22, idleMs: 110 },
-  // Two-thumb gestures, read when the right thumb's swipe is read, from how the left thumb moved over the same time.
-  // Together: the left thumb went the same way (cosine above parallelCos) and at least sameMinPx, and at least sameShare
-  // of the right thumb's distance. Apart (spread eagle): opposite ways, each spreadEachPx or more, the gap growing by spreadPx.
+  // Two-thumb gestures. A swipe: read when the right thumb's swipe is read, from how the left thumb moved over the same
+  // time. Together: the left thumb went the same way (cosine above parallelCos) and at least sameMinPx, and at least
+  // sameShare of the right thumb's distance. Circles (v3-look61, Mark: "activated when both thumb in sync rotate together
+  // either clockwise or counter clockwise. when one does clockwise while the other counterclock it activates eagle or
+  // the move where one leg is raised behind over head"): the right thumb has circled `circle` radians and the left at
+  // least circleShare of that since the right went down, and both have turned circleRecent radians or more in the last
+  // recentMs (still circling briskly: a left thumb steering round a curve is not a circle). Both clockwise: spiral; both
+  // counter-clockwise: hydroblade;
+  // right clockwise and left counter-clockwise: spread eagle; right counter-clockwise and left clockwise: Biellmann.
+  // A right thumb circling starts choreography at once; a two-thumb circle within circleMs of the right thumb going down
+  // takes over from it. (Until v3-look61 a flick up was the spiral, a
+  // flick down the hydroblade, both thumbs swiped down and kept down a hydroblade, and the thumbs spreading apart a
+  // spread eagle.)
   // After a two-thumb move starts, steering stays held until the left thumb has been still settleMs, or freezeMs at most.
   two: {
     parallelCos: 0.5,
     sameMinPx: 30,
     sameShare: 0.4,
-    spreadPx: 80,
-    spreadEachPx: 25,
+    circle: 3.6,
+    circleShare: 0.6,
+    circleRecent: 1.6,
+    recentMs: 400,
+    circleMs: 1500,
     settleMs: 150,
     freezeMs: 350,
   },
-  // Hockey stop: both thumbs swiped down, and one of them lifted within liftMs of the swipe being read, while she moves at
-  // minSpeed or more. Both kept down past liftMs is a hydroblade.
+  // Hockey stop: both thumbs swiped down while she moves at minSpeed or more (v3-look61: at once; before, it waited
+  // liftMs for a thumb to lift, and both kept down were a hydroblade).
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
   stop: { minSpeed: 2.5, liftMs: 250, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
-  // Spiral and hydroblade: the left thumb steers but cannot push. She slows as she glides (glide, 1/s; the hydroblade drags
-  // a little more, hydroDrag), and comes out of the move once her speed is below endSpeed (m/s), even with the finger down,
-  // or after maxTime seconds. So the faster she goes in, the longer she can hold it. Going in gives her a small push of
-  // `kick` (m/s), over about 0.25 s. (v3-look37: glide 0.32 to 0.1 and endSpeed 2.5 to 1.6: from 8 m/s a spiral lasts
-  // about 16 s instead of 4.)
-  held: { glide: 0.1, hydroDrag: 0.04, endSpeed: 1.6, kick: 1.5, maxTime: 40 },
+  // Spiral, hydroblade, spread eagle, Biellmann: held while the right thumb stays down (each at least a moment), or maxTime
+  // seconds. Since v3-look61 (Mark: "for all these the left thumb should still have control of steer and speed") the left
+  // thumb steers, pushes and eases off in them as in plain skating; before, the spiral and hydroblade coasted, slowing.
+  held: { maxTime: 40 },
+  // Toe kick (v3-look61, Mark: "do right thumb down flick as toe kick in prep for jump"): she taps her free toe into the ice
+  // behind her. A jump within `window` seconds goes `lift` times higher, and skating backward it is a toe loop.
+  toe: { window: 2, lift: 1.18 },
+  // Choreography combinations (v3-look61, Mark: "no longer announce choreo. rather, do delayed scoring. when choreo is
+  // registered treated like combo, within a duration various choreo moves are scored as artistic only with the move combo
+  // list ... if jump is activated within the duration, it gets added as artistic"): a dance's gestures, positions and
+  // spins, and any more dancing or jumps within `window` seconds of the last, make one element, scored all as artistry
+  // and announced when the window closes, named by its moves (the first maxNames of them). Each dance adds what it is
+  // worth (points.dance, CFG.dance.score); each jump in it jumpArt of its points (it is scored as a jump as well).
+  choreo: { window: 4, jumpArt: 0.5, maxNames: 6 },
   twirl: { startTurn: 3.1, afterLeapMs: 3000 }, // a circle is twizzles for afterLeapMs after a split leap; any other time it is part of choreography
   // Choreography: the right thumb down holdMs with nothing else going on (held still, or dragged further or slower than a
   // flick), or still down afterLand seconds after a jump lands, or after the move it started is over. It lasts while that
@@ -55,7 +76,7 @@ export const CFG = {
     calmPx: 200,
     sharpPx: 700,
     minScore: 2,
-    accel: 0.8,
+    accel: 1,
     holdMs: 300,
     // a circling thumb starts it at once, once it has turned this far (radians; about 140 degrees)
     circleTurn: 2.5,
@@ -83,8 +104,10 @@ export const CFG = {
     // the same way, or mirrored like a pair of arms; about 0.4 at random), smoothed at syncRate (1/s). Above inStep the
     // elegant gestures, below outOfStep hip hop, held while both have moved within `linger` seconds. Steps on the beat at
     // bpm; the groove dips her `dip` metres on every beat and sways her hips `sway` radians; the left thumb steers at
-    // `steer` of the usual while she dances it.
-    hiphop: { bpm: 96, syncRate: 2, inStep: 0.75, outOfStep: 0.6, linger: 0.6, dip: 0.05, sway: 0.07, steer: 0.35 },
+    // `steer` of the usual while she dances it (v3-look61: 1, all of it; at 0.35 steering in choreography felt stiff, since
+    // a left thumb steering while the right one dances reads as out of step). accel (v3-look61: 1, was 0.8): how hard the
+    // left thumb pushes her while she dances.
+    hiphop: { bpm: 96, syncRate: 2, inStep: 0.75, outOfStep: 0.6, linger: 0.6, dip: 0.05, sway: 0.07, steer: 1 },
   },
   // the speed tuck (render/poses.js), from `from` m/s (50 km/h), fully at `full` (61 km/h): reached in the Canyon
   tuck: { from: 14, full: 17 },
@@ -144,6 +167,7 @@ export const CFG = {
     eagle: [1.6, 2],
     hydro: [2.0, 2],
     dance: [3.6, 6], // per active second (dance.score)
+    biellmann: [2.2, 2],
     turn: 0.3,
     leap: 0.6,
     stop: 0.8, // stop: from full speed; less from slower

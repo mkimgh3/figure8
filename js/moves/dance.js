@@ -80,6 +80,52 @@ export const LAYBACK_FAST = { lean: -0.5, dy: -0.02, fL: 0, lRx: 0.4, lRk: 0.12,
 // loose stance they start from, and a routine can be danced mirrored. [pose, beats]
 // prettier-ignore
 const GROOVE = { dy: -0.07, lean: 0.12, fL: 1, fR: 1, lLx: -0.35, lRx: -0.35, lLk: 0.5, lRk: 0.5, lLz: -0.12, lRz: 0.12, aLz: -0.35, aRz: 0.35, aLe: -0.6, aRe: -0.6 };
+// What each pose is called, in the order of its table, for the choreography combination's list of moves (v3-look61)
+const NAMES = {
+  calm: [
+    'Arabesque',
+    'Arms overhead',
+    'Lunge',
+    'Arched back',
+    'Attitude',
+    'Side reach',
+    'Embrace',
+    'Curtsy',
+    'Leg forward',
+    'Port de bras',
+    'Swan',
+    'V arms',
+    'Forward reach',
+    'Ina Bauer',
+    'Hand to heart',
+    'Leg held high',
+    'Fan',
+  ],
+  sharp: [
+    'Cocked arm',
+    'Arms crossed',
+    'Diagonal',
+    'Low punch',
+    'Elbows up',
+    'Kick step',
+    'Side slide',
+    'Bounce',
+    'Point',
+  ],
+  slow: ['Camel spin', 'Layback spin', 'Attitude spin'],
+  fast: ['Scratch spin', 'Overhead spin'],
+  hiphop: [
+    'B-boy stance',
+    'Robot',
+    'Dab',
+    'Running man',
+    'Hands in the air',
+    'Chest pop',
+    'Shoulder bounce',
+    'Floss',
+    'Kick out',
+  ],
+};
 // prettier-ignore
 const HIPHOP = [
   // b-boy stance: arms crossed and leaning back, then pointing straight ahead, the other hand on the hip
@@ -181,7 +227,12 @@ export function createDance(S, api) {
       work: 0,
       kinds: {},
       travelT: 0,
+      // the moves she has shown, each once, in order (v3-look61: the choreography combination is named by them)
+      parts: [],
     };
+  const named = (n) => {
+    if (n && !st.parts.includes(n)) st.parts.push(n);
+  };
   // gain: how far the spin has wound up, 0 (two thumb circles to one turn of hers) to 1 (one to one). It builds while a spin is kept going, fades
   // when it is not, and is kept on the skater between dances, so a spin taken up again carries on from what was left. w: her turning speed while winding down.
   let gain = (S.spinGain || 0) * Math.exp(-Math.max(0, S.clock - (S.spinGainT || 0)) / K.gainFade),
@@ -222,6 +273,7 @@ export function createDance(S, api) {
       routine = r;
       stepIx = 0;
       hipMirror = Math.random() < 0.5;
+      named(NAMES.hiphop[r]);
     }
     const [p, beats] = HIPHOP[routine][stepIx % HIPHOP[routine].length];
     stepIx++;
@@ -261,14 +313,22 @@ export function createDance(S, api) {
     last = i;
     to = full(set[i]);
     if (Math.random() < 0.5) to = mirror(to);
+    let name = (inSpin ? NAMES[st.spin > 1 ? 'fast' : 'slow'] : NAMES[snap ? 'sharp' : 'calm'])[i];
     // Rook: the overhead stick spin, and about half his calm gestures with the stick (never mirrored: the stick stays in
     // his right hand)
-    if (S.hockey && inSpin && st.spin > 1) to = full(STICK_OVERHEAD);
+    if (S.hockey && inSpin && st.spin > 1) {
+      to = full(STICK_OVERHEAD);
+      name = 'Stick spin';
+    }
     // Tesa: her layback in place of the plain one, and now and then in a fast spin
-    else if (S.layback && inSpin && (st.spin > 1 ? Math.random() < 0.3 : i === 1))
+    else if (S.layback && inSpin && (st.spin > 1 ? Math.random() < 0.3 : i === 1)) {
       to = full(st.spin > 1 ? LAYBACK_FAST : LAYBACK_SLOW);
-    else if (S.hockey && !inSpin && !snap && Math.random() < 0.5)
+      name = 'Layback spin';
+    } else if (S.hockey && !inSpin && !snap && Math.random() < 0.5) {
       to = full(STICK_CALM[Math.floor(Math.random() * STICK_CALM.length)]);
+      name = 'Stick flourish';
+    }
+    named(name);
     // she keeps turning as she dances: each pose faces a little further round, and now and then she turns right about
     facing += inSpin
       ? 0
@@ -421,13 +481,16 @@ export function createDance(S, api) {
       return true;
     },
     // how: see endMove in skater.js. It is scored on what she did (CFG.dance.score), so one cut short is already worth
-    // less; a crash out of it counts for nothing
+    // less; a crash out of it counts for nothing. Since v3-look61 it is not scored on its own: it goes into a choreography
+    // combination (choreo: true, CFG.choreo), named by its moves (parts), scored and announced when that closes.
     end(how) {
       S.flipYaw = wrap(cur.yaw + turned);
       S.flipK = 2.6; // her body eases back round to face the way she is going
       const m = st.t > 0 ? st.moodSum / st.t : 0;
       api.emit('element', {
         kind: 'dance',
+        choreo: true,
+        parts: st.parts.slice(),
         name: 'Choreography',
         detail:
           st.t.toFixed(1) +

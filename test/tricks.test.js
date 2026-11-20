@@ -143,10 +143,15 @@ function rig() {
   return r;
 }
 
-// --- one thumb: flicks
+// --- one thumb: flicks (v3-look61: down is a toe kick; up is nothing, the spiral and hydroblade are two-thumb circles)
+{
+  const r = rig();
+  r.stroke(real('flickUp'));
+  r.wait(60);
+  ok('real flickUp -> no move', r.seen.size === 0, [...r.seen]);
+}
 for (const [name, move] of [
-  ['flickUp', 'spiral'],
-  ['flickDown', 'hydro'],
+  ['flickDown', 'toe'],
   ['flickLeft', 'turn'],
   ['flickRight', 'leap'],
 ]) {
@@ -162,9 +167,12 @@ for (const rest of [0, 150, 250]) {
   r.play(real('flickDown'));
   r.wait(600);
   ok(
-    `flick down after resting ${rest} ms, kept down -> hydroblade, not choreography`,
-    r.move === 'hydro' && !r.seen.has('dance'),
-    { move: r.move, seen: [...r.seen] },
+    `flick down after resting ${rest} ms, kept down -> toe kick, then choreography`,
+    r.seen.has('toe') && r.move === 'dance',
+    {
+      move: r.move,
+      seen: [...r.seen],
+    },
   );
 }
 {
@@ -200,80 +208,80 @@ for (const rest of [0, 150, 250]) {
     r.move,
   );
 }
-for (const [name, move] of [
-  ['flickUp', 'spiral'],
-  ['flickDown', 'hydro'],
+// --- two thumbs circling (v3-look61): the same way a spiral (clockwise) or hydroblade, opposite ways a spread eagle
+// (right clockwise) or Biellmann. Screen-clockwise circles go round with the angle (y is down). The right thumb's circling
+// starts choreography at once; the two-thumb circle takes over from it.
+for (const [rt, lt, move] of [
+  [1.2, 1.2, 'spiral'],
+  [-1.2, -1.2, 'hydro'],
+  [1.2, -1.2, 'eagle'],
+  [-1.2, 1.2, 'biellmann'],
 ]) {
   const r = rig();
-  r.wait(2500);
-  r.down(real(name)[0]);
-  r.play(real(name));
-  for (let k = 0; k < 30 && r.move !== move; k++) r.wait(16);
-  const v0 = r.game.speed();
-  r.wait(250);
-  ok(`${move}: going into it gives her a small push`, r.move === move && r.game.speed() > v0 + 0.5, {
-    v0: +v0.toFixed(2),
-    after: +r.game.speed().toFixed(2),
-  });
-}
-// --- spiral and hydroblade coast: no push from the left thumb (it stays pushed throughout here), and they end as she slows
-for (const [name, move] of [
-  ['flickUp', 'spiral'],
-  ['flickDown', 'hydro'],
-]) {
-  const r = rig();
-  r.wait(2500);
-  const v0 = r.game.speed();
-  r.down(real(name)[0]);
-  r.play(real(name));
-  r.wait(400);
-  const v1 = r.game.speed();
-  r.wait(1000);
-  const v2 = r.game.speed(),
-    held = r.move;
-  let last = 0;
-  for (let k = 0; k < 4000 && r.move === move; k++) {
-    last = r.game.speed();
-    r.wait(16);
-  }
-  ok(`${move}: with the left thumb pushing, she slows and does not speed up`, held === move && v2 < v1 - 0.3, {
-    v0: +v0.toFixed(1),
-    v1: +v1.toFixed(1),
-    v2: +v2.toFixed(1),
-  });
-  ok(
-    `${move}: kept down, it ends by itself once her speed is down to endSpeed`,
-    r.move !== move && last < CFG.held.endSpeed + 0.2,
-    { ended: +last.toFixed(2), now: r.move },
+  r.leftDown([110, 620]);
+  r.down([340, 560]);
+  r.play(
+    circle(300, 560, 40, rt, 50),
+    circle(110, 640, 30, lt, 50).map(([x, y]) => [x + 30, y - 20]),
   );
+  r.wait(100);
+  ok(
+    `both thumbs circling ${rt > 0 ? 'clockwise' : 'counter-clockwise'} and ${lt > 0 ? 'clockwise' : 'counter-clockwise'} -> ${move}`,
+    r.move === move && r.twoCalls === 1,
+    { move: r.move, seen: [...r.seen] },
+  );
+  // the left thumb pushes and steers in it: slowed down, she builds speed again with the stick pushed
+  r.S.vz *= 0.4;
+  const v0 = r.game.speed();
+  r.wait(1200);
+  ok(`${move}: the left thumb still pushes her`, r.move === move && r.game.speed() > v0 + 1, {
+    v0: +v0.toFixed(1),
+    v1: +r.game.speed().toFixed(1),
+  });
+  r.wait(4000);
+  const still = r.move;
+  r.up();
+  r.wait(100);
+  ok(`${move}: held while the right thumb stays down, and lifting ends it`, still === move && r.move !== move, {
+    still,
+    after: r.move,
+  });
 }
 {
-  const fast = rig(),
-    slow = rig();
-  fast.S.vz = 12;
-  slow.S.vz = 5;
-  const lasts = (r) => {
-    r.down(real('flickUp')[0]);
-    r.play(real('flickUp'));
-    // the flick is read once the thumb has been still idleMs
-    r.wait(CFG.swipe.idleMs + 40);
-    let n = 0;
-    while (r.move === 'spiral' && n < 4000) {
-      r.wait(16);
-      n++;
-    }
-    return n * 16;
+  const r = rig();
+  r.leftDown([110, 620]);
+  r.down([340, 560]);
+  r.play(circle(300, 560, 40, 1.2, 50));
+  r.wait(100);
+  ok('the right thumb circling alone -> choreography, not a two-thumb move', r.move === 'dance', r.move);
+}
+// --- toe kick (v3-look61): a jump straight after it goes higher, and backward it is a toe loop
+{
+  const jumpVy = (kick) => {
+    const r = rig();
+    r.S.back = true;
+    if (kick) r.stroke(real('flickDown'));
+    r.wait(200);
+    r.stroke(still(300, 560, 2), 40);
+    r.down([300, 560], true);
+    const vy = r.S.vy,
+      toe = r.S.toeJump;
+    r.up();
+    return { vy, toe };
   };
-  const a = lasts(fast),
-    b = lasts(slow);
-  ok('a spiral entered faster lasts longer', a > b + 1000, { fastMs: a, slowMs: b });
+  const plain = jumpVy(false),
+    kicked = jumpVy(true);
+  ok(
+    'a jump straight after a toe kick goes higher, as a toe jump',
+    kicked.toe && !plain.toe && kicked.vy > plain.vy * 1.1,
+    { plain: +plain.vy.toFixed(2), kicked: +kicked.vy.toFixed(2) },
+  );
 }
 // The bug in Mark's playtest of v3-look34: with the left thumb steering (sweeping, or circling for tighter turns), the
 // old two-thumb reader held back choreography, so the right thumb's circles did not spin her.
 for (const [label, leftPath] of [
   ['still', still(110, 620, 180)],
   ['sweeping side to side', Array.from({ length: 181 }, (_, i) => [110 + 30 * Math.sin((i * 0.016 * TAU) / 1), 620])],
-  ['circling for tight turns', circle(110, 620, 25, 4.3, 180)],
   ['pushing up, then still', Array.from({ length: 181 }, (_, i) => [110, 620 - Math.min(i, 40) * 1.6])],
 ]) {
   const r = rig();
@@ -344,7 +352,7 @@ for (const [label, leftPath] of [
     );
   }
   for (const [name, move] of [
-    ['flickDownInWindDown', 'hydro'],
+    ['flickDownInWindDown', 'toe'],
     ['flickRightInWindDown', 'leap'],
   ]) {
     const r = rig();
@@ -484,13 +492,10 @@ for (const pause of [0, 140, 200]) {
   r.leftDown([100, 600]);
   r.down([300, 600]);
   r.play(line(300, 600, 300, 690, 6), line(100, 600, 100, 690, 6));
-  r.wait(CFG.swipe.idleMs + CFG.stop.liftMs - 60);
-  const early = r.move;
-  r.wait(200);
-  ok('both thumbs swiped down and held -> hydroblade once liftMs has passed', early === null && r.move === 'hydro', {
-    early,
-    now: r.move,
-  });
+  r.wait(CFG.swipe.idleMs + 100);
+  ok('both thumbs swiped down and held -> hockey stop at once (v3-look61; was a hydroblade)', r.seen.has('stop'), [
+    ...r.seen,
+  ]);
 }
 {
   const r = rig();
@@ -510,8 +515,8 @@ for (const pause of [0, 140, 200]) {
   r.up();
   r.wait(40);
   ok(
-    'a right flick down while the steering thumb drifts a little -> hydroblade, not a stop',
-    r.seen.has('hydro') && !r.seen.has('stop') && r.twoCalls === 0,
+    'a right flick down while the steering thumb drifts a little -> toe kick, not a stop',
+    r.seen.has('toe') && !r.seen.has('stop') && r.twoCalls === 0,
     [...r.seen],
   );
 }
@@ -521,7 +526,7 @@ for (const pause of [0, 140, 200]) {
   r.down([300, 640]);
   r.play(line(300, 640, 350, 640, 7), line(160, 640, 110, 640, 7));
   r.wait(300);
-  ok('thumbs spreading apart -> spread eagle', r.move === 'eagle' && r.twoCalls === 1, r.move);
+  ok('thumbs spreading apart -> no spread eagle (v3-look61: it is a two-thumb circle)', r.move !== 'eagle', r.move);
 }
 {
   const r = rig();
@@ -543,8 +548,8 @@ for (const pause of [0, 140, 200]) {
   r.up();
   r.wait(40);
   ok(
-    'a right flick down while the left thumb circles to steer -> hydroblade, not a hockey stop',
-    r.seen.has('hydro') && !r.seen.has('stop'),
+    'a right flick down while the left thumb circles to steer -> toe kick, not a hockey stop',
+    r.seen.has('toe') && !r.seen.has('stop'),
     [...r.seen],
   );
 }
@@ -554,7 +559,7 @@ for (const pause of [0, 140, 200]) {
   r.down([300, 640]);
   r.play(line(300, 640, 300, 560, 7), line(160, 640, 160, 560, 7));
   r.wait(300);
-  ok('both thumbs swiped up -> spiral, steering held', r.move === 'spiral' && r.twoCalls === 1, r.move);
+  ok('both thumbs swiped up -> no move (v3-look61: up is nothing)', !r.seen.has('spiral'), [...r.seen]);
 }
 {
   const r = rig();

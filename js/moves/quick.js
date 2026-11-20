@@ -1,4 +1,4 @@
-// Quick moves: the three-turn and the split leap do not interrupt the skating; the hockey stop ends it.
+// Quick moves: the three-turn, the split leap and the toe kick do not interrupt the skating; the hockey stop ends it.
 import { CFG } from '../config.js';
 import { clamp, sstep } from '../core/math.js';
 // Three-turn: a half turn on one foot. It swaps forward and backward skating, which changes which jumps are on offer.
@@ -52,6 +52,44 @@ export function createTurn(S, api) {
         aRe: -0.2,
       });
       return 18;
+    },
+  };
+}
+// Toe kick (v3-look61, Mark: "do right thumb down flick as toe kick in prep for jump"): she reaches her free leg back and
+// taps its toe pick into the ice behind her, arms gathering, ready to spring. A jump within CFG.toe.window seconds goes
+// higher, and skating backward it is a toe loop (skater.js). The left thumb steers and pushes all the while.
+export function createToeKick(S, api) {
+  let t = 0;
+  const T_ALL = 0.42;
+  return {
+    id: 'toe',
+    steer: 1,
+    start() {
+      S.toeUntil = S.clock + CFG.toe.window;
+    },
+    update(dt) {
+      t += dt;
+      return t < T_ALL;
+    },
+    pose(T, kit) {
+      // reach back, pick, and come up out of it
+      const k = Math.sin(Math.PI * clamp(t / T_ALL, 0, 1));
+      kit.set({
+        lean: 0.1 + 0.25 * k,
+        bodyY: kit.HIP - 0.08 * k,
+        fL: 0,
+        lRx: 0.15 + 0.75 * k,
+        lRk: 0.2 + 0.3 * k,
+        lLx: -0.15 * k,
+        lLk: 0.15 + 0.45 * k,
+        aLx: -0.5 * k,
+        aRx: -0.5 * k,
+        aLz: -0.9 + 0.3 * k,
+        aRz: 0.9 - 0.3 * k,
+        aLe: -0.3 - 0.6 * k,
+        aRe: -0.3 - 0.6 * k,
+      });
+      return 22;
     },
   };
 }

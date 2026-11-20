@@ -56,6 +56,9 @@ export function createSkater(emit) {
     flipK: 9,
     // Infinite and Tutorial: falls and crashes become stumbles
     forgiving: false,
+    // a toe kick (v3-look61) readies a jump until this time (S.clock); toeJump: this jump was off one
+    toeUntil: -9,
+    toeJump: false,
     // the Tunnel (v3-look60): on its tube (ts metres along the run, tphi radians round from its bottom), and the ways
     // out of the ice (up), down the run (along) and round the tube (round) there, as unit vectors
     tube: false,
@@ -108,6 +111,8 @@ export function createSkater(emit) {
   function jumpType(ccw) {
     if (!S.takeBack) return ccw ? 'Axel' : 'Inside Axel';
     if (S.combo) return 'Loop';
+    // off a toe kick, skating backward: a toe loop, whichever way she turns
+    if (S.toeJump) return 'Toe loop';
     return ccw ? 'Toe loop' : 'Salchow';
   }
   // The landing window is generous for singles and narrows with every extra rotation and for the harder jumps.
@@ -123,9 +128,13 @@ export function createSkater(emit) {
     endMove('jump');
     S.takeBack = S.back;
     S.combo = S.back && S.landT < CFG.jump.comboWindow && S.cleanLand;
+    // a toe kick just before (CFG.toe) springs her higher
+    S.toeJump = S.clock < S.toeUntil;
+    S.toeUntil = -9;
     S.vy =
       (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed + S.bonus * CFG.jump.vyPerBonus) *
-      (boost || 1);
+      (boost || 1) *
+      (S.toeJump ? CFG.toe.lift : 1);
     S.grounded = false;
     S.wy = S.gy;
     S.spin = 0;
@@ -328,9 +337,7 @@ export function createSkater(emit) {
             tn = clamp(da, -mt, mt);
           let ns = sp;
           if (tv > sp + 0.4) pushing = true;
-          // a coasting move (spiral, hydroblade): the thumb only turns her, it neither pushes nor holds her back
-          if (m && m.coast) ns = sp;
-          else if (tv > sp)
+          if (tv > sp)
             ns = Math.min(
               tv,
               sp +

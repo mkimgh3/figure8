@@ -5,6 +5,8 @@
 //   art    what the skating around it adds (a jump out of figures, jump combinations, linking different kinds of element)
 //   pts    the total
 // Jumps landed one straight after another are one combination element, named like "Triple Salchow + Double toe loop".
+// Choreography makes combinations too (v3-look61, CFG.choreo): a dance's moves, and more dancing or jumps within
+// choreo.window seconds of the last, are one element, all artistry, named by its moves and scored when it closes.
 import { CFG } from './config.js';
 const P = CFG.points;
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -46,7 +48,10 @@ export function createScoring(saved) {
     lastJumpEnd = -99,
     // the elements of the last points.repeatWindow seconds, { key, t }, for the repeat penalty
     recent = [],
-    combo = null;
+    combo = null,
+    // the choreography combination being made: { parts, art, last } (last: the clock when it was last added to)
+    cho = null;
+  const CH = CFG.choreo;
   const copy = (e) => ({ name: e.name, code: e.code, base: e.base, goe: e.goe, art: e.art, pts: e.pts });
   function record(e, replaces) {
     if (replaces) {
@@ -148,6 +153,48 @@ export function createScoring(saved) {
       combo = null;
       return record(score(d.kind, d.name, d.base, d.quality || 1, 1, ''));
     },
+    // a dance has ended (d: its element, with parts and base): it goes into the choreography combination, opening one
+    choreo(d) {
+      if (!d.counted) return;
+      if (!cho) cho = { parts: [], art: 0, last: clock };
+      for (const n of d.parts || []) if (!cho.parts.includes(n)) cho.parts.push(n);
+      cho.art += d.base;
+      cho.last = clock;
+    },
+    // a jump has landed (e: its scored element, d: what the skater reported): within an open combination it is one of
+    // its moves, adding choreo.jumpArt of its points
+    choreoJump(e, d) {
+      if (!cho || !e || e.pts <= 0 || clock - cho.last > CH.window) return;
+      cho.parts.push(d.name || e.name);
+      cho.art += CH.jumpArt * e.pts;
+      cho.last = clock;
+    },
+    // every frame (dancing: a dance is going on, which keeps the combination open): once nothing has been added for
+    // choreo.window seconds, the combination becomes one element, all artistry, and is returned to be announced
+    choreoDue(dancing) {
+      if (!cho) return null;
+      if (dancing) cho.last = clock;
+      if (clock - cho.last < CH.window) return null;
+      const art = r1(cho.art),
+        n = cho.parts.length,
+        e = {
+          name:
+            cho.parts.slice(0, CH.maxNames).join(' + ') + (n > CH.maxNames ? ' + ' + (n - CH.maxNames) + ' more' : ''),
+          code: '',
+          base: 0,
+          goe: 0,
+          art,
+          pts: art,
+          choreo: true,
+          moves: n,
+        };
+      cho = null;
+      combo = null;
+      st.total = r1(st.total + art);
+      return record(e);
+    },
+    // how much of the choreography combination's window is left, 0..1
+    choreoLeft: () => (cho ? Math.max(0, 1 - (clock - cho.last) / CH.window) : 0),
     chainLeft: () => (chain.n > 0 ? Math.max(0, 1 - (clock - chain.lastEnd) / P.chainWindow) : 0), // how much of the linking window is left, 0..1
     reset() {
       Object.assign(st, { total: 0, jumps: 0, falls: 0, best: null, bestJump: null, time: 0, list: [] });
@@ -155,6 +202,7 @@ export function createScoring(saved) {
       inRow = 0;
       recent = [];
       combo = null;
+      cho = null;
     },
     serialise: () => ({
       v: VERSION,

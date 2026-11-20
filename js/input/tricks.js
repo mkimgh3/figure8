@@ -1,24 +1,27 @@
 // The trick finger, the right thumb. The rules of the control scheme live here and nowhere else:
 //   quick double tap   -> jump; keep the second tap down and circle to rotate her in the air
-//   flick up           -> spiral; flick down -> hydroblade (each lasts a moment, and for as long as the finger stays down)
+//   flick down         -> toe kick, readying a jump (v3-look61; it was the hydroblade)
 //   flick left         -> three-turn (swaps forward and backward skating)
 //   flick right        -> split leap; a circle within afterLeapMs of it is twizzles
 //   anything else      -> choreography (moves/dance.js) once the finger has been down holdMs with nothing else going on:
 //                         held still, or dragged further or slower than a flick. It lasts while the finger stays down; the
 //                         finger's strokes set the mood, and circling it turns her and brings out the spin positions.
-// With the left thumb moving the same way (CFG.two):
-//   both swiped down   -> hockey stop if a thumb lifts within stop.liftMs, hydroblade if both stay down
-//   both moving apart  -> spread eagle
-//   both up, left or right -> the same as the right thumb alone
+// With the left thumb (CFG.two):
+//   both circling the same way (v3-look61): clockwise a spiral, counter-clockwise a hydroblade; the opposite ways, right
+//                         clockwise a spread eagle, right counter-clockwise a Biellmann. Each lasts while the right thumb
+//                         stays down. (Until v3-look61: flick up a spiral, flick down a hydroblade, thumbs apart an eagle.)
+//   both swiped down   -> hockey stop
+//   both up, left or right -> the same as the right thumb alone (up does nothing)
+// The left thumb steers her and sets her speed through all of these.
 // A flick has to be quick (CFG.swipe); while a stroke could still be one, choreography waits for it to be read.
 // What the finger does is worked out from the skater on every call, not fixed when it touched down: whenever she is in
 // the air it turns her, and when the move it started or took up is over (finished, a fall, a launch pad) and it is still
 // down, she dances. Time comes in with every call (ms). This file never reads a clock, so it can be tested with a made-up one.
 import { CFG } from '../config.js';
 import { Stroke, Swipe } from './recognizer.js';
-import { createSpiral, createEagle, createHydro } from '../moves/held.js';
+import { createSpiral, createEagle, createHydro, createBiellmann } from '../moves/held.js';
 import { createTwirl } from '../moves/twirl.js';
-import { createTurn, createLeap, createStop } from '../moves/quick.js';
+import { createTurn, createLeap, createStop, createToeKick } from '../moves/quick.js';
 import { createDance } from '../moves/dance.js';
 
 export function createTricks(game, taps, log) {
@@ -47,7 +50,9 @@ export function createTricks(game, taps, log) {
   // when the right thumb's swipe began
   let left = null,
     leftLifted = false,
-    leftAt = null;
+    leftAt = null,
+    // how far the left thumb had turned when the right one went down
+    leftTurn0 = 0;
   let lastT = null;
 
   // she is in the air: the finger turns her. The move it held is over: it is free to dance.
@@ -96,32 +101,49 @@ export function createTricks(game, taps, log) {
     const ll = L ? Math.hypot(L.x, L.y) : 0;
     if (L && (Math.abs(left.turn - leftAt.turn) > 1.2 || left.path - leftAt.path > ll * 1.5)) L = null;
     const cos = L && ll > 0 && r.d > 0 ? (L.x * r.dx + L.y * r.dy) / (ll * r.d) : 0;
-    // both thumbs moved apart, each by spreadEachPx or more, and the gap between them grew by spreadPx
-    let spread = false;
-    if (L && r.smooth && cos < -0.5 && r.d >= K.spreadEachPx && ll >= K.spreadEachPx) {
-      const gap0 = Math.hypot(stroke.x - r.dx - leftAt.x, stroke.y - r.dy - leftAt.y),
-        gap1 = Math.hypot(stroke.x - left.x, stroke.y - left.y);
-      spread = gap1 - gap0 >= K.spreadPx;
-    }
     // the left thumb went the same way, about as far: a two-thumb swipe
     const together = !!L && cos > K.parallelCos && ll >= Math.max(K.sameMinPx, r.d * K.sameShare);
-    // lean the way she is already curving
-    const inward = S.turn > 0 ? -1 : 1;
-    if (spread) return start(createEagle(S, game, inward), 'spread', true);
-    if (r.dir === 'down' && together) {
-      if (lifted || leftLifted) return stop(inward);
-      stopWait = { until: t + CFG.stop.liftMs, inward, was: S.move };
-      outcome = 'both-down';
-      return false;
-    }
-    if (r.dir === 'up') return start(createSpiral(S, game), 'up', together);
-    if (r.dir === 'down') return start(createHydro(S, game, inward), 'down', false);
+    if (r.dir === 'down' && together) return stop(S.turn > 0 ? -1 : 1);
+    if (r.dir === 'down') return start(createToeKick(S, game), 'down', false);
     if (r.dir === 'left') return start(createTurn(S, game), 'left', together);
     if (r.dir === 'right' && start(createLeap(S, game), 'right', together)) {
       leapUntil = t + CFG.twirl.afterLeapMs;
       return true;
     }
     return false;
+  }
+  // how far the left thumb has turned since the right one went down (radians, + clockwise on screen); 0 with it up
+  const leftTurn = () => (left && !leftLifted ? left.turn - leftTurn0 : 0);
+  // each thumb's turning over the last moment: [time, turn] pairs kept for CFG.two.recentMs, and how far it turned in them
+  const hist = { r: [], l: [] };
+  const note = (h, t, turn) => {
+    h.push(t, turn);
+    while (h.length > 4 && h[0] < t - K.recentMs) h.splice(0, 2);
+  };
+  const recent = (h) => (h.length < 4 ? 0 : h[h.length - 1] - h[1]);
+  // Both thumbs circling (CFG.two): the same way a spiral (clockwise) or hydroblade, opposite ways a spread eagle (right
+  // clockwise) or Biellmann. Screen-clockwise turn is positive. Both must have circled far enough and still be circling
+  // briskly (a left thumb steering round a curve is not a circle). It can take over from choreography the right thumb
+  // started a moment ago (its circling starts choreography at once).
+  function circles(t) {
+    if (!S.grounded) return false;
+    const fresh = role === 'held' && own && own.id === 'dance' && !tookUp && t - stroke.t0 < K.circleMs;
+    if (!(role === 'pending' && !S.move) && !fresh) return false;
+    const r = stroke.turn,
+      l = leftTurn(),
+      rr = recent(hist.r),
+      lr = recent(hist.l);
+    if (Math.abs(r) < K.circle || Math.abs(l) < K.circle * K.circleShare) return false;
+    if (Math.abs(rr) < K.circleRecent || Math.abs(lr) < K.circleRecent || rr > 0 !== r > 0 || lr > 0 !== l > 0)
+      return false;
+    const inward = S.turn > 0 ? -1 : 1;
+    if (r > 0 === l > 0)
+      return r > 0
+        ? start(createSpiral(S, game), 'circle-cw', true)
+        : start(createHydro(S, game, inward), 'circle-ccw', true);
+    return r > 0
+      ? start(createEagle(S, game, inward), 'circle-apart', true)
+      : start(createBiellmann(S, game), 'circle-biellmann', true);
   }
   // The finger has been down holdMs and nothing else is going on: she dances. That covers a finger held still or dragged
   // (not a flick), one kept down through a jump and its landing, and one kept down after its move has run its course.
@@ -189,6 +211,8 @@ export function createTricks(game, taps, log) {
       stopWait = null;
       leftAt = null;
       tookUp = false;
+      leftTurn0 = left && !leftLifted ? left.turn : 0;
+      hist.r.length = 0;
       if (isDoubleTap && game.jump()) {
         role = 'air';
         outcome = 'jump';
@@ -224,6 +248,9 @@ export function createTricks(game, taps, log) {
       if (role === 'pending' && t < leapUntil && Math.abs(stroke.turn) >= CFG.twirl.startTurn && S.grounded) {
         if (start(createTwirl(S, game, -stroke.turn), 'twirl', false)) leapUntil = -1e9;
       }
+      note(hist.r, t, stroke.turn);
+      // both thumbs circling: a spiral, hydroblade, spread eagle or Biellmann
+      circles(t);
       // a circle starts choreography straight away, without waiting for the next frame
       if (role === 'pending' && mayDance(t)) dance();
     },
@@ -290,9 +317,16 @@ export function createTricks(game, taps, log) {
       left = new Stroke(x, y, t, CFG.rotate);
       leftLifted = false;
       leftAt = null;
+      leftTurn0 = 0;
+      hist.l.length = 0;
     },
     leftMove(x, y, t) {
-      if (left && !leftLifted) left.add(x, y, t);
+      if (left && !leftLifted) {
+        left.add(x, y, t);
+        note(hist.l, t, left.turn);
+      }
+      // the left thumb may be the one to finish a two-thumb circle
+      if (stroke) circles(t);
     },
     leftUp(t) {
       if (!left) return;
