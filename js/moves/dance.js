@@ -291,6 +291,9 @@ export function createDance(S, api) {
     begun = false,
     beat = 0,
     turnGoal = 0,
+    // her turning one way, eased slowly so a thumb sweeping to and fro cancels out (the spin is read from it)
+    net = 0,
+    netGoal = 0,
     turned = 0,
     lastGoal = 0,
     inSpin = false,
@@ -332,9 +335,14 @@ export function createDance(S, api) {
   // the first pose is always a calm one, grown out of her skating
   function next(sharp) {
     for (const k of KEYS) from[k] = cur[k];
-    inSpin = st.spin > 0;
+    // Turning gently (the thumb looping round, as Mark's does all the time: in his 20 Nov log 56 turns in 50 seconds),
+    // she goes on dancing as the thumbs shape her, and only now and then takes one of the open spin positions. Until
+    // v3-look64 any turning at all was a spin, with its own positions and the thumbs' shaping nearly off, so his dances
+    // were almost all spins and he could not tell the engine was there. Circled fast, she spins as before.
+    const turning = st.spin > 0;
+    inSpin = st.spin > 1 || (st.spin === 1 && Math.random() < X.spinPose);
     hipSet = st.hip;
-    if (st.hip && !inSpin) {
+    if (st.hip && !turning) {
       spinSet = 0;
       u = 0;
       st.poses++;
@@ -403,7 +411,7 @@ export function createDance(S, api) {
     }
     named(name);
     // she keeps turning as she dances: each pose faces a little further round, and now and then she turns right about
-    facing += inSpin
+    facing += turning
       ? 0
       : st.poses === 0
         ? to.yaw * 0.4
@@ -491,7 +499,7 @@ export function createDance(S, api) {
       st.t += dt;
       st.moodSum += st.mood * dt;
       if (st.hip) st.hipT += dt;
-      st.hipW += ((st.hip && !inSpin ? 1 : 0) - st.hipW) * (1 - Math.exp(-6 * dt));
+      st.hipW += ((st.hip && st.spin === 0 ? 1 : 0) - st.hipW) * (1 - Math.exp(-6 * dt));
       beat += dt * (2.2 + 3.8 * st.mood) * Math.PI;
       // she goes where the thumbs steer her and picks up speed as they push, and drifts along a lazy winding path when they don't
       // if she is nearly standing she is eased up to a gentle glide, never set moving at a stroke
@@ -525,11 +533,17 @@ export function createDance(S, api) {
       lastGoal = turnGoal;
       // spinning along a straight path, her blade weaves like a twizzle; on a curve the line stays clean
       st.weave += ((st.spin > 0 ? 1 - clamp(Math.abs(S.turn) / 0.8, 0, 1) : 0) - st.weave) * (1 - Math.exp(-3 * dt));
+      // (v3-look64) by how fast she is really going round, one way: the thumb's turning with its to and fro taken out.
+      // Until then it was by all the turning the thumb's path did, so a flowing scribble with no circle in it counted as
+      // a fast spin (in Mark's 20 Nov log his thumb went round 18 times in a dance and she was counted 56 turns).
+      net += ((turnGoal - netGoal) / Math.max(dt, 1e-3) - net) * (1 - Math.exp(-X.spinEase * dt));
+      netGoal = turnGoal;
+      const round = Math.abs(net);
       st.spin =
-        st.rate > K.spinFast
+        round > K.spinFast
           ? 2
-          : st.rate > (st.spin ? K.spinOut : K.spinIn)
-            ? st.spin === 2 && st.rate > K.spinFast * 0.75
+          : round > (st.spin ? K.spinOut : K.spinIn)
+            ? st.spin === 2 && round > K.spinFast * 0.75
               ? 2
               : 1
             : 0;
@@ -562,7 +576,7 @@ export function createDance(S, api) {
           : st.spin > 0 && st.spin !== spinSet)
       )
         next(); // into a spin, out of one, or from the open shape to the tight one
-      else if (begun && st.held && !inSpin && st.hip !== hipSet)
+      else if (begun && st.held && st.spin === 0 && st.hip !== hipSet)
         next(); // into hip hop, or out of it into the elegant gestures, at once
       else if (begun && st.held && !inSpin && !snap && st.mood > 0.6)
         next(true); // the thumbs have turned sharp: she breaks off the slow gesture at once
@@ -671,7 +685,7 @@ export function createDance(S, api) {
       // the left her left). She breathes, so she is never quite still.
       {
         const f = st.fx,
-          a = X.live * (1 - hw) * (inSpin ? 0.35 : 1),
+          a = X.live * (1 - hw) * (inSpin ? (st.spin > 1 ? 0.55 : 0.8) : 1),
           br = Math.sin(st.t * 0.9),
           low = Math.max(0, -f.level),
           shut = Math.max(0, -f.open);

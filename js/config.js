@@ -115,6 +115,12 @@ export const CFG = {
       settle: 0.45,
       spring: 5.5,
       live: 1,
+      // turning gently she takes one of the open spin positions (camel, layback, attitude) this share of the time, and
+      // otherwise dances on as the thumbs shape her (v3-look64)
+      spinPose: 0.25,
+      // how quickly her turning one way is taken up for reading a spin (1/s): slow enough that a thumb sweeping to and
+      // fro does not count as circling
+      spinEase: 1.8,
       arms: 0.8,
       bow: 0.22,
       tip: 0.24,

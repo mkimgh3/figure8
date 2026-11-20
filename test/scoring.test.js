@@ -302,6 +302,48 @@ function thumbs(kind) {
   ]);
 }
 
+// ---- what counts as a spin (v3-look64): going round one way, not a thumb sweeping to and fro
+{
+  const run = (turn) => {
+    const game = createSkater(() => {}),
+      S = game.S;
+    S.vz = 5;
+    const d = createDance(S, game);
+    game.startMove(d);
+    const T = {},
+      kit = { HIP: 0.9, set: (o) => Object.assign(T, o) };
+    let fast = 0,
+      any = 0,
+      n = 0;
+    for (let i = 0; i < 60 * 30; i++) {
+      d.feed(300, 1 / 60, 0, 0, 0, { rx: 300, ry: 600 + 80 * Math.sin(i / 50), rvx: 0, rvy: 0, left: false });
+      d.rotate(turn(i / 60) / 60);
+      game.update(1 / 60, { x: 0, y: 0.5 });
+      d.pose({ bodyY: 0.9 }, kit);
+      n++;
+      if (d.state.spin > 1) fast++;
+      if (d.state.spin > 0) any++;
+    }
+    return { fast: fast / n, any: any / n, parts: d.state.parts };
+  };
+  // the thumb's turning speed (rad/s): sweeping arcs to and fro, quick steady circles, slow steady loops
+  const scribble = run((t) => 7 * Math.cos(t * 2.6)),
+    circles = run(() => 12),
+    loops = run(() => 5.5);
+  ok('a thumb sweeping to and fro is not a fast spin', scribble.fast < 0.05, +scribble.fast.toFixed(2));
+  ok('quick steady circles are', circles.fast > 0.8, +circles.fast.toFixed(2));
+  const gestures = loops.parts.filter((p) => !/spin/i.test(p)).length;
+  ok(
+    'slow steady loops turn her, and she goes on through her gestures as she turns',
+    loops.any > 0.7 && gestures >= 3,
+    {
+      turning: +loops.any.toFixed(2),
+      gestures,
+      parts: loops.parts.length,
+    },
+  );
+}
+
 // ---- choreography combinations (v3-look61)
 {
   const sc = createScoring();
