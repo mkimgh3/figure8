@@ -522,9 +522,10 @@ const { open } = require('./smoke.cjs');
     };
   });
   ok(
-    'each action gets a score card and the best action is tracked',
+    'an action gets a score card, choreography scores without one (v3-look70), and the best action is tracked',
     card.cells === 4 &&
-      card.name2 === card.name &&
+      card.name2 !== card.name &&
+      !!card.name2 &&
       Math.abs(card.base + card.goe + card.art - card.pts) < 0.11 &&
       /Best jump/.test(card.sub) &&
       card.best >= card.pts,

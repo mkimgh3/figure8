@@ -32,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look69';
+const BUILD = 'v3-look70';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -834,12 +834,12 @@ function frame(now) {
     trace.speed = game.speed() / CFG.steer.maxSpeed;
     game.update(dt, steer);
     score.tick(dt);
-    // a choreography combination that has closed: scored now, all artistry, and announced with its moves
+    // a choreography combination that has closed: scored now, all artistry. Not announced (v3-look70, Mark: "remove
+    // choregraphy text that appears"): the total goes up and the element is in Scores, nothing comes up over the dance.
     {
       const c = score.choreoDue(!!(S.move && S.move.id === 'dance'));
       if (c) {
         log.element({ kind: 'choreo', name: c.name, pts: c.pts, moves: c.moves });
-        hud.say('Choreography', c.name, 3.2, c);
         dirty = true;
         showScore();
       }
