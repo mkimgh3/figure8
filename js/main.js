@@ -28,11 +28,12 @@ import { createDuet } from './duet.js';
 import { createStick } from './render/stick.js';
 import { createFront } from './ui/front.js';
 import { createShowcase } from './ui/showcase.js';
+import { createAudio } from './audio.js';
 import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look58';
+const BUILD = 'v3-look59';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -353,13 +354,24 @@ const setPlay = (i) => {
   if (world.view.zoomed) hud.board(true, score.state);
 };
 
+// Skating sounds (audio.js, v3-look59): they mix with the music app (an ambient audio session), start on the first
+// touch, and the menu's Sound switch turns them off (saved)
+const audio = createAudio();
+audio.setOn(!(saved && saved.snd === 0));
+for (const t of ['pointerdown', 'touchend', 'click', 'keydown'])
+  window.addEventListener(t, audio.unlock, { capture: true, passive: true });
+// the push of each stride, for its scrape: entering the part of the stride where she pushes off
+let striding = false;
+
 // What the skater reports, and what the rest of the game does about it.
 const game = createSkater((type, d) => {
   tutorial.event(type, d);
   if (type === 'takeoff') {
     ring.start(d.yaw);
     score.mark();
+    audio.takeoff();
   } else if (type === 'land') {
+    audio.land(d.grade);
     spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, d.grade === 'fall' ? 40 : 22, 2.2, 6.3);
     const e = score.jump(d);
     log.jump(Object.assign({ pts: e ? e.pts : 0 }, d));
@@ -386,6 +398,7 @@ const game = createSkater((type, d) => {
   } else if (type === 'say') hud.say(d.big, d.small, d.hold);
   else if (type === 'crash') {
     spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, 40, 2.4, 6.3);
+    audio.crash(!!d.stumble);
     // Infinite and Tutorial: she bounces off and stumbles, and it costs nothing
     if (d.stumble) {
       hud.say('Bump', 'ran into ' + d.what, 2);
@@ -492,6 +505,7 @@ const persist = () => {
     ui: uiIx,
     uv: 3,
     gq: world.auto ? 'Auto' : world.qualityName,
+    snd: audio.on ? 1 : 0,
     sc: scores[0].serialise(),
     sci: scores[1].serialise(),
     sct: scores[2].serialise(),
@@ -622,6 +636,14 @@ const setUi = (i) => {
 setUi(uiIx);
 hud.on('uibtn', () => {
   setUi(uiIx + 1);
+  dirty = true;
+});
+// Sound: on or off
+const showSound = () => hud.text('soundname', audio.on ? 'On' : 'Off');
+showSound();
+hud.on('soundbtn', () => {
+  audio.setOn(!audio.on);
+  showSound();
   dirty = true;
 });
 // Graphics: Auto, then each level in turn
@@ -857,6 +879,9 @@ function frame(now) {
     // spray: off a hard edge, off each push when she is working for speed, and around a spin
     const sp = game.speed(),
       edge = Math.abs(S.turn) * sp;
+    const pushing = S.grounded && S.push > 0.5 && Math.sin(S.phase) * Math.sin(S.phase - 0.4) < 0;
+    if (pushing && !striding) audio.stride(sp);
+    striding = pushing;
     // paper is a blank sheet: no snow thrown up, nothing drifting in the air
     if (S.grounded && !paperOn) {
       const hx = Math.cos(S.facing),
@@ -921,6 +946,14 @@ function frame(now) {
     }
     draw = now < stillUntil;
   } else stillKey = '';
+  audio.update({
+    speed: game.speed(),
+    grounded: S.grounded,
+    turn: S.turn,
+    skid: !!(S.move && S.move.skid && S.move.skid()),
+    spin: S.move && S.move.spinRate ? S.move.spinRate() : 0,
+    paused,
+  });
   if (draw) {
     world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
     forest.update(S.x, S.z);
@@ -971,6 +1004,7 @@ window.__game = {
   log,
   view: world.view,
   zoom: setZoom,
+  audio,
   hudText: () => document.getElementById('pop').textContent,
 };
 requestAnimationFrame(frame);

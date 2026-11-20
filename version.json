@@ -1,5 +1,5 @@
 {
- "build": "v3-look58",
+ "build": "v3-look59",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -26,6 +26,7 @@
   "assets/rook_model.js",
   "css/app.css",
   "index.html",
+  "js/audio.js",
   "js/config.js",
   "js/core/math.js",
   "js/core/terrain.js",

@@ -7,7 +7,7 @@
     "stamp": "node tools/stamp.cjs",
     "format": "prettier --write js test css tools",
     "format:check": "prettier --check js test css tools",
-    "test": "npm run format:check && node test/recognizer.test.js && node test/swipe.test.js && node test/tricks.test.js && node test/scoring.test.js && node test/terrain.test.js && node test/run.cjs"
+    "test": "npm run format:check && node test/recognizer.test.js && node test/swipe.test.js && node test/tricks.test.js && node test/scoring.test.js && node test/terrain.test.js && node test/audio.test.js && node test/run.cjs"
   },
   "devDependencies": {
     "playwright": "^1.48.0",
