@@ -828,7 +828,7 @@ const { open } = require('./smoke.cjs');
     fr.open &&
       fr.shown &&
       fr.sheet === 'none' &&
-      fr.rows[0].join() === 'Tesa,Ivor,Rook,Bjorn' &&
+      fr.rows[0].join() === 'Tesa,Ivor,Rook,Bjorn,Lumi,Seolhwa' &&
       fr.rows[1].join() === 'Open lake,Islands,Paper,Rolling ice,Tunnel' &&
       fr.rows[2].join() === 'Dawn,Day,Dusk' &&
       fr.rows[3].join() === 'Olympic,Infinite,Tutorial',
@@ -1215,6 +1215,73 @@ const { open } = require('./smoke.cjs');
     );
     await p.evaluate(() => window.__game.setChar(0));
     ok('back to Tesa, the stick is gone', !(await p.evaluate(() => window.__game.stick.group.visible)));
+  }
+  // Lumi and Seolhwa, on Tesa's body (v3-look71). Seolhwa's sleeves lie at her hands, are let out long as she spins and
+  // drawn back when the spin is over. The body is stepped here: the headless run is too slow to wait for a spin.
+  {
+    await p.evaluate(() => window.__game.setChar(4));
+    await until((g) => g.avatars[4], 20000);
+    await sleep(500);
+    const lm = await p.evaluate(() => {
+      const g = window.__game;
+      return {
+        name: document.getElementById('charname').textContent,
+        real: !!g.avatars[4] && g.avatars[4].visible,
+        layback: g.S.layback,
+      };
+    });
+    ok('Lumi: her body loads', lm.name === 'Lumi' && lm.real && lm.layback, lm);
+    await p.evaluate(() => window.__game.setChar(5));
+    await until((g) => g.avatars[5], 20000);
+    await sleep(500);
+    const sl = await p.evaluate(() => {
+      const g = window.__game,
+        a = g.avatars[5],
+        S = g.S,
+        rb = a.ribbons[0],
+        n = rb.n;
+      // how long the sleeve is now: along its chain, from her wrist to its end
+      const long = () => {
+        const q = rb.points;
+        let l = 0;
+        for (let i = 3; i < n * 3; i += 3) l += Math.hypot(q[i] - q[i - 3], q[i + 1] - q[i - 2], q[i + 2] - q[i - 1]);
+        return +l.toFixed(3);
+      };
+      const run = (k, spin) => {
+        for (let i = 0; i < k; i++) a.update(1 / 30, S, spin, spin);
+      };
+      run(90, 0);
+      const rest = long();
+      run(90, 1);
+      const out = +a.sleeves.toFixed(3),
+        full = long();
+      run(150, 0);
+      return {
+        name: document.getElementById('charname').textContent,
+        real: a.visible,
+        ribbons: a.ribbons.length,
+        rest,
+        full,
+        out,
+        back: long(),
+        after: +a.sleeves.toFixed(3),
+        finite: Array.from(rb.points).every(Number.isFinite),
+      };
+    });
+    ok(
+      'Seolhwa: her sleeves end at her hands, are let out long in a spin, and draw back after it',
+      sl.name === 'Seolhwa' &&
+        sl.real &&
+        sl.ribbons === 5 &&
+        sl.finite &&
+        sl.rest < 0.3 &&
+        sl.full > 1.4 &&
+        sl.out > 0.95 &&
+        sl.back < 0.35 &&
+        sl.after < 0.05,
+      sl,
+    );
+    await p.evaluate(() => window.__game.setChar(0));
   }
   // portrait (this page is 390 x 844): the view pulls back as she speeds up, and comes back in as she slows
   {

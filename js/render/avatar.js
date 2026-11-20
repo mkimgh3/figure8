@@ -12,6 +12,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { HIP } from './model.js';
 import { createHair } from './hair.js';
 import { starDot } from './atmos.js';
+import { createRibbon, clothTexture } from './ribbon.js';
 import { ICE_GLSL, ICE_UNIFORMS, iceMirror } from '../core/terrain.js';
 
 const LIFT = 0.045;
@@ -68,6 +69,13 @@ function costumeMaterial(map, normalMap, mask, U, look) {
               (look.tintAmt ?? 0.85).toFixed(2) +
               '); }'
             : '') +
+          // her tights in another colour (the mask's green), keeping their light and shade (v3-look71)
+          (look.tights
+            ? (() => {
+                const c = new THREE.Color(look.tights);
+                return ` diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)}) * (0.35 + 0.8 * dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114))), mk.g);`;
+              })()
+            : '') +
           // the sleeves (painted sheer, marked at 0.62 in the mask's red) made opaque in look.sleeve, keeping their glints
           (look.sleeve
             ? (() => {
@@ -113,6 +121,11 @@ function costumeMaterial(map, normalMap, mask, U, look) {
       );
     if (look.crystals) sh.fragmentShader = sh.fragmentShader.replace('void main() {', CRYSTAL + '\nvoid main() {');
   };
+  // The look is written into the shader, so each look needs its own program. three.js tells programs apart by the
+  // text of onBeforeCompile, which is the same for every skater: without this, a second skater on the same settings
+  // got the first one's colours (v3-look71, when Lumi came out in Tesa's blue).
+  const key = 'costume' + JSON.stringify(look);
+  m.customProgramCacheKey = () => key;
   return m;
 }
 
@@ -227,6 +240,20 @@ const EMBROIDERY = {
   if (t > 0.14 && t < 0.77 && mod(row, 8.0) == 4.0 && abs(abs(d) - 0.011) < du * 1.2) return 1.0;
   return 0.0;
 }`,
+  // hem (v3-look71, Seolhwa's chima): a band of gold leaf above the hem, between two lines: six-petalled flowers with a
+  // small diamond between each pair
+  hem: `float emb(vec2 c) {
+  float u = c.x, t = c.y, dt = 0.5 / ${EMB_GRID[1].toFixed(1)};
+  if (abs(t - 0.79) < dt || abs(t - 0.945) < dt) return 1.0;
+  if (t > 0.805 && t < 0.93) {
+    vec2 g = vec2(u * 20.0, (t - 0.805) / 0.125), f = vec2(fract(g.x) - 0.5, g.y - 0.5);
+    float r = length(f), a = atan(f.y, f.x);
+    if (r < 0.075 || abs(r - (0.27 + 0.08 * cos(a * 6.0))) < 0.045) return 1.0;
+    vec2 h = vec2(fract(g.x + 0.5) - 0.5, g.y - 0.5);
+    if (abs(h.x) + abs(h.y) < 0.085) return 1.0;
+  }
+  return 0.0;
+}`,
   over: `float emb(vec2 c) {
   float u = c.x, t = c.y, du = 0.5 / ${EMB_GRID[0].toFixed(1)}, dt = 0.5 / ${EMB_GRID[1].toFixed(1)};
   if (t > 0.05 && (abs(u - 0.04) < du || abs(u - 0.96) < du)) return 1.0;
@@ -250,7 +277,9 @@ const EMBROIDERY = {
 //      godet (fold depth, as a share of how far the hem swings out), lobes (folds round it), flute (ripple height,
 //      metres), trail (radians the hem trails in a full spin), split: [at the waist, at the hem, at the hem when fully
 //      open] (degrees left open at the front, for a coat), embroider ('under' or 'over': rows of crystals stitched in
-//      a pattern), gain (how readily it opens), k (its spring: lower is heavier and slower) }
+//      a pattern), gain (how readily it opens), k (its spring: lower is heavier and slower),
+//      top (metres over the ice where it begins, for a skirt tied above the waist: a hanbok's; it follows the legs
+//      from the hips down), embColour, embSolid (the pattern drawn as leaf, not as single stones), embScatter }
 function buildSkirt(skeleton, toBind, bone, U, o) {
   const pelvis = bone('Bip01 Pelvis'),
     thighL = bone('Bip01 L Thigh'),
@@ -261,8 +290,10 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   const RINGS = 16,
     SEG = 84,
     SUB = 8,
-    waistY = P.y + 0.07,
+    waistY = o.top ?? P.y + 0.07,
     L = o.length,
+    // a skirt that begins above the waist follows the legs only from the hips down
+    t0 = o.top ? Math.min(0.8, Math.max(0, (o.top - P.y - 0.02) / o.length)) : 0,
     [rx0, rz0] = o.waist,
     D = Math.PI / 180,
     thR = o.rest * D,
@@ -354,8 +385,9 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
       fuv.push(fu, t);
       // the half of the skirt over each leg follows that leg, more so towards the hem
       const side = Math.sin(gap(t, 0) + fu * (Math.PI * 2 - 2 * gap(t, 0))),
-        wl = follow * t * THREE.MathUtils.smoothstep(side, 0.05, 0.7),
-        wr = follow * t * THREE.MathUtils.smoothstep(-side, 0.05, 0.7);
+        tf = Math.max(0, (t - t0) / (1 - t0)),
+        wl = follow * tf * THREE.MathUtils.smoothstep(side, 0.05, 0.7),
+        wr = follow * tf * THREE.MathUtils.smoothstep(-side, 0.05, 0.7);
       si.push(ix(pelvis), ix(thighL), ix(thighR), 0);
       sw.push(1 - wl - wr, wl, wr, 0);
     }
@@ -400,6 +432,9 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
   g.morphAttributes.normal = nMorphs.map((a) => new THREE.Float32BufferAttribute(a, 3));
   g.morphTargetsRelative = true;
   const sheer = o.opacity < 1;
+  // the stitched pattern's colour: crystals unless o.embColour (gold leaf), which glints in its own colour
+  const embC = o.embColour ? new THREE.Color(o.embColour) : new THREE.Color().setRGB(0.82, 0.88, 0.98),
+    embG = o.embColour ? [embC.r, embC.g, embC.b].map((x) => (x * 0.6).toFixed(3)).join(', ') : '1.0';
   const m = new THREE.MeshPhysicalMaterial({
     vertexColors: true,
     roughness: o.rough ?? (sheer ? 0.5 : 0.32),
@@ -449,10 +484,10 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
             ? `
 { vec2 q = vFu * vec2(${EMB_GRID[0].toFixed(1)}, ${EMB_GRID[1].toFixed(1)}), cc = floor(q);
   float cr = sh21(cc + 4.7);
-  if ((emb((cc + 0.5) / vec2(${EMB_GRID[0].toFixed(1)}, ${EMB_GRID[1].toFixed(1)})) > 0.5 || cr > 0.978) && length(fract(q) - 0.5) < 0.42) {
+  if ((emb(${o.embSolid ? 'vFu' : `(cc + 0.5) / vec2(${EMB_GRID[0].toFixed(1)}, ${EMB_GRID[1].toFixed(1)})`}) > 0.5 || cr > ${(o.embScatter ?? 0.978).toFixed(3)})${o.embSolid ? '' : ' && length(fract(q) - 0.5) < 0.42'}) {
     vec3 n3 = normalize(normal + (vec3(sh21(cc + 1.7), sh21(cc + 5.3), sh21(cc + 8.9)) - 0.5) * 1.6);
-    diffuseColor.rgb = vec3(0.82, 0.88, 0.98);
-    totalEmissiveRadiance += crystal(n3, normalize(vViewPosition), cr) * uSparkle * 1.3; } }`
+    diffuseColor.rgb = vec3(${embC.r.toFixed(3)}, ${embC.g.toFixed(3)}, ${embC.b.toFixed(3)});
+    totalEmissiveRadiance += crystal(n3, normalize(vViewPosition), cr) * vec3(${embG}) * uSparkle * 1.3; } }`
             : ''),
       );
     if (o.crystals || o.embroider)
@@ -461,6 +496,9 @@ function buildSkirt(skeleton, toBind, bone, U, o) {
         CRYSTAL + '\n' + (o.embroider ? EMBROIDERY[o.embroider] : '') + '\nvoid main() {',
       );
   };
+  // its pattern and sparkle are written into the shader: a program of its own (see costumeMaterial)
+  const key = 'skirt' + JSON.stringify([o.sparkle, o.crystals, o.embroider, o.embColour, o.embSolid, o.embScatter]);
+  m.customProgramCacheKey = () => key;
   const mesh = new THREE.SkinnedMesh(g, m);
   mesh.castShadow = !sheer;
   mesh.frustumCulled = false;
@@ -539,6 +577,131 @@ function buildCuff(skeleton, toBind, bone, side, o) {
   mesh.castShadow = true;
   mesh.frustumCulled = false;
   return mesh;
+}
+
+// A wide sleeve over an arm (Seolhwa's jacket, v3-look71): a tube from near the shoulder to the wrist, close round the
+// upper arm, deeper under the forearm and opening out toward the hand, skinned to the upper arm and forearm and built
+// in the rest pose like the skirt. side: 'L' or 'R'.
+// o: { map, from (the share of the upper arm it begins at), past (metres beyond the wrist), rise (metres over the
+//      arm), half: [at the shoulder, at the wrist] (half its width), drop: [at the shoulder, at the wrist] (under it) }
+function buildSleeve(skeleton, toBind, bone, side, o) {
+  const up = bone('Bip01 ' + side + ' UpperArm'),
+    fore = bone('Bip01 ' + side + ' Forearm'),
+    hand = bone('Bip01 ' + side + ' Hand'),
+    ui = skeleton.bones.indexOf(up),
+    fi = skeleton.bones.indexOf(fore);
+  const A = up.getWorldPosition(new THREE.Vector3()),
+    E = fore.getWorldPosition(new THREE.Vector3()),
+    W = hand.getWorldPosition(new THREE.Vector3()),
+    l1 = A.distanceTo(E),
+    total = l1 + E.distanceTo(W) + (o.past ?? 0.02),
+    d1 = E.clone().sub(A).normalize(),
+    d2 = W.clone().sub(E).normalize();
+  const RINGS = 22,
+    SEG = 24,
+    s0 = (o.from ?? 0.15) * l1,
+    ss = THREE.MathUtils.smoothstep;
+  const pos = [],
+    uv = [],
+    si = [],
+    sw = [],
+    idx = [],
+    d = new THREE.Vector3(),
+    down = new THREE.Vector3(),
+    across = new THREE.Vector3(),
+    c = new THREE.Vector3(),
+    v = new THREE.Vector3();
+  for (let r = 0; r <= RINGS; r++) {
+    const t = r / RINGS,
+      s = s0 + t * (total - s0),
+      k = ss(s, l1 - 0.07, l1 + 0.07),
+      u = s / total;
+    if (s < l1) c.copy(A).addScaledVector(d1, s);
+    else c.copy(E).addScaledVector(d2, s - l1);
+    d.copy(d1).lerp(d2, k).normalize();
+    down.set(0, -1, 0).addScaledVector(d, d.y);
+    if (down.lengthSq() < 1e-4) down.set(0, 0, -1).addScaledVector(d, d.z);
+    down.normalize();
+    across.crossVectors(d, down);
+    const half = o.half[0] + (o.half[1] - o.half[0]) * ss(u, 0.1, 1),
+      drop = o.drop[0] + (o.drop[1] - o.drop[0]) * Math.pow(u, 1.3),
+      rise = o.rise ?? 0.045;
+    for (let sg = 0; sg <= SEG; sg++) {
+      const a = (sg / SEG) * Math.PI * 2,
+        sa = Math.sin(a);
+      v.copy(c)
+        .addScaledVector(across, Math.cos(a) * half)
+        .addScaledVector(down, sa > 0 ? sa * drop : sa * rise)
+        .applyMatrix4(toBind);
+      pos.push(v.x, v.y, v.z);
+      uv.push(sg / SEG, t);
+      si.push(ui, fi, 0, 0);
+      sw.push(1 - k, k, 0, 0);
+    }
+  }
+  for (let r = 0; r < RINGS; r++)
+    for (let sg = 0; sg < SEG; sg++) {
+      const a = r * (SEG + 1) + sg,
+        b = a + SEG + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  const g = new THREE.BufferGeometry();
+  g.setIndex(idx);
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  g.computeVertexNormals();
+  // lit from outside: the normals must point out of the tube
+  const p0 = new THREE.Vector3().fromBufferAttribute(g.attributes.position, 0),
+    p1 = new THREE.Vector3().fromBufferAttribute(g.attributes.position, SEG / 2);
+  if (new THREE.Vector3().fromBufferAttribute(g.attributes.normal, 0).dot(p0.sub(p1)) < 0) {
+    for (let i = 0; i < idx.length; i += 3) [idx[i + 1], idx[i + 2]] = [idx[i + 2], idx[i + 1]];
+    g.setIndex(idx);
+    g.computeVertexNormals();
+  }
+  const m = new THREE.MeshPhysicalMaterial({
+    map: o.map,
+    roughness: 0.6,
+    sheen: 0.4,
+    sheenColor: new THREE.Color(0xfff6e8),
+    sheenRoughness: 0.4,
+    side: THREE.DoubleSide,
+  });
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, ICE_UNIFORMS);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>' + ICE_DECL)
+      .replace('#include <skinning_vertex>', '#include <skinning_vertex>' + ABOVE_ICE);
+  };
+  const mesh = new THREE.SkinnedMesh(g, m);
+  mesh.castShadow = true;
+  mesh.frustumCulled = false;
+  return mesh;
+}
+
+// Seolhwa's hairpin (a binyeo): a gold rod through her bun from side to side, a jade bead and a gold cap at one end.
+// at: the middle of the bun, in the world at rest; w: half the bun's width
+function buildPin(at, w) {
+  const gold = new THREE.MeshStandardMaterial({ color: 0xe8b84a, metalness: 1, roughness: 0.28 }),
+    jade = new THREE.MeshStandardMaterial({ color: 0x3fae84, roughness: 0.22, envMapIntensity: 1.2 });
+  const grp = new THREE.Group(),
+    len = w * 2 + 0.11;
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0042, 0.003, len, 8), gold);
+  rod.rotation.z = Math.PI / 2;
+  grp.add(rod);
+  const bead = new THREE.Mesh(new THREE.SphereGeometry(0.013, 12, 10), jade);
+  bead.position.x = -len / 2 - 0.006;
+  grp.add(bead);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0075, 10, 8), gold);
+  cap.position.x = -len / 2 - 0.022;
+  grp.add(cap);
+  grp.position.copy(at);
+  grp.rotation.z = 0.12;
+  grp.traverse((o) => {
+    if (o.isMesh) o.castShadow = true;
+  });
+  return grp;
 }
 
 // A fur mantle over the shoulders (for the viking), shaped to sit on the body: a thick ring of fur from the base of
@@ -1023,6 +1186,31 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         side: THREE.DoubleSide,
         envMapIntensity: 0.9,
       });
+      // her own hair colour (v3-look71): the shared head's white hair, eyebrows and lips are marked in a mask
+      // (tools/assets/seol_paint.py) and recoloured here; the loose strands, which are painted white, take the same
+      if (opts.look.hair && assets.headMask) {
+        const hm = tex(tl, assets.headMask),
+          hc = new THREE.Color(opts.look.hair),
+          lc = opts.look.lips ? new THREE.Color(opts.look.lips) : null,
+          f3 = (c) => `vec3(${c.r.toFixed(3)}, ${c.g.toFixed(3)}, ${c.b.toFixed(3)})`;
+        head.onBeforeCompile = (sh) => {
+          sh.uniforms.uHeadMask = { value: hm };
+          sh.fragmentShader = sh.fragmentShader
+            .replace('#include <common>', '#include <common>\nuniform sampler2D uHeadMask;')
+            .replace(
+              '#include <map_fragment>',
+              `#include <map_fragment>
+{ vec4 hk = texture2D(uHeadMask, vMapUv); float hl = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+  diffuseColor.rgb = mix(diffuseColor.rgb, ${f3(hc)} * (0.3 + 1.2 * hl * hl), hk.r);
+  diffuseColor.rgb *= 1.0 - hk.g * ${(opts.look.brow ?? 0.4).toFixed(2)};` +
+                (lc ? `\n  diffuseColor.rgb = mix(diffuseColor.rgb, ${f3(lc)} * (0.5 + 0.9 * hl), hk.b * 0.75);` : '') +
+                ' }',
+            );
+        };
+        const key = 'head' + JSON.stringify([opts.look.hair, opts.look.brow, opts.look.lips]);
+        head.customProgramCacheKey = () => key;
+        hair.color.copy(hc).multiplyScalar(1.25);
+      }
       skinned.forEach((m) => {
         m.material = /head/.test(m.material.name) ? head : /opacity|hair/.test(m.material.name) ? hair : body;
         m.castShadow = true;
@@ -1136,6 +1324,28 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           const cf = attach(buildCuff(skeleton, toBind, bone, sd, opts.cuffs));
           if (opts.cuffs.fur) furShells(cf, opts.cuffs.fur).forEach(attach);
         });
+      // Seolhwa's wide sleeves (v3-look71)
+      const HB = opts.hanbok;
+      if (HB)
+        ['L', 'R'].forEach((sd) =>
+          attach(
+            buildSleeve(
+              skeleton,
+              toBind,
+              bone,
+              sd,
+              Object.assign(
+                {
+                  map: clothTexture(HB.cloth, [
+                    [0.9, 1, HB.trim],
+                    [0.885, 0.9, HB.gold],
+                  ]),
+                },
+                HB.sleeve,
+              ),
+            ),
+          ),
+        );
       // Rook's kit: helmet, gloves, and markers in his palms for the stick
       // the kit is built from positions in the world, so each piece is put into wrap (which is scaled to his height)
       // with wrap's own transform taken back out
@@ -1225,6 +1435,140 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           palms.push(palm);
         }
       }
+      // Seolhwa (v3-look71): her hairpin, the knot of her jacket's ties, and the cloth that is simulated (ribbon.js):
+      // her sleeves' long ends, the two ties and the ribbon from her bun. Each ribbon has a marker on a bone where it
+      // is held; the round shapes they cannot enter ride on her head and trunk.
+      const ribbons = [],
+        balls = [];
+      if (HB) {
+        // a point in the world now, at rest, made to ride on a bone
+        const mark = (name, v) => {
+          const m = new THREE.Object3D();
+          m.position.copy(v);
+          place(m);
+          bone(name).attach(m);
+          return m;
+        };
+        const sc = wrap.scale.y,
+          h = headTop(),
+          headMesh = skinned.find((m) => m.material === head);
+        for (const [name, at, r] of HB.balls)
+          balls.push({ m: mark(name, new THREE.Vector3(...at)), r: r, w: new THREE.Vector3() });
+        if (h)
+          balls.push({
+            m: mark('Bip01 Head', new THREE.Vector3(h.c.x, h.top - 0.115, h.c.z)),
+            r: 0.125,
+            w: new THREE.Vector3(),
+          });
+        const silk = (map, rough) =>
+          new THREE.MeshStandardMaterial({
+            map,
+            roughness: rough ?? 0.6,
+            side: THREE.DoubleSide,
+            envMapIntensity: 0.8,
+            // thin cloth lets light through: its shaded side is never dark (at night a twisting sleeve went from white
+            // to nearly black along its length)
+            emissive: 0xffffff,
+            emissiveMap: map,
+            emissiveIntensity: 0.22,
+          });
+        // the sleeves' ends: short at her hands, and let out long as she spins
+        const endMat = silk(
+          clothTexture(HB.cloth, [
+            [0.9, 1, HB.trim],
+            [0.885, 0.9, HB.gold],
+          ]),
+        );
+        for (const sd of ['L', 'R']) {
+          const rb = createRibbon(Object.assign({ material: endMat }, HB.ends));
+          ribbons.push({
+            rb,
+            sleeve: true,
+            hand: bone('Bip01 ' + sd + ' Hand'),
+            fore: bone('Bip01 ' + sd + ' Forearm'),
+          });
+        }
+        // the ties (goreum): a knot on her right breast where the collar ends, and two tails
+        if (HB.ties) {
+          const rc = new THREE.Raycaster(),
+            T = HB.ties;
+          rc.set(new THREE.Vector3(T.at[0], T.at[1], 1), new THREE.Vector3(0, 0, -1));
+          const hit = rc.intersectObject(bodyMesh, false)[0],
+            K = hit ? hit.point.clone() : new THREE.Vector3(T.at[0], T.at[1], 0.1);
+          K.z += 0.012;
+          const tieMat = silk(clothTexture(HB.trim, [[0.9, 0.915, HB.gold]]), 0.5);
+          const knot = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 8), tieMat);
+          knot.scale.set(1.5, 0.8, 0.6);
+          knot.position.copy(K);
+          knot.castShadow = true;
+          place(knot);
+          bone('Bip01 Spine2').attach(knot);
+          gear.push(knot);
+          T.tails.forEach(([len, dx], i) => {
+            const rb = createRibbon({
+              n: 10,
+              width: [T.width, T.width * 0.92],
+              material: tieMat,
+              keep: 0.975,
+              flutter: 0.5,
+              twist: 0.25,
+            });
+            ribbons.push({
+              rb,
+              len: len * sc,
+              at: mark('Bip01 Spine2', new THREE.Vector3(K.x + dx, K.y - 0.008, K.z + 0.004 * i)),
+            });
+          });
+        }
+        // her bun: the hairpin through it, and a ribbon (daenggi) hanging from it down her back
+        if (headMesh) {
+          const P = headMesh.geometry.attributes.position,
+            v = new THREE.Vector3(),
+            lo = new THREE.Vector3(Infinity, Infinity, Infinity),
+            hi = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+          headMesh.updateMatrixWorld(true);
+          for (let i = 0; i < P.count; i++) {
+            // the bun, in the head's own space (-y forward, z up): behind and above the crown
+            if (P.getY(i) < 0.11 || P.getZ(i) < 1.62) continue;
+            headMesh.getVertexPosition(i, v).applyMatrix4(headMesh.matrixWorld);
+            lo.min(v);
+            hi.max(v);
+          }
+          if (isFinite(lo.x)) {
+            const mid = lo.clone().add(hi).multiplyScalar(0.5);
+            const pin = buildPin(mid, (hi.x - lo.x) / 2);
+            place(pin);
+            bone('Bip01 Head').attach(pin);
+            gear.push(pin);
+            if (HB.daenggi) {
+              const D = HB.daenggi,
+                rb = createRibbon({
+                  n: 9,
+                  width: [D.width, D.width * 1.15],
+                  material: silk(
+                    clothTexture(HB.trim, [
+                      [0.8, 0.86, HB.gold],
+                      [0.9, 0.93, HB.gold],
+                    ]),
+                    0.5,
+                  ),
+                  keep: 0.975,
+                  flutter: 0.6,
+                  twist: 0.3,
+                });
+              ribbons.push({
+                rb,
+                len: D.length * sc,
+                at: mark('Bip01 Head', new THREE.Vector3(mid.x, lo.y + 0.015, lo.z + 0.01)),
+              });
+            }
+          }
+        }
+        ribbons.forEach((r) => {
+          proxy.hero.parent.add(r.rb.mesh);
+          proxy.hero.parent.add(r.rb.mirror);
+        });
+      }
       const blades = [];
       for (const sd of ['L', 'R']) {
         const foot = bone('Bip01 ' + sd + ' Foot'),
@@ -1302,6 +1646,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           c.opacity = 0.3;
           c.depthWrite = true;
           c.onBeforeCompile = mat.onBeforeCompile;
+          c.customProgramCacheKey = mat.customProgramCacheKey;
           mirrorMats.set(mat, c);
         }
         return mirrorMats.get(mat);
@@ -1454,7 +1799,23 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         spinV = 0,
         lastYaw = 0,
         yawRate = 0;
+      const rbRoot = new THREE.Vector3(),
+        rbDir = new THREE.Vector3(),
+        rbLay = new THREE.Vector3(),
+        rbRight = new THREE.Vector3();
+      const ribbonsShow = () =>
+        ribbons.forEach((r) => {
+          r.rb.mesh.visible = visible;
+          r.rb.mirror.visible = visible && reflect;
+        });
       const api = {
+        // how far her sleeves are let out, 0 at her hands to 1 (for tests)
+        get sleeves() {
+          return HB ? Math.min(1, spin * (HB.ends.gain ?? 1)) : 0;
+        },
+        get ribbons() {
+          return ribbons.map((r) => r.rb);
+        },
         root: wrap,
         get hair() {
           return strands;
@@ -1474,8 +1835,10 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         },
         set visible(v) {
           if (v && !visible && strands) strands.reset();
+          if (v && !visible) ribbons.forEach((r) => r.rb.reset());
           visible = v;
           wrap.visible = v;
+          ribbonsShow();
           if (glints) glints.pts.visible = v && glints.amt > 0.01;
           strandsShow();
           mirrors.forEach((m) => {
@@ -1495,6 +1858,10 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           reflOpacity = opacity;
           reflect = on;
           strandsShow();
+          ribbonsShow();
+          ribbons.forEach((r) => {
+            r.rb.mirror.material.opacity = opacity;
+          });
           if (strands)
             strands.parts.forEach((s) => {
               s.mirror.material.opacity = opacity;
@@ -1583,6 +1950,33 @@ export function loadAvatar(models, ix, opts, U, onReady) {
             });
           }
           if (strands && opts.camera) strands.update(dt, opts.camera, opts.wind || WIND, spin);
+          if (ribbons.length) {
+            const rd = Math.min(dt, 0.05);
+            for (const b of balls) b.m.getWorldPosition(b.w);
+            // her right, for laying cloth flat where it hangs straight down
+            rbRight.setFromMatrixColumn(proxy.body.matrixWorld, 0).normalize();
+            // the sleeves are let out with the spin (which builds and eases off over a second or so)
+            const E = HB.ends,
+              out = Math.min(1, spin * (E.gain ?? 1));
+            for (const r of ribbons) {
+              if (r.sleeve) {
+                r.hand.getWorldPosition(rbRoot);
+                r.fore.getWorldPosition(rbDir);
+                rbDir.subVectors(rbRoot, rbDir).normalize();
+                rbRoot.addScaledVector(rbDir, 0.02);
+                rbLay.set(rbDir.z, 0, -rbDir.x);
+                if (rbLay.lengthSq() < 0.04) rbLay.copy(rbRight).addScaledVector(rbDir, -rbRight.dot(rbDir));
+                rbLay.normalize();
+                const len = (E.rest + (E.full - E.rest) * out * out * (3 - 2 * out)) * wrap.scale.y;
+                r.rb.step(rd, rbRoot, rbDir, rbLay, len, balls);
+              } else {
+                r.at.getWorldPosition(rbRoot);
+                rbDir.set(0, -1, 0);
+                rbLay.copy(rbRight);
+                r.rb.step(rd, rbRoot, rbDir, rbLay, r.len, balls);
+              }
+            }
+          }
           if (glints) {
             wrap.updateMatrixWorld(true);
             glints.update(dt);
@@ -1591,6 +1985,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
             // the mirror: her reflection in the ice under her (on rolling ice, in its slope there)
             iceMirror(S, R);
             if (strands) strands.parts.forEach((s) => s.mirror.matrixWorld.copy(R));
+            ribbons.forEach((r) => r.rb.mirror.matrixWorld.copy(R));
             mirrors.forEach((r, i) => {
               r.matrix.multiplyMatrices(R, skinned[i].bindMatrix);
               r.matrixWorld.copy(r.matrix);

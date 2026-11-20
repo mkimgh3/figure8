@@ -1,4 +1,4 @@
-// The three skaters' simple stand-in figures. All share the same joints (arms, forearms, legs, shins, feet), so every
+// The skaters' simple stand-in figures. All share the same joints (arms, forearms, legs, shins, feet), so every
 // pose works for all of them.
 import * as THREE from './three.js';
 export const HIP = 0.93;
@@ -87,74 +87,88 @@ export function createModels(scene) {
     return { armL: arm(-1), armR: arm(1), legL: leg(-1), legR: leg(1) };
   };
 
-  // Tesa
-  const a = new THREE.Group();
-  a.position.y = -HIP;
-  body.add(a);
+  // Tesa, and the two skaters who share her body (v3-look71): Lumi, in a competition dress, and Seolhwa, in a hanbok.
+  // o: { name, shown, dress, skirt, hair, boot (colours), profile (the skirt's outline, [radius, height] from the hem
+  //      up), sleeves (her arms in the dress's colour to the wrist) }
   const mSkin = mat(0xf1c6a4, 12),
-    mDress = mat(0x6a35dd, 62, 0.15),
-    mSkirt = mat(0x8c58f4, 62, 0.15),
-    mTights = mat(0xe4b28e, 10),
-    mHair = mat(0x3a2414, 30),
-    mBoot = mat(0xffffff, 60);
-  mSkirt.side = THREE.DoubleSide;
-  add(
-    lathe(
-      [
-        [0.02, 0.9],
-        [0.125, 0.93],
-        [0.118, 0.99],
-        [0.1, 1.07],
-        [0.118, 1.16],
-        [0.135, 1.25],
-        [0.128, 1.34],
-        [0.085, 1.4],
-        [0.045, 1.425],
-      ],
-      1.2,
-      0.72,
-    ),
-    mDress,
-    a,
-  );
-  const skirt = new THREE.Group();
-  a.add(skirt);
-  add(
-    lathe(
-      [
-        [0.275, 0.83],
-        [0.245, 0.875],
-        [0.185, 0.95],
-        [0.125, 1.04],
-      ],
-      1,
-      0.92,
-    ),
-    mSkirt,
-    skirt,
-  );
-  add(new THREE.CylinderGeometry(0.04, 0.046, 0.1, 10), mSkin, a, 0, 1.455, 0);
-  add(ball(0.105, 0.94, 1.08, 1), mSkin, a, 0, 1.59, 0);
-  add(ball(0.11, 0.97, 1.04, 1), mHair, a, 0, 1.606, -0.024);
-  add(ball(0.052, 1, 1, 1), mHair, a, 0, 1.69, -0.085);
-  const ava = Object.assign(
-    { name: 'Tesa', inner: a, scale: 1, skirt, hair: null, layback: true },
-    limbs(a, {
-      shoulder: 0.185,
-      shoulderY: 1.375,
-      upper: [0.044, 0.036, 0.26],
-      fore: [0.035, 0.028, 0.23],
-      hand: 0.036,
-      upperMat: mDress,
-      skin: mSkin,
-      hip: 0.082,
-      thigh: [0.08, 0.056],
-      shin: [0.054, 0.04],
-      legMat: mTights,
-      boot: 0.046,
-      bootMat: mBoot,
-    }),
-  );
+    mTights = mat(0xe4b28e, 10);
+  const lady = (o) => {
+    const a = new THREE.Group();
+    a.position.y = -HIP;
+    a.visible = !!o.shown;
+    body.add(a);
+    const mDress = mat(o.dress, 62, 0.15),
+      mSkirt = mat(o.skirt, 62, 0.15),
+      mHair = mat(o.hair, 30),
+      mBoot = mat(0xffffff, 60);
+    mSkirt.side = THREE.DoubleSide;
+    add(
+      lathe(
+        [
+          [0.02, 0.9],
+          [0.125, 0.93],
+          [0.118, 0.99],
+          [0.1, 1.07],
+          [0.118, 1.16],
+          [0.135, 1.25],
+          [0.128, 1.34],
+          [0.085, 1.4],
+          [0.045, 1.425],
+        ],
+        1.2,
+        0.72,
+      ),
+      mDress,
+      a,
+    );
+    const skirt = new THREE.Group();
+    a.add(skirt);
+    add(lathe(o.profile, 1, 0.92), mSkirt, skirt);
+    add(new THREE.CylinderGeometry(0.04, 0.046, 0.1, 10), mSkin, a, 0, 1.455, 0);
+    add(ball(0.105, 0.94, 1.08, 1), mSkin, a, 0, 1.59, 0);
+    add(ball(0.11, 0.97, 1.04, 1), mHair, a, 0, 1.606, -0.024);
+    add(ball(0.052, 1, 1, 1), mHair, a, 0, 1.69, -0.085);
+    return Object.assign(
+      { name: o.name, inner: a, scale: 1, skirt, hair: null, layback: true },
+      limbs(a, {
+        shoulder: 0.185,
+        shoulderY: 1.375,
+        upper: [0.044, 0.036, 0.26],
+        fore: [0.035, 0.028, 0.23],
+        hand: 0.036,
+        upperMat: mDress,
+        skin: o.sleeves ? mDress : mSkin,
+        hip: 0.082,
+        thigh: [0.08, 0.056],
+        shin: [0.054, 0.04],
+        legMat: mTights,
+        boot: 0.046,
+        bootMat: mBoot,
+      }),
+    );
+  };
+  const SHORT = [
+    [0.275, 0.83],
+    [0.245, 0.875],
+    [0.185, 0.95],
+    [0.125, 1.04],
+  ];
+  const ava = lady({ name: 'Tesa', shown: true, dress: 0x6a35dd, skirt: 0x8c58f4, hair: 0x3a2414, profile: SHORT });
+  const lumi = lady({ name: 'Lumi', dress: 0x7a2fd0, skirt: 0xe0509a, hair: 0x6b3a1e, profile: SHORT });
+  const seol = lady({
+    name: 'Seolhwa',
+    dress: 0xf2ece0,
+    skirt: 0xb0162c,
+    hair: 0x141218,
+    sleeves: true,
+    profile: [
+      [0.37, 0.28],
+      [0.33, 0.5],
+      [0.25, 0.85],
+      [0.17, 1.08],
+      [0.13, 1.22],
+    ],
+  });
 
   // Ivor: tall, muscular, bare-chested, long strawberry-blond dreadlocks, viking kit
   const m = new THREE.Group();
@@ -367,7 +381,8 @@ export function createModels(scene) {
   bj.head.position.set(0, 1.46, 0.04);
   b.add(bj.head);
 
-  const chars = [ava, max, ka, bj];
+  // new skaters go on the end, so a saved choice keeps its number
+  const chars = [ava, max, ka, bj, lumi, seol];
   let index = 0;
   return {
     hero,

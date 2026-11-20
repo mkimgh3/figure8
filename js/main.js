@@ -32,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look70';
+const BUILD = 'v3-look71';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -53,8 +53,8 @@ const hud = createHud(world.coarse),
 // Each skater's realistic body (Microsoft Rocketbox avatars, MIT licence) loads in the background the first time that
 // skater is chosen; until it arrives the simple figure stands in.
 const avU = { uTime: { value: 0 }, uSparkle: { value: 1 } },
-  avatars = [null, null, null, null],
-  asked = [false, false, false, false];
+  avatars = [null, null, null, null, null, null],
+  asked = [false, false, false, false, false, false];
 const texOf = (n) => ({
   body: `assets/${n}_body.jpg`,
   bodyN: `assets/${n}_body_n.jpg`,
@@ -255,6 +255,203 @@ AV_OPTS[2] = {
 };
 // Bjorn, the polar bear (v3-look48): his body is built in code (bear.js), at once, the first time he is chosen
 AV_OPTS[3] = { bear: true };
+// Lumi and Seolhwa (v3-look71, Mark: "lets do 3 female variations. we can use the same body but different appearance.
+// keep the current, make new one with figure skater costume, and one wearing hanbok korean clothes with black hair
+// pinned. her signature is long sleeves that flays out beyond arms length like long ribbon ... when she spins and
+// automatically reduces to arms length as spin reduces"). Both are Tesa's body and face (the same model file) with
+// their own hair colour (look.hair, through assets/ava_head_mask.png) and clothes.
+//
+// Lumi: a competition dress. Tesa's painted bodice and sheer sleeves taken to violet in the shader, skin-toned tights,
+// and a short two-layer chiffon skirt, violet at the waist to pink at the hem, set with crystals; chestnut hair.
+const LUMI_SKIRT = [
+  {
+    length: 0.25,
+    waist: [0.125, 0.095],
+    rest: 15,
+    open: 74,
+    lift: 0.02,
+    bell: 0.8,
+    follow: 0.45,
+    lobes: 13,
+    godet: 0.3,
+    flute: 0.025,
+    trail: 0.3,
+    k: 6,
+    gain: 1.3,
+    colours: [0x6a2ae0, 0xf276b4],
+    opacity: 1,
+    rough: 0.36,
+    iridescence: 0.35,
+    sheen: 0.7,
+    sheenColor: 0xffd0ee,
+    sparkle: 0.8,
+  },
+  {
+    length: 0.32,
+    waist: [0.132, 0.102],
+    rest: 19,
+    open: 82,
+    lift: 0.03,
+    bell: 0.8,
+    follow: 0.45,
+    lobes: 9,
+    godet: 0.34,
+    flute: 0.04,
+    trail: 0.4,
+    k: 5,
+    gain: 1.6,
+    colours: [0x5b22d6, 0xff5fa8],
+    opacity: 1,
+    rough: 0.34,
+    iridescence: 0.45,
+    sheen: 0.7,
+    sheenColor: 0xffd0ee,
+    sparkle: 1,
+    crystals: 0.3,
+  },
+];
+AV_OPTS[4] = {
+  url: 'assets/ava_model.js',
+  tex: Object.assign(texOf('ava'), { headMask: 'assets/ava_head_mask.png' }),
+  height: 1.72,
+  skirt: LUMI_SKIRT,
+  glints: { count: 36, size: 0.2, bright: 3, rate: [0.35, 0.9], coat: 0.7, tiara: 0, day: 0 },
+  camera: world.camera,
+  flareGain: 1.6,
+  inflate: AVA_SLIM,
+  look: {
+    iridescence: 0.3,
+    sheen: 0xffd6f0,
+    sparkle: 1,
+    fabricSheen: true,
+    skinRough: 0.85,
+    crystals: 0.5,
+    tint: [0.34, 0.11, 0.9],
+    tintAmt: 0.95,
+    tights: 0xe6b494,
+    hair: 0x5c3218,
+    brow: 0.3,
+  },
+};
+// Seolhwa ("snow flower"): a hanbok for the ice. An ivory jeogori painted on her body (assets/seol_body.jpg: crimson
+// collar crossing left over right, white inner strip) with wide sleeves built over her arms; a crimson chima tied under
+// the bust and falling to mid-calf, a band of gold leaf above its hem, over a white underskirt; the jacket's two
+// crimson ties from a knot on her right breast; black hair in its bun with a gold and jade pin through it and a
+// crimson ribbon down her back. Her signature: the sleeves' ends lie at her hands and are let out, up to `ends.full`
+// metres, as she spins (ribbon.js), drawing back as the spin dies.
+const SEOL_SKIRT = [
+  {
+    length: 0.7,
+    waist: [0.14, 0.11],
+    rest: 11,
+    open: 48,
+    lift: 0,
+    bell: 0.85,
+    follow: 0.45,
+    lobes: 11,
+    godet: 0.3,
+    flute: 0.02,
+    trail: 0.25,
+    k: 5,
+    gain: 1.2,
+    colours: [0xfbfaf6, 0xebe7df],
+    opacity: 1,
+    rough: 0.5,
+    iridescence: 0,
+    sheen: 0.4,
+    sparkle: 0,
+  },
+  {
+    top: 1.215,
+    length: 0.97,
+    waist: [0.132, 0.112],
+    rest: 13,
+    open: 66,
+    lift: 0.06,
+    bell: 0.75,
+    follow: 0.5,
+    lobes: 9,
+    godet: 0.3,
+    flute: 0.05,
+    trail: 0.4,
+    k: 4.2,
+    gain: 1.5,
+    colours: [0xc21a34, 0x9c1028],
+    opacity: 1,
+    rough: 0.55,
+    iridescence: 0,
+    sheen: 0.5,
+    sheenColor: 0xffc0b0,
+    sparkle: 0,
+    embroider: 'hem',
+    embColour: 0xe6b84a,
+    embSolid: true,
+    embScatter: 2,
+  },
+];
+AV_OPTS[5] = {
+  url: 'assets/ava_model.js',
+  tex: Object.assign(texOf('ava'), {
+    body: 'assets/seol_body.jpg',
+    mask: 'assets/seol_mask.png',
+    head: 'assets/seol_head.jpg',
+    headMask: 'assets/ava_head_mask.png',
+  }),
+  height: 1.72,
+  skirt: SEOL_SKIRT,
+  camera: world.camera,
+  flareGain: 1.6,
+  inflate: AVA_SLIM,
+  hanbok: {
+    cloth: '#f6f1e6',
+    trim: '#a8122a',
+    gold: '#d9b35a',
+    sleeve: { from: 0.16, past: 0.02, rise: 0.048, half: [0.052, 0.064], drop: [0.06, 0.11] },
+    // rest: metres of sleeve beyond the wrist when she is not spinning (to her fingertips); full: in a full spin.
+    // gain: a spin of 1 / gain of the fastest (18 radians a second) lets them all the way out: 10 radians a second
+    ends: {
+      n: 24,
+      width: [0.13, 0.1],
+      rest: 0.18,
+      full: 1.7,
+      gain: 1.8,
+      keep: 0.985,
+      drag: 0.3,
+      flutter: 0.8,
+      flat: 0.7,
+      twist: 0.5,
+    },
+    // the knot: [across (her right is -), metres over the ice]; tails: [length, across from the knot]
+    ties: {
+      at: [-0.055, 1.272],
+      width: 0.055,
+      tails: [
+        [0.5, -0.014],
+        [0.6, 0.014],
+      ],
+    },
+    daenggi: { length: 0.36, width: 0.05 },
+    // round shapes the ribbons cannot enter: [the bone it rides on, where (standing, metres), radius]
+    balls: [
+      ['Bip01 Spine2', [0, 1.3, 0], 0.16],
+      ['Bip01 Pelvis', [0, 1.02, 0], 0.22],
+      ['Bip01 Pelvis', [0, 0.74, 0], 0.3],
+      ['Bip01 Pelvis', [0, 0.46, 0], 0.37],
+    ],
+  },
+  look: {
+    iridescence: 0,
+    sheen: 0xfff4e0,
+    sheenAmt: 0.3,
+    rough: 0.62,
+    sparkle: 0,
+    fabricSheen: true,
+    skinRough: 0.85,
+    hair: 0x18161d,
+    brow: 0.55,
+    lips: 0xb0283a,
+  },
+};
 // load a skater's realistic body the first time it is needed
 const ensureAvatar = (i) => {
   if (asked[i] || !AV_OPTS[i]) return;
