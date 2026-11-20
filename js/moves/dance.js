@@ -663,20 +663,33 @@ export function createDance(S, api) {
         out.aRe -= 0.2 * dip;
         out.roll += hw * H.sway * Math.sin(Math.PI * b);
       }
-      // her body follows the thumbs live (v3-look62), less in a spin and not in hip hop: the right thumb lifts her right
-      // arm and the left her left, a rising thumb lifts her chest and hips, a thumb moving across sways her; and she
-      // breathes, so she is never quite still
+      // Her body follows the thumbs live (v3-look62), less in a spin and not in hip hop. v3-look63 (Mark: "i couldnt
+      // tell anything you just did with the new engine"): it follows where the right thumb is, not only how it moves,
+      // and much more strongly. Thumb high on the glass: both arms rise, her chest lifts, she grows tall. Low: the arms
+      // come down, she bows and sinks into her knees. To one side: she leans and tips that way. Thumbs closing
+      // together: her elbows fold in. And as each thumb moves, its own arm goes with it (the right thumb her right arm,
+      // the left her left). She breathes, so she is never quite still.
       {
         const f = st.fx,
           a = X.live * (1 - hw) * (inSpin ? 0.35 : 1),
-          br = Math.sin(st.t * 0.9);
-        out.aLz = clamp(out.aLz - a * 0.5 * f.rise - 0.05 * br, -3.2, 0.6);
-        out.aRz = clamp(out.aRz + a * 0.5 * f.lrise + 0.05 * Math.sin(st.t * 0.9 + 0.7), -0.6, 3.2);
-        out.aLx -= a * 0.25 * f.sway;
-        out.aRx += a * 0.25 * f.sway;
-        out.lean -= a * 0.12 * f.rise;
-        out.roll += a * 0.14 * f.sway;
-        out.bodyY += a * 0.03 * f.rise + 0.006 * Math.sin(st.t * 1.3);
+          br = Math.sin(st.t * 0.9),
+          low = Math.max(0, -f.level),
+          shut = Math.max(0, -f.open);
+        out.aLz = clamp(out.aLz - a * (X.arms * f.level + 0.45 * f.rise) - 0.05 * br, -3.2, 0.6);
+        out.aRz = clamp(
+          out.aRz + a * (X.arms * f.level + 0.45 * f.lrise) + 0.05 * Math.sin(st.t * 0.9 + 0.7),
+          -0.6,
+          3.2,
+        );
+        out.aLx -= a * (0.3 * f.sway + 0.25 * f.side);
+        out.aRx += a * (0.3 * f.sway + 0.25 * f.side);
+        out.aLe -= a * 0.6 * shut;
+        out.aRe -= a * 0.6 * shut;
+        out.lean += a * (X.bow * low - 0.14 * Math.max(0, f.level) - 0.1 * f.rise);
+        out.roll += a * (X.tip * f.side + 0.12 * f.sway);
+        out.bodyY += a * (0.04 * Math.max(0, f.level) - X.sink * low + 0.025 * f.rise) + 0.006 * Math.sin(st.t * 1.3);
+        out.lLk += a * 1.6 * X.sink * low;
+        out.lRk += a * 1.6 * X.sink * low;
       }
       out.side = 0;
       kit.set(out);

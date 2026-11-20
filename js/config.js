@@ -95,22 +95,30 @@ export const CFG = {
     // thumbs; chance: how much luck is added; repeat: how much one of the last `memory` poses is marked down. moveOn:
     // how far the thumbs must have moved on from the pose she is in for her to leave it early, once it is `settle` of
     // the way taken up. spring: how briskly joints follow (a pose is all but taken up in its own time at 5.5). live:
-    // how much her body follows the thumbs directly, on top of the pose.
+    // how much her body follows the thumbs directly, on top of the pose; of that, with the right thumb fully high, low
+    // or to one side: arms (radians both arms rise or fall), bow (radians she bows when it is low), tip (radians she tips
+    // sideways), sink (metres her hips drop when it is low). v3-look63: stronger and by the thumb's place, not only its
+    // motion (Mark could not tell v3-look62's engine was there): moveOn 1.25 to 0.7, settle 0.7 to 0.45, chance 0.55 to
+    // 0.35, ease 5 to 7.
     express: {
       reach: 110,
       recentre: 0.06,
       speed: 600,
-      ease: 5,
+      ease: 7,
       wLevel: 1.8,
       wOpen: 0.5,
       wSide: 0.7,
-      chance: 0.55,
+      chance: 0.35,
       repeat: 1.4,
       memory: 5,
-      moveOn: 1.25,
-      settle: 0.7,
+      moveOn: 0.7,
+      settle: 0.45,
       spring: 5.5,
       live: 1,
+      arms: 0.8,
+      bow: 0.22,
+      tip: 0.24,
+      sink: 0.09,
     },
     // Hip hop (v3-look48): both thumbs moving (faster than moveSpeed), each frame scored by how much in step they are (1:
     // the same way, or mirrored like a pair of arms; about 0.4 at random), smoothed at syncRate (1/s). Above inStep the
