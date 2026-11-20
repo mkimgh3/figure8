@@ -289,13 +289,13 @@ export const CFG = {
   // Places. camera: how much further back the view sits. paper: a blank sheet instead of the lake (see `paper` below).
   // waves: how high the ice rises and falls (CFG.waves; 0 or left out: flat). tilt: degrees more side-on the view is,
   // so the slopes show. Rolling ice (v3-look47) comes last so the places saved before it keep their numbers.
-  // Canyon: its view chases her along the run (CFG.canyon.view, since v3-look56).
+  // Tunnel (the Canyon until v3-look60): its view chases her along the run (CFG.canyon.view, since v3-look56).
   places: [
     { name: 'Open lake', trees: false },
     { name: 'Islands', trees: true, camera: 1.35 },
     { name: 'Paper', trees: false, paper: true },
     { name: 'Rolling ice', trees: false, waves: 1, tilt: 18 },
-    { name: 'Canyon', trees: false, canyon: true },
+    { name: 'Tunnel', trees: false, canyon: true },
   ],
   // Rolling ice (v3-look47, Mark: "undulating ice, various, gentle to wavy"; core/terrain.js). Each wave: [height (m),
   // wavelength (m), direction (degrees), phase]. gentle: long low swells everywhere. wavy: shorter waves, only where the
@@ -333,65 +333,68 @@ export const CFG = {
     rise: 0.32,
     grid: { radius: 150, step: 0.3, grow: 0.025, sides: 256, fade: [0.55, 0.95], detail: [35, 70] },
   },
-  // Canyon, rebuilt in v3-look56 (core/track.js, render/slide.js) as an ice slide on pillars winding down a snowy
-  // hillside (Mark: "bobsled or waterslide type with looping ... the track also does spiral and twists like
-  // waterslide"), and in v3-look57 closed into a tube (Mark: "instead of half pipe design, lets try full pipe design like
-  // going through a tunnel or large tube ... also increase steepness and therefore max speed"). Before v3-look56 it was
-  // a frozen river between rock walls (in git history at v3-look55); v3-look56's open trough is at v3-look56.
-  // Across: tube, the tube's radius inside (m); reach, how far round its wall from the bottom she can ride (degrees
-  // either way; the rest is ceiling); shell, how thick its wall is (m); she keeps `edge` metres inside the reach.
+  // The Tunnel (the place called Canyon until v3-look60; still `canyon: true`; core/track.js, render/slide.js). Rebuilt
+  // in v3-look56 as an ice slide winding down a snowy hillside (Mark: "bobsled or waterslide type with looping ... the
+  // track also does spiral and twists like waterslide"), closed into a tube in v3-look57 ("full pipe design like going
+  // through a tunnel or large tube ... also increase steepness and therefore max speed"), and in v3-look60 (Mark:
+  // "change name of canyon to tunnel and remove height restriction ... like skateboarder doing 360. make the skater
+  // always on ice ... make tunnel gradually get wider and narrower in cycle also make it go corkscrew and spiral wild
+  // fun warmhole like") skated all the way round, widening and narrowing, with corkscrews. Before v3-look56 it was a
+  // frozen river between rock walls (git history at v3-look55); the open trough is at v3-look56, the plain tube at
+  // v3-look59.
+  // tube: the tube's radius inside (m), then [amount, wavelength (m)] pairs it swells and shrinks by along the run, never
+  // below tubeMin. shell: its wall's thickness (m); gap: at least this much air between two parts of the run (m).
   // Along, laid a metre at a time from sections chosen in turn (seeded by `seed`, so the same run every visit):
-  // straights, bends, spirals (turning 450 to 810 degrees, each turn passing under the one before) and twists (a bend
-  // one way straight into one the other way), each with its range of lengths (m), angles (degrees) and radii (m), and
-  // its drop (m per m, made steeper when the run is high above the hillside and gentler when it is low). Curves ease in
-  // over `ease` metres. It banks into bends: roll[0] degrees per 1/m of curve, at most roll[1], averaged over rollEase
-  // metres either way; in a round tube the bank shows as the lines inside turning (`twistLook` times the bank), so it
-  // twists over from one bend to the next. hill: the hillside drops this much per metre toward -z; the run keeps
-  // between height[0] and height[1] metres above it. Where one part of the run passes over another there are at least
-  // `clear` metres between them; side by side, their centre lines are at least `apart` apart. rings: a ring of light
-  // round the inside every rings[0] metres, rings[1] wide.
+  // straights, bends, twists (a bend one way straight into one the other way), corkscrews (turns coils of radius[]
+  // metres, one every pitch[] metres along) and spirals (turning 450 to 810 degrees on the map, each turn passing under
+  // the one before), each with its ranges of lengths (m), angles (degrees) and radii (m), and its drop (m per m on the
+  // map, steeper when the run is high above the hillside and gentler when low). wild: where a random 0..1 picks a
+  // straight (below wild[0]), a bend (below wild[1]), a twist, a corkscrew, else a spiral. Curves ease in over `ease`
+  // metres. It banks into bends: roll[0] degrees per 1/m of curve, at most roll[1], averaged over rollEase metres
+  // either way; in a round tube the bank shows as the lines inside turning (`twistLook` times it). hill: the hillside
+  // drops this much per metre toward -z; the run keeps between height[0] and height[1] metres above it. rings: a ring of
+  // light round the inside every rings[0] metres, rings[1] wide.
   // pull: how much of gravity she feels; air drag has her settle at `top` m/s (120 km/h) on a slope of `settle`, and
-  // she never goes faster. The tube's curve pushes her sideways too, so in bends she rides up the outside.
-  // v3-look57: steeper (straights 0.085 to 0.15) and faster (top 70 to 120 km/h), so the curves are wider (at 120 km/h
-  // a bend of 34 m would need more wall than the tube has).
+  // she never goes faster. On the tube she is always on the ice: gravity pulls her round toward its bottom, and its
+  // bends throw her toward their outside, so with speed she rides up the walls and right over the top.
   canyon: {
     seed: 7,
-    tube: 6.5,
-    reach: 75,
+    tube: [6, 2, 260, 0.7, 90],
+    tubeMin: 3.3,
     shell: 0.6,
-    edge: 0.4,
-    straight: { len: [60, 140], grade: 0.15 },
-    bend: { deg: [60, 150], radius: [70, 110], grade: 0.14 },
-    spiral: { deg: [450, 810], radius: [50, 60], grade: 0.11 },
-    twist: { deg: [45, 70], radius: [65, 85], grade: 0.14 },
-    ease: 26,
-    roll: [1500, 24],
-    rollEase: 22,
+    gap: 1.5,
+    straight: { len: [50, 110], grade: 0.15 },
+    bend: { deg: [60, 150], radius: [45, 80], grade: 0.14 },
+    spiral: { deg: [450, 810], radius: [26, 36], grade: 0.14 },
+    twist: { deg: [45, 80], radius: [40, 60], grade: 0.14 },
+    corkscrew: { turns: [2, 4], radius: [7, 10], pitch: [34, 44], grade: 0.14 },
+    wild: [0.14, 0.34, 0.5, 0.75],
+    ease: 22,
+    roll: [1500, 26],
+    rollEase: 20,
     twistLook: 2,
     hill: 0.2,
-    height: [16, 95],
-    clear: 17,
-    apart: 20,
+    height: [28, 105],
     rings: [12, 0.4],
     pull: 0.85,
     top: 33.3,
     settle: 0.12,
     // the view (v3-look56, Mark: "the camera can be more zoomed in and lower tilted up to look more at the horizon,
-    // parallel to the track"): it chases her from back[] metres behind her along the run, side of the way out toward
-    // her across it, high[] metres over the ice under her (air more in a jump), looking at a point a metre over the ice
-    // ahead[] metres beyond her; each [slow, fast]. Sideways it sits `wide` times as far back. fov: how tall the view is
-    // (degrees) [upright, sideways], fovFast more at speed: upright a phone shows only a narrow slice across, so it is
-    // taller than elsewhere (38). In the tube (v3-look57) it keeps `inside` metres in from the wall, and turns `roll` of
-    // the way with her as she rides up the wall.
+    // parallel to the track"): it chases her from back[] metres behind her along the run, high[] metres in from the ice
+    // under her (air more in a jump), never nearer the tube's far wall than `inside`, looking at a point a metre in from
+    // the ice ahead[] metres beyond her; each [slow, fast]. Sideways it sits `wide` times as far back. fov: how tall the
+    // view is (degrees) [upright, sideways], fovFast more at speed: upright a phone shows only a narrow slice across, so
+    // it is taller than elsewhere (38). v3-look60 (Mark: "when player goes up the side of the tunnel follow the camera so
+    // to the player the skater is always upright"): it stays round the tube where she is and turns all the way with
+    // her, easing round at `turn` (1/s).
     view: {
       back: [5.5, 9],
       high: [2.1, 2.5],
       air: 1.2,
       ahead: [5, 14],
-      side: 0.8,
       wide: 1.1,
       inside: 1.1,
-      roll: 0.45,
+      turn: 9,
       fov: [66, 48],
       fovFast: 10,
     },

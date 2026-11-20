@@ -4,7 +4,8 @@
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { TAU } from '../core/math.js';
-import { ICE_GLSL, ICE_UNIFORMS, uCanyon, iceY, iceSlope } from '../core/terrain.js';
+import { ICE_GLSL, ICE_UNIFORMS } from '../core/terrain.js';
+import { onTube, tubeR } from '../core/track.js';
 
 export const PALETTES = [
   { name: 'Speed', bySpeed: true, stops: [0x74d99a, 0x78aefc, 0xff8cc2] }, // pastel green when slow, blue at cruising speed, pink flat out
@@ -124,17 +125,18 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
   const geo = new THREE.PlaneGeometry(T.width, T.length);
   geo.rotateX(-Math.PI / 2);
   const tmpM = new THREE.Matrix4(),
-    tmpC = new THREE.Color(),
-    G2 = [0, 0];
+    tmpC = new THREE.Color();
   let ink = null;
+  // total: marks drawn; prints: those on flat or rolling ice, kept with the save (the Tunnel's are not)
   let blocks = [],
+    total = 0,
     prints = [],
     palette = 0,
     speedFrac = 0;
   const bounds = { minX: 0, maxX: 0, minZ: 0, maxZ: 0, any: false };
-  function place(x, z, rot, colorInt, w, spd) {
-    spd = spd || 0;
-    const n = prints.length / F,
+  // one more mark, drawn where the matrix M puts the little quad
+  function put(M, colorInt, spd) {
+    const n = total++,
       k = n % BLOCK;
     let blk = blocks[Math.floor(n / BLOCK)];
     if (!blk) {
@@ -149,34 +151,7 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
       scene.add(blk);
       blocks.push(blk);
     }
-    const c = Math.cos(rot),
-      s = Math.sin(rot);
-    if (uCanyon.value) {
-      // down the Canyon's run (v3-look56): on the ice there, tilted with it, 2 cm off it
-      iceSlope(x, z, G2);
-      const gx = G2[0],
-        gz = G2[1],
-        l = 0.02 / Math.hypot(gx, 1, gz);
-      tmpM.set(
-        c * w,
-        0,
-        s,
-        x - gx * l,
-        (gx * c - gz * s) * w,
-        1,
-        gx * s + gz * c,
-        iceY(x, z) + l,
-        -s * w,
-        0,
-        c,
-        z - gz * l,
-        0,
-        0,
-        0,
-        1,
-      );
-    } else tmpM.set(c * w, 0, s, x, 0, 1, 0, 0.02, -s * w, 0, c, z, 0, 0, 0, 1);
-    blk.setMatrixAt(k, tmpM);
+    blk.setMatrixAt(k, M);
     blk.setColorAt(k, tmpC.setHex(colorInt));
     const sa = blk.geometry.attributes.aSpd;
     sa.array[k] = spd;
@@ -188,6 +163,12 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     sa.needsUpdate = true;
     blk.instanceMatrix.needsUpdate = true;
     blk.instanceColor.needsUpdate = true;
+  }
+  function place(x, z, rot, colorInt, w, spd) {
+    spd = spd || 0;
+    const c = Math.cos(rot),
+      s = Math.sin(rot);
+    put(tmpM.set(c * w, 0, s, x, 0, 1, 0, 0.02, -s * w, 0, c, z, 0, 0, 0, 1), colorInt, spd);
     prints.push(x, z, rot, colorInt, w, Math.round(spd * 100) / 100);
     if (!bounds.any) {
       bounds.minX = bounds.maxX = x;
@@ -254,6 +235,47 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     pen.x = bx;
     pen.z = bz;
   }
+  // The Tunnel (v3-look60): marks on the tube's ice wherever round it she is, every T.spacing metres she goes on the ice
+  // (along the run and round it), each lying on the ice there along the way she went. Not kept with the save.
+  const tpen = { s: 0, phi: 0 },
+    TO = {},
+    _p = new THREE.Vector3(),
+    _d = new THREE.Vector3(),
+    _n = new THREE.Vector3(),
+    _x = new THREE.Vector3();
+  function followTube(S, width, penOK, dashed) {
+    if ((S.grounded || dashed) && penOK) {
+      if (!pen.down) {
+        pen.down = true;
+        pen.since = 0;
+      } else {
+        const r = tubeR(S.ts),
+          ds = S.ts - tpen.s,
+          dp = S.tphi - tpen.phi,
+          sl = Math.hypot(ds, dp * r);
+        if (sl > 1e-5 && sl < 4) {
+          S.skated += sl;
+          pen.since += sl;
+          while (pen.since >= T.spacing) {
+            pen.since -= T.spacing;
+            pen.n++;
+            if (dashed && pen.n % 4 > 1) continue;
+            const f = 1 - pen.since / sl;
+            onTube(tpen.s + ds * f, tpen.phi + dp * f, 0, TO);
+            _n.set(TO.nx, TO.ny, TO.nz);
+            _d.set(TO.tx * ds + TO.ax * dp * r, TO.ty * ds + TO.ay * dp * r, TO.tz * ds + TO.az * dp * r).normalize();
+            const w = dashed ? 0.6 : width;
+            _x.crossVectors(_n, _d).multiplyScalar(w);
+            _p.set(TO.x, TO.y, TO.z).addScaledVector(_n, 0.02);
+            tmpM.makeBasis(_x, _n, _d).setPosition(_p);
+            put(tmpM, colorAt(S.skated - pen.since), speedFrac);
+          }
+        }
+      }
+    } else pen.down = false;
+    tpen.s = S.ts;
+    tpen.phi = S.tphi;
+  }
   function rosette(S, turns) {
     const petals = 6 + 4 * Math.min(turns, 5);
     for (let i = 0; i < petals; i++) {
@@ -268,6 +290,7 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     });
     blocks = [];
     prints = [];
+    total = 0;
     bounds.any = false;
   }
   // from high up the line is drawn fine and crisp: the soft edge is cut away as the view rises
@@ -301,6 +324,7 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
   return {
     place,
     follow,
+    followTube,
     sharpen,
     glow,
     punch,
@@ -311,7 +335,7 @@ float inz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f)
     bounds,
     uScale,
     get count() {
-      return prints.length / F;
+      return total;
     },
     set speed(f) {
       speedFrac = f;

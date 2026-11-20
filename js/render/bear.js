@@ -10,7 +10,10 @@
 // He has the same face to the game as a loaded body (avatar.js): visible, night(), reflection(), update(), hands().
 import * as THREE from './three.js';
 import { HIP } from './model.js';
-import { iceY, iceMirror } from '../core/terrain.js';
+import { iceAbove, iceMirror } from '../core/terrain.js';
+
+// the way out of the ice, for the scarf
+const ICEN = [0, 1, 0];
 
 // ---- signed distance shapes (negative inside), in the figure's own space: feet at y 0, facing +z
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
@@ -674,8 +677,12 @@ if (vFA < 0.05) discard;
                 p[k + 2] = B.w.z + (dz / l) * r;
               }
             }
-            const floor = iceY(p[k], p[k + 2]) + 0.015;
-            if (p[k + 1] < floor) p[k + 1] = floor;
+            const dd = iceAbove(p[k], p[k + 1], p[k + 2], ICEN) - 0.015;
+            if (dd < 0) {
+              p[k] -= ICEN[0] * dd;
+              p[k + 1] -= ICEN[1] * dd;
+              p[k + 2] -= ICEN[2] * dd;
+            }
           }
         }
       }

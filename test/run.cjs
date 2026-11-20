@@ -818,7 +818,7 @@ const { open } = require('./smoke.cjs');
       fr.shown &&
       fr.sheet === 'none' &&
       fr.rows[0].join() === 'Tesa,Ivor,Rook,Bjorn' &&
-      fr.rows[1].join() === 'Open lake,Islands,Paper,Rolling ice,Canyon' &&
+      fr.rows[1].join() === 'Open lake,Islands,Paper,Rolling ice,Tunnel' &&
       fr.rows[2].join() === 'Dawn,Day,Dusk' &&
       fr.rows[3].join() === 'Olympic,Infinite,Tutorial',
     fr,

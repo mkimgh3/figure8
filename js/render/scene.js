@@ -3,8 +3,8 @@
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 import { clamp } from '../core/math.js';
-import { uCanyon, iceY } from '../core/terrain.js';
-import { track, trackPoint, trackNear, TUBE } from '../core/track.js';
+import { uCanyon } from '../core/terrain.js';
+import { track, onTube } from '../core/track.js';
 import { createIce } from './ice.js';
 import { createSlide } from './slide.js';
 import { createSky } from './sky.js';
@@ -15,6 +15,8 @@ import { UnrealBloomPass } from '../vendor/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/OutputPass.js';
 
 const DEG = Math.PI / 180,
+  UPA = [0, 1, 0],
+  NORTH = [0, 0, -1],
   wrapA = (a) => a - 2 * Math.PI * Math.floor((a + Math.PI) / (2 * Math.PI)),
   DARK = new THREE.Color().setRGB(0.085, 0.12, 0.2, THREE.SRGBColorSpace),
   UP = new THREE.Vector3(0, 1, 0),
@@ -320,64 +322,53 @@ export function createScene(canvas) {
     const oy = ((1 - (2 * b.top) / hh - ny(hT, shot.d)) * hh) / 2;
     shot.ox += (ox - shot.ox) * k;
     shot.oy += (oy - shot.oy) * k;
-    shL.set(S.x, S.gy + mid, S.z);
-    // in the Canyon's tube, back along the run from her (there its walls are round her); elsewhere to the south
-    let bx = 0,
-      bz = 1;
-    if (uCanyon.value) {
-      trackNear(S.x, S.z, NR);
-      bx = -Math.sin(NR.th);
-      bz = -Math.cos(NR.th);
-    }
-    shP.set(S.x + bx * shot.d * cosE, S.gy + mid + shot.d * sinE, S.z + bz * shot.d * cosE);
+    // in the Tunnel's tube: over the ice under her (her up), and back along the run from her (there its walls are round
+    // her); elsewhere straight up and to the south
+    const u = S.tube ? S.up : UPA,
+      bk = S.tube ? S.along : NORTH;
+    shL.set(S.x + u[0] * mid, S.gy + u[1] * mid, S.z + u[2] * mid);
+    shP.set(
+      shL.x - bk[0] * shot.d * cosE + u[0] * shot.d * sinE,
+      shL.y - bk[1] * shot.d * cosE + u[1] * shot.d * sinE,
+      shL.z - bk[2] * shot.d * cosE + u[2] * shot.d * sinE,
+    );
   }
   let distK = 1,
     distGoal = 1, // some places are seen from a little further back
     // and some a little more side-on (degrees)
     tiltK = 0,
     tiltGoal = 0;
-  // Down the Canyon's run (v3-look56, Mark: "the camera can be more zoomed in and lower tilted up to look more at the
-  // horizon, parallel to the track") the view chases her: from `back` metres behind her along the run itself (so in a
-  // bend or a spiral it is still over the trough), `side` of the way out toward where she is across it, `high` metres
-  // over the ice under her, looking at a point a metre over the ice `ahead` metres beyond her the way the run heads. Each
-  // [slow, fast]. Inside the tube (v3-look57) it keeps `inside` metres in from the wall, and as she rides up the wall it
-  // turns `roll` of the way with her.
-  const TP = { x: 0, y: 0, z: 0, th: 0, bank: 0 },
-    NR = { s: 0, th: 0, y: 0, bank: 0, d: 0, dist: 0 },
+  // Down the Tunnel's run (v3-look56, Mark: "the camera can be more zoomed in and lower tilted up to look more at the
+  // horizon, parallel to the track") the view chases her: `back` metres behind her along the run itself (so in a bend,
+  // a spiral or a corkscrew it is still in the tube), round the tube where she is, `high` metres in from the ice there,
+  // looking at a point a metre in from the ice `ahead` metres beyond her. Each [slow, fast]. It is never nearer the
+  // tube's far wall than `inside`. v3-look60 (Mark: "when player goes up the side of the tunnel follow the camera so to
+  // the player the skater is always upright"): it goes round the tube with her (easing at `turn`, 1/s) and its up is the
+  // way out of the ice under her, so on screen she is always upright and the tube turns round her.
+  const TB = {},
     aim = new THREE.Vector3(),
     chaseUp = new THREE.Vector3(0, 1, 0);
-  let sideNow = 0,
-    rollNow = 0;
+  let phiNow = 0;
   function chase(S, dt) {
     const V = CFG.canyon.view,
       f = clamp((camSp - 3) / 14, 0, 1),
       mix = (r) => r[0] + (r[1] - r[0]) * f,
       back = mix(V.back) * (camera.aspect < 1 ? 1 : V.wide),
       high = mix(V.high) + V.air * air;
-    trackNear(S.x, S.z, NR);
-    sideNow += (NR.d * V.side - sideNow) * (1 - Math.exp(-4 * dt));
-    // how far round the tube she is (radians from the bottom, + up its right side): the view turns part of that way
-    const round = Math.asin(clamp(NR.d / TUBE, -1, 1));
-    rollNow += (round * V.roll - rollNow) * (1 - Math.exp(-4 * dt));
-    trackPoint(NR.s - back, TP);
-    // inside the tube: no nearer its wall than `inside` (from the tube's middle, TUBE over the centre line there)
-    let a = sideNow,
-      b = camGy + high - TP.y - TUBE;
-    const r = Math.hypot(a, b),
-      most = TUBE - V.inside;
-    if (r > most) {
-      a *= most / r;
-      b *= most / r;
-    }
-    const nx = -Math.cos(TP.th),
-      nz = Math.sin(TP.th);
-    camP.set(TP.x + nx * a, TP.y + TUBE + b, TP.z + nz * a);
-    chaseUp.set(-nx * Math.sin(rollNow), Math.cos(rollNow), -nz * Math.sin(rollNow));
-    // ahead of her the way the run heads where she is (so in a bend she stays in the middle of the view)
-    const ah = mix(V.ahead);
-    aim.x = S.x + Math.sin(NR.th) * ah;
-    aim.z = S.z + Math.cos(NR.th) * ah;
-    aim.y = iceY(aim.x, aim.z) + 1 + (S.gy + S.y - camGy) * 0.5;
+    phiNow = Math.abs(S.tphi - phiNow) > 3 ? S.tphi : phiNow + (S.tphi - phiNow) * (1 - Math.exp(-V.turn * dt));
+    // where she is round the tube; the way out of the ice there is the view's up
+    onTube(S.ts, phiNow, 0, TB);
+    chaseUp.set(TB.nx, TB.ny, TB.nz);
+    // looking straight on from her the way the tube goes there (so in a curl she stays in the middle of the view), a
+    // metre in from the ice
+    const ah = mix(V.ahead),
+      lift = Math.min(1 + S.y * 0.5, TB.r);
+    aim.set(TB.x + TB.tx * ah + TB.nx * lift, TB.y + TB.ty * ah + TB.ny * lift, TB.z + TB.tz * ah + TB.nz * lift);
+    // closer behind her where the run curls tightly (a corkscrew), so she stays in view
+    const bk = back / (1 + Math.hypot(TB.kx, TB.ky, TB.kz) * back);
+    onTube(S.ts - bk, phiNow, 0, TB);
+    onTube(S.ts - bk, phiNow, Math.min(high, 2 * TB.r - V.inside), TB);
+    camP.set(TB.x, TB.y, TB.z);
   }
   function toggleZoom() {
     view.zf = 1;
@@ -396,8 +387,15 @@ export function createScene(canvas) {
     sun.position.set(S.x + sunDir.x * 30, S.gy + Math.max(sunDir.y, 0.07) * 30, S.z + sunDir.z * 30);
     const up = Math.max(S.y, S.visY);
     // her shadow lies on the ice under her, tilted with it on rolling ice
-    blob.position.set(S.x, S.gy + 0.012, S.z);
-    blob.quaternion.setFromUnitVectors(UP, _n.set(-S.gx, 1, -S.gz).normalize()).multiply(FLAT);
+    // (in the Tunnel, on the ice wherever round the tube she is)
+    if (S.tube) {
+      const u = S.up;
+      blob.position.set(S.x + u[0] * 0.012, S.gy + u[1] * 0.012, S.z + u[2] * 0.012);
+      blob.quaternion.setFromUnitVectors(UP, _n.fromArray(u)).multiply(FLAT);
+    } else {
+      blob.position.set(S.x, S.gy + 0.012, S.z);
+      blob.quaternion.setFromUnitVectors(UP, _n.set(-S.gx, 1, -S.gz).normalize()).multiply(FLAT);
+    }
     blob.scale.setScalar(1 + up * 0.5);
     blob.material.opacity = 1 / (1 + up * 2.5);
     zoomT += ((view.zoomed && !view.still ? 1 : 0) - zoomT) * (1 - Math.exp(-4.5 * dt));
@@ -475,7 +473,8 @@ export function createScene(canvas) {
     if (uCanyon.value) {
       chase(S, dt);
       camL.copy(aim);
-      swing = view.yaw = Math.atan2(camP.x - camL.x, camP.z - camL.z);
+      // the left thumb steers on the ice as the screen shows it (skater.js), so no turning here
+      swing = view.yaw = 0;
     }
     // the screen's up: the way the view faces (camera.up, which is north, -z, when not swung)
     let upYaw = view.yaw;
@@ -501,7 +500,7 @@ export function createScene(canvas) {
     scene.fog = sky.backdrop.visible ? haze : null;
     sky.backdrop.position.copy(camP);
     // the screen's up: the way the view faces; down the Canyon's run, where the view looks out nearly level, straight up
-    if (uCanyon.value) camera.up.copy(chaseUp).lerp(UP, showK).normalize();
+    if (uCanyon.value) camera.up.copy(S.tube ? chaseUp : UP);
     else camera.up.set(-Math.sin(upYaw), 0, -Math.cos(upYaw));
     camera.lookAt(camL);
     view.ppm = window.innerHeight / (2 * h * tanHalf);

@@ -47,8 +47,16 @@ export function createRing(scene) {
       arc.geometry.setDrawRange(0, 6 * Math.max(1, Math.round((len / TAU) * SEGS)));
       arc.rotation.z = S.spin >= 0 ? t0 : t0 - len;
       arc.material.color.setHex(!gr ? COLORS.fall : gr === 'shaky' ? COLORS.shaky : COLORS.ok); // mint: lands clean now, gold: shaky, rose: would fall
-      group.position.set(S.x, S.gy + S.y + 0.9, S.z);
       group.scale.set(scale, 1, scale);
+      // the Tunnel: round her middle, square to the ice she jumped from
+      if (S.tube) {
+        const u = S.up,
+          h = S.y + 0.9;
+        group.position.set(S.x + u[0] * h, S.gy + u[1] * h, S.z + u[2] * h);
+        group.quaternion.setFromUnitVectors(UP, _n.fromArray(u));
+        return;
+      }
+      group.position.set(S.x, S.gy + S.y + 0.9, S.z);
       if (camera) {
         // from straight up, turned toward the camera by TOWARD of the angle the view is from straight down
         _n.subVectors(camera.position, group.position);

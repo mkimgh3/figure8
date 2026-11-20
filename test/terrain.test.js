@@ -1,7 +1,7 @@
 // Rolling ice (core/terrain.js) and the skater on it: flat when it is off, slopes that speed her up and slow her down,
 // and jumps measured from the ice under her.
 import { iceY, iceSlope, setTerrain, ICE_GLSL } from '../js/core/terrain.js';
-import { track, ensureTrack, resetTrack, trackPoint, trackNear, across, lips, hillY, TUBE } from '../js/core/track.js';
+import { track, ensureTrack, resetTrack, trackFrame, onTube, tubeR, hillY } from '../js/core/track.js';
 const setWaves = (w) => setTerrain({ waves: w });
 import { createSkater } from '../js/sim/skater.js';
 import { CFG } from '../js/config.js';
@@ -148,97 +148,93 @@ setWaves(0);
   );
 }
 
-// ---- the Canyon's run (v3-look56, core/track.js)
+// ---- the Tunnel's run (v3-look56 to 60, core/track.js)
 setTerrain(CFG.places.find((p) => p.canyon));
 resetTrack();
 ensureTrack(4000);
 {
   const { X, Y, Z } = track,
     K = CFG.canyon;
-  let up = 0,
-    clash = 0,
+  let clash = 0,
     under = 0,
+    climb = 0,
     low = Infinity;
   for (let j = 1; j < X.length; j++) {
-    if (Y[j] > Y[j - 1] + 1e-9) up++;
-    low = Math.min(low, Y[j] - hillY(Z[j]));
+    if (Y[j] > Y[j - 1] + 0.3) climb++;
+    low = Math.min(low, Y[j] - tubeR(track.S0 + j) - hillY(Z[j]));
   }
   for (let j = 0; j < X.length; j += 2)
     for (let i = 0; i < j - 40; i += 2) {
-      const d = Math.hypot(X[i] - X[j], Z[i] - Z[j]);
-      if (d < K.apart - 2 && Y[i] - Y[j] < K.clear) clash++;
-      if (d < 2 && Y[i] - Y[j] >= K.clear) under++;
+      const d = Math.hypot(X[i] - X[j], Y[i] - Y[j], Z[i] - Z[j]),
+        need = tubeR(track.S0 + i) + tubeR(track.S0 + j) + 2 * K.shell;
+      if (d < need) clash++;
+      if (Math.hypot(X[i] - X[j], Z[i] - Z[j]) < 2 && Y[i] - Y[j] > need) under++;
     }
-  ok('the run only ever goes downhill', up === 0, up);
-  ok('it never comes near itself unless it passes well under', clash === 0, clash);
-  ok('it spirals: it passes under itself', track.spirals.length >= 2 && under > 10, [track.spirals.length, under]);
-  ok('it stays above the hillside', low > 5, +low.toFixed(1));
-  const L = [0, 0],
-    q = TUBE * Math.SQRT1_2;
-  lips(0, L);
+  ok('the tube never runs into itself', clash === 0, clash);
   ok(
-    'across it: the round bottom of a tube, the same however it is banked',
-    across(0, 0) === 0 &&
-      Math.abs(across(q, 0) - TUBE * (1 - Math.SQRT1_2)) < 1e-9 &&
-      across(-q, 0.3) === across(q, 0) &&
-      Math.abs(L[1] - TUBE * Math.sin((CFG.canyon.reach * Math.PI) / 180)) < 1e-9 &&
-      L[0] === -L[1],
-    [across(q, 0), L],
+    'it spirals and corkscrews: it passes under itself, and climbs in its coils',
+    track.spirals.length >= 4 && under > 10 && climb > 100,
+    [track.spirals.length, under, climb],
   );
-  let step = 0;
-  for (let d = L[0]; d < L[1]; d += 0.01) step = Math.max(step, Math.abs(across(d + 0.01, 0) - across(d, 0)));
-  ok('and the ice is all one surface up to as far as she can ride', step < 0.05, +step.toFixed(3));
-  const P = trackPoint(777, {}),
-    N = trackNear(P.x, P.z, {}, 777);
+  ok('it stays above the hillside', low > 3, +low.toFixed(1));
+  ok('down the run overall', Y[Y.length - 1] < Y[0] - 200, Math.round(Y[0] - Y[Y.length - 1]));
+  let lo = Infinity,
+    hi = 0;
+  for (let s = 0; s < 3000; s += 3) {
+    lo = Math.min(lo, tubeR(s));
+    hi = Math.max(hi, tubeR(s));
+  }
+  ok('the tube widens and narrows', lo < 4.5 && hi > 7.5 && lo >= K.tubeMin, [+lo.toFixed(2), +hi.toFixed(2)]);
+  const F = trackFrame(777, {}),
+    B = onTube(777, 0, 0, {}),
+    T2 = onTube(777, Math.PI, 0, {}),
+    Q = onTube(777, 1.1, 0.5, {}),
+    dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+    n = [Q.nx, Q.ny, Q.nz],
+    r = [Q.ax, Q.ay, Q.az],
+    t = [Q.tx, Q.ty, Q.tz];
   ok(
-    'the height field near her is the run: at its middle, the centre line',
-    Math.abs(N.s - 777) < 0.05 && Math.abs(iceY(P.x, P.z) - P.y - across(0, P.bank)) < 1e-6,
-    [N.s, iceY(P.x, P.z), P.y],
+    'round the tube: its bottom below its middle, its top above, a point a radius out from the middle',
+    B.y < F.y - F.r * 0.8 &&
+      T2.y > F.y + F.r * 0.8 &&
+      B.ny > 0.8 &&
+      T2.ny < -0.8 &&
+      Math.abs(Math.hypot(Q.x - Q.px, Q.y - Q.py, Q.z - Q.pz) - (F.r - 0.5)) < 1e-9,
+    [B.y - F.y, T2.y - F.y, F.r],
+  );
+  ok(
+    'and the ways out of the ice, round and along it are square to each other',
+    Math.abs(dot(n, r)) < 1e-6 && Math.abs(dot(n, t)) < 1e-6 && Math.abs(dot(r, t)) < 1e-6,
   );
 }
-function ride(steer, secs) {
+function ride(st, secs) {
   resetTrack();
   const g = createSkater(() => {}),
-    S = g.S,
-    P = trackPoint(2, {}),
-    N = {},
-    L = [0, 0];
-  S.x = P.x;
-  S.z = P.z;
-  S.facing = P.th;
-  S.vx = Math.sin(P.th) * 2;
-  S.vz = Math.cos(P.th) * 2;
+    S = g.S;
+  g.enterTube(2);
   let top = 0,
-    out = 0;
+    round = 0,
+    ok2 = true;
   for (let t = 0; t < secs; t += 1 / 60) {
-    let st = { x: 0, y: 0 };
-    if (steer) {
-      const A = trackPoint(track.hint + 8, {}),
-        tx = A.x - S.x,
-        tz = A.z - S.z,
-        l = Math.hypot(tx, tz);
-      st = { x: tx / l, y: tz / l };
-    }
     g.update(1 / 60, st);
     top = Math.max(top, g.speed());
-    trackNear(S.x, S.z, N);
-    lips(N.bank, L);
-    out = Math.max(out, N.d - L[1], L[0] - N.d);
+    round = Math.max(round, Math.abs(S.tphi));
+    if (!isFinite(S.x + S.gy + S.z) || S.y < 0) ok2 = false;
   }
-  return { top, out, s: track.hint };
+  return { top, round, s: S.ts, ok: ok2 };
 }
 {
-  const r = ride(true, 90);
+  const r = ride({ x: 0, y: -1 }, 90);
   ok(
-    'steered down the run she passes 80 km/h and never 120',
-    r.top * 3.6 > 80 && r.top <= CFG.canyon.top + 1e-9,
+    'thumb up, down the run she passes 90 km/h and never 120',
+    r.top * 3.6 > 90 && r.top <= CFG.canyon.top + 1e-9 && r.ok,
     +(r.top * 3.6).toFixed(1),
   );
-  ok('and stays inside the tube, through its spirals', r.out <= 0 && r.s > 1600, [+r.out.toFixed(2), Math.round(r.s)]);
-  const f = ride(false, 60);
-  ok('let go, the tube keeps turning her back in and it carries her on down', f.out <= 0 && f.s > 600, [
-    +f.out.toFixed(2),
-    Math.round(f.s),
+  const f = ride({ x: 0, y: 0 }, 60);
+  ok('let go, the tube carries her on down', f.s > 600 && f.ok, Math.round(f.s));
+  const c = ride({ x: 0.8, y: -0.6 }, 60);
+  ok('carving round, she goes right round the tube (over the top), always on the ice', c.round > 2 * Math.PI && c.ok, [
+    +((c.round * 180) / Math.PI).toFixed(0),
   ]);
 }
 setTerrain(null);

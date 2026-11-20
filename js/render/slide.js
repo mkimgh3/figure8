@@ -1,11 +1,12 @@
-// The Canyon's run drawn (its shape is core/track.js): since v3-look57 a tube of ice, white outside, over a snowy
+// The Tunnel's run drawn (its shape is core/track.js): since v3-look57 a tube of ice, white outside, over a snowy
 // hillside (v3-look56: an open trough), built in pieces CHUNK metres long as she nears them and dropped once she is well
-// past. Across: the ice inside, round from the bottom, and the shell outside, each a ring of points turned with the
-// run's bank (TWIST times it, so the lines inside twist over between bends). v3-look58 (Mark: "remove the vertical posts
+// past. Across: the ice inside, round from the bottom, and the shell outside, each a ring of points round the tube's
+// middle at its radius there (it widens and narrows, v3-look60), turned with the run's bank (TWIST times it, so the
+// lines inside twist over between bends and wind round in corkscrews). v3-look58 (Mark: "remove the vertical posts
 // as you cant even see them"): no pillars or spiral towers any more; from inside the tube they were never seen.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
-import { track, ensureTrack, trackPoint, profile, TUBE } from '../core/track.js';
+import { track, ensureTrack, onTube, TUBE } from '../core/track.js';
 
 const CHUNK = 96,
   BEHIND = 260,
@@ -18,14 +19,12 @@ export function createSlide(scene, iceMat) {
     group = new THREE.Group(),
     D = K.shell,
     TWIST = K.twistLook,
-    // the parts across: [points (across, up), material (0 ice, 1 shell)]; the shell's points go round the other way so
-    // its faces look outward
+    // the parts across: [points round, how far out from the ice (m), material (0 ice, 1 shell)]; the shell goes round
+    // the other way so its faces look outward. The ice first, then the shell, so each material is one draw.
     parts = [
-      [profile(40), 0],
-      [profile(24, TUBE + D).reverse(), 1],
+      [40, 0, 0],
+      [24, D, 1],
     ];
-  // the ice's parts first, then the shell's, so each material is one draw
-  parts.sort((a, b) => a[1] - b[1]);
   const shell = new THREE.MeshStandardMaterial({ color: 0xeef3f9, roughness: 0.82, metalness: 0 });
   scene.add(group);
   group.visible = false;
@@ -38,7 +37,7 @@ export function createSlide(scene, iceMat) {
   snow.receiveShadow = true;
   group.add(snow);
   const chunks = new Map(),
-    P = { x: 0, y: 0, z: 0, th: 0, bank: 0 };
+    P = {};
 
   function build(c) {
     const s0 = track.S0 + c * CHUNK,
@@ -50,33 +49,24 @@ export function createSlide(scene, iceMat) {
       groups = [];
     let start = 0,
       mat = -1;
-    for (const [pts, m] of parts) {
+    for (const [round, out, m] of parts) {
       if (m !== mat) {
         if (mat >= 0) groups.push([start, idx.length - start, mat]);
         start = idx.length;
         mat = m;
       }
       const base = pos.length / 3,
-        n = pts.length;
-      // arc length across, for the ice's scratches
-      const acc = [0];
-      for (let k = 1; k < n; k++)
-        acc.push(acc[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+        n = round + 1;
       for (let s = s0; s <= s1; s += STEP) {
-        trackPoint(s, P);
-        const tw = P.bank * TWIST,
-          c1 = Math.cos(tw),
-          sn = Math.sin(tw),
-          nx = -Math.cos(P.th),
-          nz = Math.sin(P.th);
+        onTube(s, 0, 0, P);
+        const tw = P.bank * TWIST;
         for (let k = 0; k < n; k++) {
-          // turned about the tube's middle (TUBE up from the centre line)
-          const pa = pts[k][0],
-            pb = pts[k][1] - TUBE,
-            a = pa * c1 - pb * sn,
-            b = pa * sn + pb * c1 + TUBE;
-          pos.push(P.x + nx * a, P.y + b, P.z + nz * a);
-          uv.push(acc[k], s);
+          // round from the bottom (the shell the other way), turned with the bank
+          const t = ((out ? round - k : k) / round) * Math.PI * 2;
+          onTube(s, t + tw, -out, P);
+          pos.push(P.x, P.y, P.z);
+          // metres round (as on the middle-sized tube, so the lines along it keep their places) and along
+          uv.push(t * TUBE, s);
         }
       }
       const rows = (s1 - s0) / STEP;

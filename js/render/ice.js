@@ -416,7 +416,7 @@ float rollH(vec2 p, float det, float amp, out float und, out float wall) {
   tmat.onBeforeCompile = (sh) => {
     base(sh);
     // how far round the tube is (m), for the lines along it
-    sh.uniforms.uRound = { value: 2 * Math.PI * CFG.canyon.tube };
+    sh.uniforms.uRound = { value: 2 * Math.PI * CFG.canyon.tube[0] };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vTrackN;\nvarying vec2 vTUv;')
       .replace(

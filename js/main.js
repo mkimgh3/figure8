@@ -2,7 +2,6 @@
 import { CFG } from './config.js';
 import { TAU } from './core/math.js';
 import { setTerrain, iceY, setIcePlane, uCanyon } from './core/terrain.js';
-import { track, trackPoint } from './core/track.js';
 import { TapTracker } from './input/recognizer.js';
 import { createTricks } from './input/tricks.js';
 import { createInput } from './input/pointers.js';
@@ -33,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look59';
+const BUILD = 'v3-look60';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -294,17 +293,13 @@ const applyScene = () => {
   // rolling ice, the canyon, or flat; where she stands follows at once
   setTerrain(place);
   // the Canyon: arriving from another place, she starts at the top of the run, sliding gently down it
-  if (place.canyon && !inCanyon) {
-    const P = trackPoint(2, {});
-    track.hint = 2;
-    S.x = P.x;
-    S.z = P.z;
-    S.facing = P.th;
-    S.vx = Math.sin(P.th) * 2;
-    S.vz = Math.cos(P.th) * 2;
-  }
+  // the Tunnel: arriving from another place, she starts at the top of the run, on the bottom of the tube
+  if (place.canyon && !inCanyon) game.enterTube(2);
   inCanyon = !!place.canyon;
-  S.gy = S.wy = iceY(S.x, S.z);
+  if (!place.canyon) {
+    S.tube = false;
+    S.gy = S.wy = iceY(S.x, S.z);
+  }
   world.setLook(look);
   world.setPaper(sheet);
   world.setPlace(place);
@@ -372,7 +367,7 @@ const game = createSkater((type, d) => {
     audio.takeoff();
   } else if (type === 'land') {
     audio.land(d.grade);
-    spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, d.grade === 'fall' ? 40 : 22, 2.2, 6.3);
+    if (!game.S.tube) spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, d.grade === 'fall' ? 40 : 22, 2.2, 6.3);
     const e = score.jump(d);
     log.jump(Object.assign({ pts: e ? e.pts : 0 }, d));
     if (d.grade === 'fall')
@@ -391,13 +386,13 @@ const game = createSkater((type, d) => {
         2.8,
         e,
       );
-      trace.rosette(game.S, Math.floor(d.target));
+      if (!game.S.tube) trace.rosette(game.S, Math.floor(d.target));
     }
     dirty = true;
     showScore();
   } else if (type === 'say') hud.say(d.big, d.small, d.hold);
   else if (type === 'crash') {
-    spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, 40, 2.4, 6.3);
+    if (!game.S.tube) spray.emit(game.S.x, game.S.z, game.S.vx, game.S.vz, 40, 2.4, 6.3);
     audio.crash(!!d.stumble);
     // Infinite and Tutorial: she bounces off and stumbles, and it costs nothing
     if (d.stumble) {
@@ -727,7 +722,8 @@ const blade = { x: 0, z: 0, width: 1, pen: true, double: false },
   ZERO = { x: 0, y: 0 },
   hB = new THREE.Vector3(),
   hT = new THREE.Vector3(),
-  hE = new THREE.Vector3();
+  hE = new THREE.Vector3(),
+  hF = new THREE.Vector3();
 let last = performance.now(),
   lastMove = null,
   fAcc = 0,
@@ -755,7 +751,15 @@ function drawSkater(dt, now, show) {
       r.armR.lower.localToWorld(hT.set(0, -0.28, 0));
       r.armL.lower.getWorldPosition(hE);
     }
-    stick.update(dt, hB, hT, hE, models.hero.rotation.y);
+    stick.update(
+      dt,
+      hB,
+      hT,
+      hE,
+      models.hero.userData.yaw ?? models.hero.rotation.y,
+      S.tube ? S.up : null,
+      S.tube ? models.hero.getWorldDirection(hF) : null,
+    );
   }
 }
 // The Home Screen copy on iPhone (v3-look43): the page cannot draw the bottom 47 pt of the screen, which iOS fills with
@@ -840,10 +844,12 @@ function frame(now) {
       blade.z += pz;
     }
     const dashed = !S.grounded || (!blade.pen && S.visY > 0.05);
-    trace.follow(S, blade.x, blade.z, blade.width, blade.pen || dashed, dashed);
+    // in the Tunnel the line lies on the tube's ice wherever round it she is
+    if (S.tube) trace.followTube(S, blade.width, blade.pen || dashed, dashed);
+    else trace.follow(S, blade.x, blade.z, blade.width, blade.pen || dashed, dashed);
     if (trace.count !== before) {
       dirty = true;
-      if (S.grounded && blade.pen && !paperOn) icicles.trail(blade.x, blade.z, trace.colorAt(S.skated));
+      if (S.grounded && blade.pen && !paperOn && !S.tube) icicles.trail(blade.x, blade.z, trace.colorAt(S.skated));
       // spread eagle: both blades draw
       if (blade.double) trace.place(S.x - px, S.z - pz, S.facing, trace.colorAt(S.skated), 1);
     }
@@ -883,7 +889,7 @@ function frame(now) {
     if (pushing && !striding) audio.stride(sp);
     striding = pushing;
     // paper is a blank sheet: no snow thrown up, nothing drifting in the air
-    if (S.grounded && !paperOn) {
+    if (S.grounded && !paperOn && !S.tube) {
       const hx = Math.cos(S.facing),
         hz = -Math.sin(S.facing),
         out = S.turn > 0 ? -1 : 1;
@@ -897,7 +903,7 @@ function frame(now) {
         spray.emit(blade.x, blade.z, Math.random() - 0.5, Math.random() - 0.5, 1, 1.1, 6.3);
     }
     // drifting snow hangs in the air ahead of her; the faster she goes, the more of it whips past
-    if (sp > 6 && !paperOn) {
+    if (sp > 6 && !paperOn && !S.tube) {
       const n = (sp - 6) * 5 * dt,
         ux = S.vx / sp,
         uz = S.vz / sp;

@@ -13,6 +13,7 @@ import { iceY } from '../core/terrain.js';
 const SHAFT = 1.42,
   LIE = 0.8, // the angle between shaft and blade (radians off straight): about 135 degrees, as on a real stick
   ICE = 0.035;
+// straight up, or in the Tunnel the way out of the ice under him (set each frame)
 const UP = new THREE.Vector3(0, 1, 0);
 
 export function createStick(scene) {
@@ -64,8 +65,12 @@ export function createStick(scene) {
       g.visible = v;
     },
     // bottom, top: the two hands (world); elbow: the bottom hand's elbow (world); yaw: which way he faces
-    update(dt, bottom, top, elbow, yaw) {
-      fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
+    // up: the way out of the ice under him and ahead: the way he faces (the Tunnel; else straight up, and yaw)
+    update(dt, bottom, top, elbow, yaw, up, ahead) {
+      if (up) UP.fromArray(up);
+      else UP.set(0, 1, 0);
+      if (ahead) fwd.copy(ahead);
+      else fwd.set(Math.sin(yaw), 0, Math.cos(yaw));
       // one hand: along the forearm, swung forward and a little down
       D1.copy(bottom).sub(elbow).normalize().addScaledVector(fwd, 0.9);
       D1.y -= 0.15;
@@ -84,7 +89,7 @@ export function createStick(scene) {
       // keep the blade on or above the ice (on rolling ice, the ice where the blade is)
       const tipY = B.y + D.y * SHAFT,
         floor = iceY(B.x + D.x * SHAFT, B.z + D.z * SHAFT) + ICE;
-      if (tipY < floor) {
+      if (tipY < floor && !up) {
         const h = Math.hypot(D.x, D.z) || 1,
           dy = clamp((floor - B.y) / SHAFT, -0.99, 0.99),
           s = Math.sqrt(1 - dy * dy) / h;

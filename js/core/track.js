@@ -1,12 +1,16 @@
-// The Canyon's run, rebuilt in v3-look56 (Mark: "make it more like halfpipe simple, flatter bottom and curved side wide
-// bobsled or waterslide type with looping ... the track also does spiral and twists like waterslide"), an open trough
-// then and a round ice tube since v3-look57, winding down over a snowy hillside toward -z. Along it, straights, bends,
-// spirals that pass under their own earlier turns, and quick twists from one side to the other. It banks into every
-// bend, so between bends it twists over.
-// The centre line is laid down a metre at a time from a seeded list of sections, so it is the same run every visit, and
-// it goes on for as long as she skates: more of it is made ahead of her as she goes.
-// For the game it is a height field near her: the height of the ice at (x, z) is found from the nearest point of the
-// centre line within `W` metres along it of where she is (`hint`), so a spiral's turns above and below hers do not count.
+// The Tunnel's run (the place was called the Canyon until v3-look60; it keeps `canyon: true` in CFG.places). Rebuilt
+// in v3-look56 (Mark: "bobsled or waterslide type with looping ... the track also does spiral and twists like
+// waterslide"), an open trough then, a round ice tube since v3-look57, and since v3-look60 (Mark: "make tunnel gradually
+// get wider and narrower in cycle also make it go corkscrew and spiral wild fun warmhole like") a tube that widens and
+// narrows as it goes and whose middle runs through three dimensions: straights, bends, spirals that pass under their
+// own earlier turns, quick twists from one side to the other, and corkscrews, where the tube coils round the way it is
+// going like a spring. It banks into every bend, which shows as the lines inside turning.
+// The middle (the tube's axis) is laid down a metre at a time from a seeded list of sections, so it is the same run
+// every visit, and it goes on for as long as she skates: more of it is made ahead of her as she goes.
+// She skates on the tube's inside, anywhere round it (v3-look60, Mark: "remove height restriction ... it's actually
+// quite fun being able to use the whole pipe, like skateboarder doing 360"): where she is is s, metres along the run,
+// and phi, radians round the tube from its bottom (+ up its right side, seen going down the run). onTube() turns that
+// into a point in the world, the way out of the ice there (into the tube), and the ways along and round.
 // No three.js here: the game's rules use it too.
 import { CFG } from '../config.js';
 
@@ -14,24 +18,26 @@ const K = CFG.canyon,
   DEG = Math.PI / 180,
   // where the run starts (m along it): a straight lead-in, closed at its top end
   S0 = -40,
-  // how far along the run (m, either way from her) the nearest point is looked for
-  W = 44,
-  CELL = 32;
+  CELL = 32,
+  TAU = Math.PI * 2;
 
-// the samples, one a metre: centre line x, y, z, heading (radians, 0 toward +z, increasing to the left), curvature
-// (1/m, + to the left), bank wanted (radians) and its running sum (for the eased bank)
+// the samples, one a metre: the tube's middle x, y, z; the way the run goes (unit tx, ty, tz) and its heading on the
+// map (radians, 0 toward +z, increasing to the left, never wrapped); bank wanted (radians) and its running sum (for the
+// eased bank)
 const X = [],
   Y = [],
   Z = [],
+  TX = [],
+  TY = [],
+  TZ = [],
   TH = [],
-  KA = [],
   WANT = [],
   SUM = [0],
   grid = new Map();
 let rnd = null,
   kNow = 0,
-  gNow = 0.05,
-  spirals = [];
+  gNow = 0.05;
+const spirals = [];
 
 export const track = {
   S0,
@@ -39,42 +45,26 @@ export const track = {
   Y,
   Z,
   TH,
-  // the spirals' middles: [x, z, top y, bottom y]
+  // the spirals' and corkscrews' middles: [x, z, top y, bottom y]
   spirals,
-  // where she is along the run (m): the queries look near here
+  // where she is along the run (m)
   hint: 0,
   get length() {
     return S0 + X.length - 1;
   },
 };
 
-// ---- the shape across the run: a round tube (v3-look57; v3-look56 was an open trough with a flat floor), its bottom
-// on the centre line. Round, it is the same shape however it is banked: the bank shows only in the lines drawn inside.
-const RT = K.tube,
-  REACH = K.reach * DEG;
-// how high the ice is (m above the centre line) at `d` metres across the run (+ to the right, seen going down it):
-// the tube's lower half, and level with its middle past its sides. (p, the bank, does not change it.)
-export function across(d, p) {
-  const q = Math.min(Math.abs(d), RT);
-  return RT - Math.sqrt(RT * RT - q * q);
+// ---- the tube: round, its radius going in and out along the run (CFG.canyon.tube: the middle radius, then [amount,
+// wavelength] pairs), never below tubeMin
+const TB = K.tube;
+export function tubeR(s) {
+  let r = TB[0];
+  for (let i = 1; i + 1 < TB.length; i += 2) r += TB[i] * Math.sin((TAU * s) / TB[i + 1] + i * 0.9);
+  return Math.max(K.tubeMin, r);
 }
-// how far across she can ride up the wall: out[0] left (negative), out[1] right
-export function lips(p, out) {
-  out[0] = -RT * Math.sin(REACH);
-  out[1] = RT * Math.sin(REACH);
-  return out;
-}
-// the tube's inside as points (across, up) in the run's own frame, `n` steps round from the bottom (anticlockwise seen
-// down the run, so its faces look inward; the first point repeats at the end), radius r
-export function profile(n, r = RT) {
-  const pts = [];
-  for (let i = 0; i <= n; i++) {
-    const t = (2 * Math.PI * i) / n;
-    pts.push([r * Math.sin(t), RT - r * Math.cos(t)]);
-  }
-  return pts;
-}
-export const TUBE = RT;
+// the middle radius, and the widest it gets (m)
+export const TUBE = TB[0],
+  TUBE_MAX = TB.reduce((a, v, i) => (i % 2 ? a + v : a), TB[0]);
 
 // the hillside under the run: it drops toward -z
 export const hillY = (z) => K.hill * z;
@@ -90,7 +80,7 @@ function mulberry(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const wrap = (a) => a - 2 * Math.PI * Math.floor((a + Math.PI) / (2 * Math.PI));
+const wrap = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);
 const range = (r) => r[0] + rnd() * (r[1] - r[0]);
 const key = (x, z) => Math.floor(x / CELL) + ',' + Math.floor(z / CELL);
 function addCell(i) {
@@ -104,45 +94,100 @@ function dropTo(n) {
     const i = X.length - 1,
       c = grid.get(key(X[i], Z[i]));
     if (c) c.pop();
-    X.pop();
-    Y.pop();
-    Z.pop();
-    TH.pop();
-    KA.pop();
-    WANT.pop();
-    SUM.pop();
+    for (const a of [X, Y, Z, TX, TY, TZ, TH, WANT, SUM]) a.pop();
   }
 }
-function push(x, y, z, th, k) {
+// the first sample
+function start(x, y, z, th, g) {
+  const l = Math.sqrt(1 + g * g);
   X.push(x);
   Y.push(y);
   Z.push(z);
+  TX.push(Math.sin(th) / l);
+  TY.push(-g / l);
+  TZ.push(Math.cos(th) / l);
   TH.push(th);
-  KA.push(k);
+  WANT.push(0);
+  SUM.push(SUM[SUM.length - 1]);
+  addCell(0);
+}
+// one more metre, the way (tx, ty, tz) says (a unit vector); k: how sharply it turns (1/m, + left), for its bank
+function step(tx, ty, tz, k) {
+  const i = X.length - 1;
+  X.push(X[i] + tx);
+  Y.push(Y[i] + ty);
+  Z.push(Z[i] + tz);
+  TX.push(tx);
+  TY.push(ty);
+  TZ.push(tz);
+  TH.push(TH[i] + wrap(Math.atan2(tx, tz) - TH[i]));
   const w = Math.max(-K.roll[1], Math.min(K.roll[1], K.roll[0] * k)) * DEG;
   WANT.push(w);
   SUM.push(SUM[SUM.length - 1] + w);
   addCell(X.length - 1);
 }
-// lay `len` metres turning toward curvature k (1/m) and dropping `grade` m per m, both eased in over K.ease metres
+// lay `len` metres turning toward curvature k (1/m) and dropping `grade` m per m on the map, both eased in over K.ease
+// metres
 function lay(len, k, grade) {
   const k0 = kNow,
     g0 = gNow;
+  let th = TH[TH.length - 1];
   for (let m = 1; m <= len; m++) {
-    const f = Math.min(1, m / K.ease),
-      i = X.length - 1;
+    const f = Math.min(1, m / K.ease);
     kNow = k0 + (k - k0) * f;
     gNow = g0 + (grade - g0) * f;
-    const th = TH[i] + kNow;
-    push(X[i] + Math.sin(TH[i] + kNow / 2), Y[i] - gNow, Z[i] + Math.cos(TH[i] + kNow / 2), th, kNow);
+    th += kNow;
+    const h = th - kNow / 2,
+      l = Math.sqrt(1 + gNow * gNow);
+    step(Math.sin(h) / l, -gNow / l, Math.cos(h) / l, kNow);
   }
 }
-// does anything laid since `from` come too close to the run laid before it: side by side nearer than K.apart, or one
-// over the other with less than K.clear between them
+// a corkscrew: `turns` coils of radius r (m) round the way the run was going, one every `pitch` metres along it,
+// turning the way dir says (1 left); it eases into and out of the coil over K.ease metres and then carries on the way
+// it was going
+function corkscrew(turns, r, pitch, dir) {
+  const i = X.length - 1,
+    A = [TX[i], TY[i], TZ[i]],
+    // across (to the right of the way it goes) and up from it
+    bl = Math.hypot(A[0], A[2]) || 1,
+    B = [-A[2] / bl, 0, A[0] / bl],
+    C = [B[1] * A[2] - B[2] * A[1], B[2] * A[0] - B[0] * A[2], B[0] * A[1] - B[1] * A[0]],
+    c = pitch / TAU,
+    w = 1 / Math.hypot(r, c),
+    tilt = Math.asin(Math.min(0.95, r * w)),
+    len = Math.round((turns * TAU) / w),
+    e = K.ease,
+    y0 = Y[i];
+  let mx = 0,
+    mz = 0;
+  for (let m = 1; m <= len; m++) {
+    const f = Math.max(0, Math.min(1, m / e, (len - m) / e)),
+      a = tilt * f * f * (3 - 2 * f),
+      p = dir * w * m,
+      ca = Math.cos(a),
+      sa = Math.sin(a),
+      cp = Math.cos(p),
+      sp = Math.sin(p);
+    // its bank: a steady roll the way it coils, so the lines inside wind round with it
+    step(
+      ca * A[0] + sa * (cp * B[0] + sp * C[0]),
+      ca * A[1] + sa * (cp * B[1] + sp * C[1]),
+      ca * A[2] + sa * (cp * B[2] + sp * C[2]),
+      (dir * K.roll[1] * f) / K.roll[0],
+    );
+    mx += X[X.length - 1];
+    mz += Z[Z.length - 1];
+  }
+  spirals.push([mx / len, mz / len, y0, Y[Y.length - 1]]);
+}
+// does anything laid since `from` come too close to the run laid before it: two parts of the tube nearer than both
+// their radii, their walls and K.gap between them
 function clashes(from) {
+  const wall = 2 * K.shell + K.gap;
   for (let j = from; j < X.length; j++) {
     const cx = Math.floor(X[j] / CELL),
-      cz = Math.floor(Z[j] / CELL);
+      cz = Math.floor(Z[j] / CELL),
+      rj = tubeR(S0 + j) + wall;
     for (let a = -1; a <= 1; a++)
       for (let b = -1; b <= 1; b++) {
         const c = grid.get(cx + a + ',' + (cz + b));
@@ -150,8 +195,10 @@ function clashes(from) {
         for (const i of c) {
           if (i > j - 40) continue;
           const dx = X[i] - X[j],
-            dz = Z[i] - Z[j];
-          if (dx * dx + dz * dz < K.apart * K.apart && Y[i] - Y[j] < K.clear) return true;
+            dy = Y[i] - Y[j],
+            dz = Z[i] - Z[j],
+            need = rj + tubeR(S0 + i);
+          if (dx * dx + dy * dy + dz * dz < need * need) return true;
         }
       }
   }
@@ -168,7 +215,7 @@ function grow() {
     spare = high - H[0],
     steep = Math.max(0.45, Math.min(1.6, 1 + (high - mid) / 25)),
     // the drop for a section `len` long: steeper high up, gentler low down, never so much it ends up too low
-    grade = (g, len) => Math.max(0.03, Math.min(0.14, g * steep, spare / len));
+    grade = (g, len) => Math.max(0.03, Math.min(0.2, g * steep, spare / len));
   const tries = [];
   const bend = (dir, deg, r, g) => {
     const len = Math.round(deg * DEG * r);
@@ -179,19 +226,19 @@ function grow() {
   const spiral = (dir) => {
     const r = range(K.spiral.radius),
       out = (rnd() - 0.5) * 80 * DEG,
-      turn = ((((dir * (out - dev)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / DEG;
+      turn = ((((dir * (out - dev)) % TAU) + TAU) % TAU) / DEG;
     let deg = turn + 360;
     if (deg < K.spiral.deg[0]) deg += 360;
     const len = Math.round(deg * DEG * r),
-      need = (K.clear + 1.5) / (2 * Math.PI * r),
-      g = Math.max(need, Math.min(0.14, K.spiral.grade * steep));
+      need = (2 * (TUBE_MAX + K.shell) + K.gap + 1) / (TAU * r),
+      g = Math.max(need, Math.min(0.24, K.spiral.grade * steep));
     if (g * len > spare) return null;
     return () => {
       const a = X.length - 1;
       lay(len, dir / r, g);
       // its middle: the average over its last whole turn
       const n = X.length - 1,
-        turn = Math.round(2 * Math.PI * r);
+        turn = Math.round(TAU * r);
       let mx = 0,
         mz = 0;
       for (let i = n - turn; i < n; i++) {
@@ -201,27 +248,39 @@ function grow() {
       spirals.push([mx / turn, mz / turn, Y[a], Y[n]]);
     };
   };
+  // a corkscrew straight on the way it is going, dropping as it goes
+  const cork = (dir) => {
+    const C = K.corkscrew,
+      turns = Math.round(range(C.turns)),
+      r = range(C.radius),
+      pitch = range(C.pitch);
+    return () => {
+      lay(20, 0, grade(C.grade, 20));
+      corkscrew(turns, r, pitch, dir);
+    };
+  };
   // turn back toward downhill if heading well off it, then straight on down
   const straightDown = (len, g) => () => {
-    if (Math.abs(dev) > 25 * DEG) lay(Math.round(Math.abs(dev) * 75), -Math.sign(dev) / 75, g);
+    if (Math.abs(dev) > 25 * DEG) lay(Math.round(Math.abs(dev) * 60), -Math.sign(dev) / 60, g);
     lay(len, 0, g);
   };
-  const side = rnd() < 0.5 ? 1 : -1;
+  const side = rnd() < 0.5 ? 1 : -1,
+    r = rnd(),
+    W = K.wild;
   if (high < H[0] + 4) tries.push(straightDown(80, 0.03));
-  else if (high > H[1] || (high > mid && rnd() < 0.5)) tries.push(spiral(side), spiral(-side));
+  else if (high > H[1]) tries.push(spiral(side), spiral(-side), cork(side));
   else {
-    const r = rnd(),
-      // back toward downhill when heading well off it
-      dir = Math.abs(dev) > 70 * DEG ? -Math.sign(dev) : side;
-    if (r < 0.24) {
+    // back toward downhill when heading well off it
+    const dir = Math.abs(dev) > 70 * DEG ? -Math.sign(dev) : side;
+    if (r < W[0]) {
       const len = Math.round(range(K.straight.len));
       tries.push(() => lay(len, 0, grade(K.straight.grade, len)));
-    } else if (r < 0.54) {
+    } else if (r < W[1]) {
       const deg = Math.min(range(K.bend.deg), (130 * DEG - dir * dev) / DEG),
         deg2 = Math.min(deg, (130 * DEG + dir * dev) / DEG);
       tries.push(bend(dir, Math.max(40, deg), range(K.bend.radius), K.bend.grade));
       tries.push(bend(-dir, Math.max(40, deg2), range(K.bend.radius), K.bend.grade));
-    } else if (r < 0.76) {
+    } else if (r < W[2]) {
       const d1 = range(K.twist.deg),
         r1 = range(K.twist.radius);
       tries.push(() => {
@@ -232,7 +291,8 @@ function grow() {
         bend(-dir, d1, r1, K.twist.grade)();
         bend(dir, d1, r1, K.twist.grade)();
       });
-    } else tries.push(spiral(side), spiral(-side));
+    } else if (r < W[3]) tries.push(cork(side), cork(-side));
+    else tries.push(spiral(side), spiral(-side), cork(side));
   }
   tries.push(straightDown(50, 0.03), () => lay(40, 0, 0.14));
   for (let t = tries.length - 1; t >= 0; t--) if (!tries[t]) tries.splice(t, 1);
@@ -259,7 +319,7 @@ export function resetTrack() {
   kNow = 0;
   gNow = 0.05;
   const y0 = hillY(0) + K.height[1] - 6;
-  push(0, y0 - S0 * 0.05, -S0, Math.PI, 0);
+  start(0, y0 - S0 * 0.05, -S0, Math.PI, 0.05);
   lay(60, 0, 0.05);
   track.hint = 0;
 }
@@ -277,92 +337,70 @@ function bankAt(i) {
     b = Math.min(X.length - 1, i + e);
   return (SUM[b + 1] - SUM[a]) / (b - a + 1);
 }
-// the centre line at s metres along: x, y, z, heading, bank
-export function trackPoint(s, out) {
-  ensureTrack(s);
-  const u = Math.max(0, Math.min(X.length - 1.001, s - S0)),
+// The run at s metres along: its middle (x, y, z), the way it goes (tx, ty, tz), across it to the right (rx, ry, rz,
+// level) and up from it (ux, uy, uz), all unit; its heading on the map th, bank, radius r; and how its way bends (kx,
+// ky, kz: the change in its way per metre)
+export function trackFrame(s, o) {
+  ensureTrack(s + 2);
+  const u = Math.max(0, Math.min(X.length - 2.001, s - S0)),
     i = Math.floor(u),
-    t = u - i;
-  out.x = X[i] + (X[i + 1] - X[i]) * t;
-  out.y = Y[i] + (Y[i + 1] - Y[i]) * t;
-  out.z = Z[i] + (Z[i + 1] - Z[i]) * t;
-  out.th = TH[i] + (TH[i + 1] - TH[i]) * t;
-  out.bank = bankAt(i) + (bankAt(i + 1) - bankAt(i)) * t;
-  return out;
+    t = u - i,
+    j = i + 1;
+  o.x = X[i] + (X[j] - X[i]) * t;
+  o.y = Y[i] + (Y[j] - Y[i]) * t;
+  o.z = Z[i] + (Z[j] - Z[i]) * t;
+  let tx = TX[i] + (TX[j] - TX[i]) * t,
+    ty = TY[i] + (TY[j] - TY[i]) * t,
+    tz = TZ[i] + (TZ[j] - TZ[i]) * t;
+  const tl = Math.hypot(tx, ty, tz);
+  tx /= tl;
+  ty /= tl;
+  tz /= tl;
+  o.tx = tx;
+  o.ty = ty;
+  o.tz = tz;
+  const rl = Math.hypot(tx, tz) || 1;
+  o.rx = -tz / rl;
+  o.ry = 0;
+  o.rz = tx / rl;
+  // up = right x way
+  o.ux = o.ry * tz - o.rz * ty;
+  o.uy = o.rz * tx - o.rx * tz;
+  o.uz = o.rx * ty - o.ry * tx;
+  o.th = TH[i] + (TH[j] - TH[i]) * t;
+  o.bank = bankAt(i) + (bankAt(j) - bankAt(i)) * t;
+  o.r = tubeR(s);
+  const k = Math.max(1, Math.min(X.length - 2, j));
+  o.kx = (TX[k + 1] - TX[k - 1]) * 0.5;
+  o.ky = (TY[k + 1] - TY[k - 1]) * 0.5;
+  o.kz = (TZ[k + 1] - TZ[k - 1]) * 0.5;
+  return o;
 }
-const segDist = (i, x, z, q) => {
-  const ax = X[i],
-    az = Z[i],
-    dx = X[i + 1] - ax,
-    dz = Z[i + 1] - az,
-    t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz))),
-    ex = ax + dx * t - x,
-    ez = az + dz * t - z;
-  q.t = t;
-  return ex * ex + ez * ez;
-};
-const Q = { t: 0 };
-// the nearest point of the run to (x, z) near `hint`: s along it, d across (+ right), the centre line's height y there,
-// its heading th and bank; and dist, how far (x, z) is from the centre line
-export function trackNear(x, z, out, hint = track.hint) {
-  if (!X.length) resetTrack();
-  const n = X.length - 2,
-    h = Math.max(0, Math.min(n, Math.round(hint - S0)));
-  let best = -1,
-    bd = Infinity;
-  for (let i = Math.max(0, h - W); i <= Math.min(n, h + W); i += 3) {
-    const dx = X[i] - x,
-      dz = Z[i] - z,
-      d2 = dx * dx + dz * dz;
-    if (d2 < bd) {
-      bd = d2;
-      best = i;
-    }
-  }
-  // far from the run near her: anywhere on it
-  if (bd > 30 * 30) {
-    const cx = Math.floor(x / CELL),
-      cz = Math.floor(z / CELL);
-    for (let a = -1; a <= 1; a++)
-      for (let b = -1; b <= 1; b++) {
-        const c = grid.get(cx + a + ',' + (cz + b));
-        if (c)
-          for (const i of c) {
-            const dx = X[i] - x,
-              dz = Z[i] - z,
-              d2 = dx * dx + dz * dz;
-            if (d2 < bd && i <= n) {
-              bd = d2;
-              best = i;
-            }
-          }
-      }
-  }
-  let bi = best,
-    bt = 0;
-  bd = Infinity;
-  for (let i = Math.max(0, best - 3); i <= Math.min(n, best + 3); i++) {
-    const d2 = segDist(i, x, z, Q);
-    if (d2 < bd) {
-      bd = d2;
-      bi = i;
-      bt = Q.t;
-    }
-  }
-  const th = TH[bi] + (TH[bi + 1] - TH[bi]) * bt,
-    cx = X[bi] + (X[bi + 1] - X[bi]) * bt,
-    cz = Z[bi] + (Z[bi + 1] - Z[bi]) * bt;
-  out.s = S0 + bi + bt;
-  out.th = th;
-  out.y = Y[bi] + (Y[bi + 1] - Y[bi]) * bt;
-  out.bank = bankAt(bi) + (bankAt(bi + 1) - bankAt(bi)) * bt;
-  out.d = (x - cx) * -Math.cos(th) + (z - cz) * Math.sin(th);
-  out.dist = Math.sqrt(bd);
-  return out;
+// a point on the tube's ice: phi radians round from its bottom (+ up its right side) at s metres along, `lift` metres
+// in from the ice; out: x, y, z; the way out of the ice, into the tube (nx, ny, nz); the way round it as phi grows (ax,
+// ay, az); and the run's frame there (trackFrame's fields)
+export function onTube(s, phi, lift, o) {
+  trackFrame(s, o);
+  const sn = Math.sin(phi),
+    cs = Math.cos(phi),
+    r = o.r - lift;
+  // from the middle out to the ice: down and to the side
+  const ox = sn * o.rx - cs * o.ux,
+    oy = sn * o.ry - cs * o.uy,
+    oz = sn * o.rz - cs * o.uz;
+  o.px = o.x;
+  o.py = o.y;
+  o.pz = o.z;
+  o.x = o.px + ox * r;
+  o.y = o.py + oy * r;
+  o.z = o.pz + oz * r;
+  o.nx = -ox;
+  o.ny = -oy;
+  o.nz = -oz;
+  o.ax = cs * o.rx + sn * o.ux;
+  o.ay = cs * o.ry + sn * o.uy;
+  o.az = cs * o.rz + sn * o.uz;
+  return o;
 }
-const NEAR = { s: 0, th: 0, y: 0, bank: 0, d: 0, dist: 0 };
-// the height of the ice at (x, z)
-export function trackY(x, z) {
-  trackNear(x, z, NEAR);
-  return NEAR.y + across(NEAR.d, NEAR.bank);
-}
+// the middle of the run at s metres along, its heading and bank (x, y, z, th, bank): trackFrame without the rest
+export const trackPoint = (s, o) => trackFrame(s, o);

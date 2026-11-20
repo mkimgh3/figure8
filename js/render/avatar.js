@@ -122,10 +122,17 @@ function costumeMaterial(map, normalMap, mask, U, look) {
 // declarations). Down the Canyon's run (v3-look56) it is the plane of the ice under her, and only near it: the duet
 // partner can be on another part of the run.
 const ICE_DECL = ICE_GLSL;
+const UP3 = [0, 1, 0],
+  _up3 = new THREE.Vector3();
 const ABOVE_ICE = `
 { vec4 wq = modelMatrix * vec4(transformed, 1.0); float fl = sign(determinant(mat3(modelMatrix)));
-  float gy = uWaves > 0.0 || uCanyon > 0.5 ? iceH(wq.xz, 1.0) : 0.0;
-  if ((wq.y - gy) * fl < 0.012 && (uCanyon < 0.5 || (wq.y - gy) * fl > -3.0)) { wq.y = gy + 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; } }`;
+  if (uCanyon > 0.5) {
+    float dd = dot(wq.xyz - uIceP, uIceN);
+    if (dd < 0.012 && dd > -3.0) { wq.xyz += uIceN * (0.012 - dd); transformed = (inverse(modelMatrix) * wq).xyz; }
+  } else {
+    float gy = uWaves > 0.0 ? iceH(wq.xz, 1.0) : 0.0;
+    if ((wq.y - gy) * fl < 0.012) { wq.y = gy + 0.012 * fl; transformed = (inverse(modelMatrix) * wq).xyz; }
+  } }`;
 
 // A mirror crystal: a tiny flat facet (n: its normal, tilted at random) that reflects the sky and flashes white when it
 // turns to the sun or a spotlight, twinkling a little as it moves. Used on Tesa's bodice and gown.
@@ -1516,7 +1523,9 @@ export function loadAvatar(models, ix, opts, U, onReady) {
             e.p.getWorldQuaternion(_q).multiply(e.restP).multiply(e.restB);
             if (e.b === pelvis) {
               proxy.body.localToWorld(_v.copy(pelvisInBody));
-              _v.y += ground;
+              // along her up: in the Tunnel the way out of the ice
+              if (S.tube) _v.addScaledVector(_up3.fromArray(S.up), ground);
+              else _v.y += ground;
               e.b.parent.worldToLocal(_v);
               e.b.position.copy(_v);
             }
@@ -1527,13 +1536,16 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           // keep the blades on the ice: the stand-in's legs are not quite the same length as hers
           if (S.grounded && S.visY < 0.02) {
             let low = Infinity;
+            // how high each blade point is over the ice under her, along her up
+            const u = S.tube ? S.up : UP3;
             blades.forEach((b, i) =>
               bladeTips[i].forEach((t) => {
-                low = Math.min(low, _v2.copy(t).applyMatrix4(b.matrixWorld).y);
+                _v2.copy(t).applyMatrix4(b.matrixWorld);
+                low = Math.min(low, (_v2.x - S.x) * u[0] + (_v2.y - (S.gy || 0)) * u[1] + (_v2.z - S.z) * u[2]);
               }),
             );
             // move her so the lowest blade point sits on the ice
-            if (isFinite(low)) ground -= (low - (S.gy || 0)) * (1 - Math.exp(-14 * dt));
+            if (isFinite(low)) ground -= low * (1 - Math.exp(-14 * dt));
           }
           // the spin's pull on cloth and hair, given weight: it builds and eases off over a second or so instead of
           // snapping to the spin rate (a critically damped spring), so the skirt and locks open in step with the spin
@@ -1545,7 +1557,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           spinV += (k * ((spinOnly ?? spinFlare) - spin) - kc * spinV) * sd;
           spin = THREE.MathUtils.clamp(spin + spinV * sd, 0, 1);
           // which way and how fast she turns (radians a second), for the cloth's trail
-          const yaw = proxy.hero.rotation.y,
+          const yaw = proxy.hero.userData.yaw ?? proxy.hero.rotation.y,
             dYaw = Math.atan2(Math.sin(yaw - lastYaw), Math.cos(yaw - lastYaw));
           lastYaw = yaw;
           if (dt > 0) yawRate += (dYaw / dt - yawRate) * (1 - Math.exp(-4 * dt));

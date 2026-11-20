@@ -3,8 +3,8 @@ import { CFG } from '../config.js';
 import { TAU, clamp, wrap } from '../core/math.js';
 import { createFall } from '../moves/fall.js';
 import { createStumble } from '../moves/stumble.js';
-import { iceY, iceSlope, uWaves, uCanyon } from '../core/terrain.js';
-import { track, trackNear, ensureTrack, lips } from '../core/track.js';
+import { iceY, iceSlope, uWaves, uCanyon, setIcePlane } from '../core/terrain.js';
+import { track, ensureTrack, onTube, tubeR } from '../core/track.js';
 
 const COUNT = ['', 'Single', 'Double', 'Triple', 'Quad', 'Quint'];
 
@@ -56,11 +56,19 @@ export function createSkater(emit) {
     flipK: 9,
     // Infinite and Tutorial: falls and crashes become stumbles
     forgiving: false,
+    // the Tunnel (v3-look60): on its tube (ts metres along the run, tphi radians round from its bottom), and the ways
+    // out of the ice (up), down the run (along) and round the tube (round) there, as unit vectors
+    tube: false,
+    ts: 0,
+    tphi: 0,
+    up: [0, 1, 0],
+    along: [0, 0, -1],
+    round: [1, 0, 0],
   };
   const C = CFG.steer,
     SLOPE = [0, 0],
-    NEAR = { s: 0, th: 0, y: 0, bank: 0, d: 0, dist: 0 },
-    LIPS = [0, 0];
+    // where she is on the Tunnel's tube, worked out each step
+    O = {};
   const speed = () => Math.hypot(S.vx, S.vz);
   const ensureSpeed = (min) => {
     if (speed() < min) {
@@ -246,6 +254,39 @@ export function createSkater(emit) {
     return true;
   }
 
+  // where she is in the world from where she is on the Tunnel's tube (S.ts, S.tphi): the point of the ice under her
+  // (x, z and gy), and the ways out of the ice (S.up, into the tube), down the run (S.along) and round it (S.round)
+  function tubePlace() {
+    onTube(S.ts, S.tphi, 0, O);
+    S.x = O.x;
+    S.z = O.z;
+    S.gy = O.y;
+    S.gx = S.gz = 0;
+    S.up[0] = O.nx;
+    S.up[1] = O.ny;
+    S.up[2] = O.nz;
+    S.along[0] = O.tx;
+    S.along[1] = O.ty;
+    S.along[2] = O.tz;
+    S.round[0] = O.ax;
+    S.round[1] = O.ay;
+    S.round[2] = O.az;
+    S.tube = true;
+    setIcePlane(S);
+  }
+  // into the Tunnel at s metres along, on the bottom of the tube, sliding gently down it
+  function enterTube(s) {
+    S.ts = s;
+    S.tphi = 0;
+    S.vx = 0;
+    S.vz = -2;
+    S.facing = Math.PI;
+    S.y = 0;
+    S.vy = 0;
+    track.hint = s;
+    tubePlace();
+    S.wy = S.gy;
+  }
   function update(dt, steer) {
     const ix = steer.x,
       iy = steer.y,
@@ -311,24 +352,9 @@ export function createSkater(emit) {
         S.vx *= f;
         S.vz *= f;
       }
-      // the canyon (v3-look50): the whole pull of the slope, so the run carries her down and its banks turn her back into
-      // it, and air drag that grows with the square of her speed, so on a slope of CFG.canyon.settle she settles at
-      // CFG.canyon.top (70 km/h); no faster on any slope
-      if (canyon) {
-        const K = CFG.canyon,
-          a = K.pull * 9.81;
-        S.vx -= a * S.gx * dt;
-        S.vz -= a * S.gz * dt;
-        const v = speed();
-        if (v > 0.01) {
-          const nv = Math.min(K.top, Math.max(0, v - ((a * K.settle) / (K.top * K.top)) * v * v * dt));
-          S.vx *= nv / v;
-          S.vz *= nv / v;
-        }
-      }
       // rolling ice: downhill speeds her up and uphill slows her, along the way she is going (it never turns her, and
       // never stops her dead or sends her back)
-      else if (uWaves.value) {
+      if (uWaves.value) {
         const v = speed();
         if (v > 0.05) {
           const a = (-CFG.waves.pull * 9.81 * (S.gx * S.vx + S.gz * S.vz)) / v,
@@ -336,6 +362,25 @@ export function createSkater(emit) {
           S.vx *= nv / v;
           S.vz *= nv / v;
         }
+      }
+    }
+    // The Tunnel (v3-look60): on its tube she is always on the ice, wherever round it she is, in the air too. Her
+    // speed there is on the ice: vx round the tube (the way phi grows), -vz down the run. Gravity along the ice pulls
+    // her round toward the tube's bottom and on down the run; a bend throws her toward its outside, as it does a
+    // bobsled, so at speed she rides up the walls, and right over the top if she is fast enough. Air drag that grows
+    // with the square of her speed has her settle at CFG.canyon.top on a slope of CFG.canyon.settle; never faster.
+    if (canyon) {
+      const K = CFG.canyon,
+        a = K.pull * 9.81;
+      onTube(S.ts, S.tphi, 0, O);
+      const along = -S.vz;
+      S.vx += (-a * O.ay - along * along * (O.kx * O.ax + O.ky * O.ay + O.kz * O.az)) * dt;
+      S.vz += a * O.ty * dt;
+      const v = speed();
+      if (v > 0.01) {
+        const nv = Math.min(K.top, Math.max(0, v - ((a * K.settle) / (K.top * K.top)) * v * v * dt));
+        S.vx *= nv / v;
+        S.vz *= nv / v;
       }
     }
     sp = speed();
@@ -348,56 +393,38 @@ export function createSkater(emit) {
         S.curve * Math.exp(-dt / 2.2) +
         Math.abs(wrap(S.facing - prevFacing)) +
         (S.move && S.move.id !== 'fall' ? 1.2 * dt : 0); // recent curving and figures
-    S.x += S.vx * dt;
-    S.z += S.vz * dt;
-    // the Canyon's run (v3-look56): she stays inside the trough, edge metres below its lips, and below its closed top
-    // end; against them she slides along, keeping the speed that runs along them. Where she is along the run is where
-    // the run's height field looks (track.hint).
     if (canyon) {
-      const n = trackNear(S.x, S.z, NEAR),
-        nx = -Math.cos(n.th),
-        nz = Math.sin(n.th),
-        m = CFG.canyon.edge;
-      lips(n.bank, LIPS);
-      let out = 0;
-      if (n.d > LIPS[1] - m) out = n.d - LIPS[1] + m;
-      else if (n.d < LIPS[0] + m) out = n.d - LIPS[0] - m;
-      if (out) {
-        const sg = Math.sign(out),
-          vn = (S.vx * nx + S.vz * nz) * sg;
-        S.x -= nx * out;
-        S.z -= nz * out;
-        if (vn > 0) {
-          S.vx -= nx * sg * vn;
-          S.vz -= nz * sg * vn;
-        }
-      }
+      // on the tube: along it and round it; she cannot go back past its closed top end
+      S.ts -= S.vz * dt;
+      S.tphi += (S.vx * dt) / tubeR(S.ts);
       const top = track.S0 + 3;
-      if (n.s < top) {
-        const tx = Math.sin(n.th),
-          tz = Math.cos(n.th),
-          vt = S.vx * tx + S.vz * tz;
-        S.x += tx * (top - n.s);
-        S.z += tz * (top - n.s);
-        if (vt < 0) {
-          S.vx -= tx * vt;
-          S.vz -= tz * vt;
-        }
+      if (S.ts < top) {
+        S.ts = top;
+        if (S.vz > 0) S.vz = 0;
       }
-      track.hint = Math.max(top, n.s);
-      ensureTrack(track.hint + 300);
+      track.hint = S.ts;
+      ensureTrack(S.ts + 300);
+      tubePlace();
+    } else {
+      S.x += S.vx * dt;
+      S.z += S.vz * dt;
+      S.gy = iceY(S.x, S.z);
+      iceSlope(S.x, S.z, SLOPE);
+      S.gx = SLOPE[0];
+      S.gz = SLOPE[1];
+      S.tube = false;
     }
-    S.gy = iceY(S.x, S.z);
-    iceSlope(S.x, S.z, SLOPE);
-    S.gx = SLOPE[0];
-    S.gz = SLOPE[1];
     if (!S.grounded) {
       S.airT += dt;
       S.spin += (S.goal - S.spin) * (1 - Math.exp(-20 * dt)); // she turns exactly as far as the finger has
       S.vy -= CFG.jump.gravity * dt;
-      // she flies through the world: over a hollow she is higher above the ice, over a rise she comes down sooner
-      S.wy += S.vy * dt;
-      S.y = S.wy - S.gy;
+      // in the Tunnel she jumps straight off the ice and comes back to it; elsewhere she flies through the world: over a
+      // hollow she is higher above the ice, over a rise she comes down sooner
+      if (canyon) S.y += S.vy * dt;
+      else {
+        S.wy += S.vy * dt;
+        S.y = S.wy - S.gy;
+      }
       if (S.y <= 0) land();
     } else S.wy = S.gy;
     if (S.boostT > 0) S.boostT -= dt;
@@ -465,6 +492,7 @@ export function createSkater(emit) {
     airRotate,
     crash,
     update,
+    enterTube,
     yaw,
     liveGrade,
     liveName,

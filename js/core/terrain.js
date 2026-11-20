@@ -3,12 +3,13 @@
 // out for the graphics chip, built from the same numbers, so the two always agree.
 // The surface is long, low swells everywhere (CFG.waves.gentle), plus shorter waves (wavy) that come and go across the
 // lake: two very long waves (patch) decide where, so in places the ice only rolls gently and in others it is wavy.
-// The Canyon (since v3-look56 an ice trough on pillars, core/track.js) is a height field too, but only near her: the
-// shaders draw its ice as a mesh of its own (render/slide.js), and the little that needs the height of the ice under a
-// point in a shader (her clothes, kept above it) gets the ice's plane under her (uIceP, uIceG, set by setIcePlane).
+// The Tunnel (the Canyon until v3-look60; core/track.js) is no height field: she skates all the way round its tube.
+// Near her, its ice is the plane under her (setIcePlane, from S.up): the height of the ice at (x, z) on that plane,
+// and how far a point is from it along the way out of it (iceAbove). The shaders draw its ice as a mesh of their own
+// (render/slide.js); the little that needs the ice in a shader (her clothes, kept off it) gets the same plane (uIceP,
+// uIceN).
 // No three.js here: the game's rules use it too.
 import { CFG } from '../config.js';
-import { trackY } from './track.js';
 
 const W = CFG.waves,
   TAU = Math.PI * 2;
@@ -23,28 +24,39 @@ const GENTLE = prep(W.gentle),
   WAVY = prep(W.wavy),
   PATCH = prep(W.patch);
 
-// how high the ice is (metres, times uWaves.value), and whether it is the canyon (1): uniforms the shaders share, and the
-// game's own switches (both 0: flat). uIceP, uIceG: in the Canyon, the plane of the ice under her (a point x, y, z on
-// it, and its slope along x and z)
+// how high the ice is (metres, times uWaves.value), and whether it is the Tunnel (1): uniforms the shaders share, and
+// the game's own switches (both 0: flat). uIceP, uIceN: the plane of the ice under her (a point on it, and the way out
+// of it, unit)
 export const uWaves = { value: 0 },
   uCanyon = { value: 0 },
   uIceP = { value: { x: 0, y: 0, z: 0 } },
-  uIceG = { value: { x: 0, y: 0 } },
-  ICE_UNIFORMS = { uWaves, uCanyon, uIceP, uIceG };
+  uIceN = { value: { x: 0, y: 1, z: 0 } },
+  ICE_UNIFORMS = { uWaves, uCanyon, uIceP, uIceN };
 // from a place (CFG.places): its waves, or the canyon
 export const setTerrain = (place) => {
   uCanyon.value = place && place.canyon ? 1 : 0;
   uWaves.value = (!uCanyon.value && place && place.waves) || 0;
 };
-// the plane of the ice under her (S: x, z, gy, gx, gz), for the shaders
+// the plane of the ice under her (S: x, z, gy; in the Tunnel S.up, elsewhere the slope gx, gz)
+const PL = uIceP.value,
+  PN = uIceN.value;
 export function setIcePlane(S) {
-  const p = uIceP.value;
-  p.x = S.x;
-  p.y = S.gy;
-  p.z = S.z;
-  uIceG.value.x = S.gx;
-  uIceG.value.y = S.gz;
+  PL.x = S.x;
+  PL.y = S.gy;
+  PL.z = S.z;
+  if (S.tube) {
+    PN.x = S.up[0];
+    PN.y = S.up[1];
+    PN.z = S.up[2];
+  } else {
+    const l = Math.hypot(S.gx, 1, S.gz);
+    PN.x = -S.gx / l;
+    PN.y = 1 / l;
+    PN.z = -S.gz / l;
+  }
 }
+// the height of the plane under her at (x, z), where it is not too near upright (else the height of her point on it)
+const planeY = (x, z) => (Math.abs(PN.y) > 0.25 ? PL.y - (PN.x * (x - PL.x) + PN.z * (z - PL.z)) / PN.y : PL.y);
 // is the ice anything but flat
 export const terrainOn = () => uWaves.value > 0 || uCanyon.value > 0;
 
@@ -66,7 +78,24 @@ function raw(x, z, det = 1) {
   return sum(GENTLE, x, z) + m * sum(WAVY, wx, wz);
 }
 // the height of the ice at (x, z), metres
-export const iceY = (x, z) => (uCanyon.value ? trackY(x, z) : uWaves.value ? uWaves.value * raw(x, z) : 0);
+export const iceY = (x, z) => (uCanyon.value ? planeY(x, z) : uWaves.value ? uWaves.value * raw(x, z) : 0);
+// how far (x, y, z) is from the ice along the way out of it (m, negative inside it), and that way (unit) into n: in the
+// Tunnel from the plane under her, elsewhere from the ice's slope at (x, z)
+const G2 = [0, 0];
+export function iceAbove(x, y, z, n) {
+  if (uCanyon.value) {
+    n[0] = PN.x;
+    n[1] = PN.y;
+    n[2] = PN.z;
+    return (x - PL.x) * PN.x + (y - PL.y) * PN.y + (z - PL.z) * PN.z;
+  }
+  iceSlope(x, z, G2);
+  const l = Math.hypot(G2[0], 1, G2[1]);
+  n[0] = -G2[0] / l;
+  n[1] = 1 / l;
+  n[2] = -G2[1] / l;
+  return (y - iceY(x, z)) / l;
+}
 // its slope at (x, z): out[0] = rise per metre along x, out[1] along z
 export function iceSlope(x, z, out) {
   if (!terrainOn()) {
@@ -112,14 +141,13 @@ export function iceMirror(S, M) {
 // GLSL (p = world x, z; the shader using it gets ICE_UNIFORMS):
 //   iceRawD(p, d)  Rolling ice before uWaves, with only d of the wavy part (the far rim of the drawn ice, where its
 //                  rings are too far apart for short waves)
-//   iceH(p, d)     the height of the ice: Rolling ice's, or in the Canyon the plane of the ice under her
+//   iceH(p, d)     the height of the ice: Rolling ice's, or in the Tunnel the plane of the ice under her
 const f = (v) => (Number.isInteger(v) ? v.toFixed(1) : v.toFixed(6));
 const glslSum = (list, p) =>
   list.map((w) => `${f(w[0])} * sin(${f(w[1])} * ${p}.x + ${f(w[2])} * ${p}.y + ${f(w[3])})`).join(' + ');
 export const ICE_GLSL = `
 uniform float uWaves, uCanyon;
-uniform vec3 uIceP;
-uniform vec2 uIceG;
+uniform vec3 uIceP, uIceN;
 float iceRawD(vec2 p, float d) {
   float m = d * smoothstep(${f(W.mix[0])}, ${f(W.mix[1])}, (${glslSum(PATCH, 'p')}) / ${f(PATCH.length)});
   vec2 q = p + ${f(W.warp[0])} * vec2(sin(p.y * ${f(W.warp[1])} + 1.3), sin(p.x * ${f(W.warp[2])} + 0.4));
@@ -127,5 +155,7 @@ float iceRawD(vec2 p, float d) {
 }
 float iceRaw(vec2 p) { return iceRawD(p, 1.0); }
 float iceH(vec2 p, float d) {
-  return uCanyon > 0.5 ? uIceP.y + uIceG.x * (p.x - uIceP.x) + uIceG.y * (p.y - uIceP.z) : uWaves * iceRawD(p, d);
+  return uCanyon > 0.5
+    ? uIceP.y - (uIceN.x * (p.x - uIceP.x) + uIceN.z * (p.y - uIceP.z)) / max(abs(uIceN.y), 0.25)
+    : uWaves * iceRawD(p, d);
 }`;
