@@ -29,14 +29,13 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
   // a two-thumb gesture has started a move: hold the stick where it was
   // what the right thumb was read as, shown for a moment just above where it is (or where it lifted)
   const READS = {
-    down: 'Toe kick',
+    up: 'Spiral',
+    down: 'Hydroblade',
     left: 'Three-turn',
     right: 'Split leap',
+    spread: 'Spread eagle',
     stop: 'Hockey stop',
-    'circle-cw': 'Spiral',
-    'circle-ccw': 'Hydroblade',
-    'circle-apart': 'Spread eagle',
-    'circle-biellmann': 'Biellmann',
+    'both-down-held': 'Hydroblade',
     twirl: 'Twizzles',
     dance: 'Choreography',
     jump: 'Jump',

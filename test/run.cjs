@@ -189,11 +189,11 @@ const { open } = require('./smoke.cjs');
   await calm();
   seen = await play(R(line(300, 600, 296, 500, 6)));
   await sleep(100);
-  ok('flick up is no move (v3-look61: the spiral is two thumbs circling)', !seen.includes('spiral'), seen);
+  ok('flick up is a spiral', seen.includes('spiral'), seen);
   await calm();
   seen = await play(R(line(300, 500, 304, 600, 6)));
   await sleep(100);
-  ok('flick down is a toe kick (v3-look61)', seen.includes('toe') && !seen.includes('hydro'), seen);
+  ok('flick down is a hydroblade', seen.includes('hydro'), seen);
   await calm();
   seen = await play(R(line(260, 560, 340, 560, 6).concat(line(340, 560, 342, 480, 6))));
   ok('a corner no longer triggers a spread eagle', !seen.includes('eagle'), seen);
@@ -208,12 +208,12 @@ const { open } = require('./smoke.cjs');
     { id: 1, pts: line(160, 640, 110, 640, 7) },
     { id: 2, pts: line(300, 640, 350, 640, 7), down: true, up: true },
   ]);
-  ok('thumbs spreading apart is no longer a spread eagle (v3-look61)', !seen.includes('eagle'), seen);
+  ok('thumbs spreading apart is a spread eagle', seen.includes('eagle'), seen);
   await calm();
   await ev('pointermove', 1, 160, 640);
   await sleep(600);
   seen = await play([
-    { id: 1, pts: circle(130, 640, 30, 1.25, 60) },
+    { id: 1, pts: circle(130, 640, 30, 1.5, 60) },
     { id: 2, pts: line(300, 600, 380, 600, 8), down: true, up: true },
   ]);
   const fz = await p.evaluate(() => {
@@ -228,12 +228,12 @@ const { open } = require('./smoke.cjs');
     n: window.__game.score.state.list.length,
     top: document.getElementById('total').textContent,
   }));
-  ok('moves score points and the score shows them', s.total > 2 && s.n >= 3 && Math.abs(+s.top - s.total) < 0.05, s);
+  ok('moves score points and the score shows them', s.total > 2 && s.n >= 5 && Math.abs(+s.top - s.total) < 0.05, s);
   seen = await play([
     { id: 1, pts: line(160, 640, 160, 560, 7) },
     { id: 2, pts: line(300, 640, 300, 560, 7), down: true, up: true },
   ]);
-  ok('both thumbs swiping up are no move (v3-look61)', !seen.includes('spiral') && !seen.includes('stop'), {
+  ok('both thumbs swiping up are a spiral', seen.includes('spiral') && !seen.includes('stop'), {
     seen,
     last: await p.evaluate(() => {
       const l = JSON.parse(window.__game.log.text()).strokes.slice(-1)[0];
@@ -250,25 +250,18 @@ const { open } = require('./smoke.cjs');
   await sleep(500);
   {
     const hm = await p.evaluate(() => window.__game.S.move && window.__game.S.move.id);
-    ok(
-      'both thumbs swiped down and held are a hockey stop (v3-look61)',
-      seen.includes('stop') && !seen.includes('hydro'),
-      {
-        seen,
-        hm,
-      },
-    );
+    ok('both thumbs swiped down and held are a hydroblade', hm === 'hydro' && !seen.includes('stop'), { seen, hm });
   }
   await ev('pointerup', 2, 300, 680);
   await calm();
   await ev('pointermove', 1, 160, 640);
   seen = await play([
-    { id: 1, pts: circle(130, 620, 42, 2.2, 60) },
-    { id: 2, pts: circle(300, 600, 42, 2.2, 60), down: true, up: true },
+    { id: 1, pts: circle(130, 620, 42, 2.2, 150) },
+    { id: 2, pts: circle(300, 600, 42, 2.2, 150), down: true, up: true },
   ]);
   ok(
-    'circling both thumbs clockwise together is a spiral (v3-look61)',
-    seen.includes('spiral') && !seen.includes('hydro'),
+    'circling both thumbs is no longer a spiral or a hydroblade',
+    !seen.includes('spiral') && !seen.includes('hydro'),
     seen,
   );
   await sleep(3500);
@@ -278,14 +271,12 @@ const { open } = require('./smoke.cjs');
   await sleep(500);
   // the spiral is held with the right thumb down while the left thumb jitters on the glass: steering must come back anyway
   {
-    const lc = circle(160, 600, 40, 1.3, 36)
-        .concat(line(200, 600, 160, 560, 6))
-        .concat(Array.from({ length: 20 }, () => [160, 560])),
+    const lc = line(160, 640, 160, 560, 7).concat(Array.from({ length: 20 }, () => [160, 560])),
       e0 = lc[lc.length - 1],
       jit = Array.from({ length: 50 }, (_, i) => [e0[0] + (i % 2 ? 6 : -6), e0[1]]);
     seen = await play([
       { id: 1, pts: lc.concat(jit) },
-      { id: 2, pts: circle(300, 600, 40, 1.3, 36), down: true, up: false },
+      { id: 2, pts: line(300, 640, 300, 560, 7), down: true, up: false },
     ]);
     const a = await p.evaluate(() => window.__game.input.read().x);
     await ev('pointermove', 1, e0[0] - 60, e0[1]);
@@ -296,8 +287,8 @@ const { open } = require('./smoke.cjs');
       seen.includes('spiral') && a - b2[0] > 0.3 && b2[1] === 'spiral',
       { seen, a, b: b2 },
     );
-    await ev('pointermove', 2, 340, 600);
-    await ev('pointermove', 2, 380, 600);
+    await ev('pointermove', 2, 330, 560);
+    await ev('pointermove', 2, 370, 560);
     await sleep(50);
     const b3 = await p.evaluate(() => [window.__game.input.read().x, window.__game.S.move && window.__game.S.move.id]);
     ok('the right thumb never steers, even in a held spiral', Math.abs(b3[0] - b2[0]) < 0.05 && b3[1] === 'spiral', {
@@ -305,7 +296,7 @@ const { open } = require('./smoke.cjs');
       after: b3[0],
       move: b3[1],
     });
-    await ev('pointerup', 2, 380, 600);
+    await ev('pointerup', 2, 370, 560);
     await sleep(80);
     const b4 = await p.evaluate(() => window.__game.input.read().x);
     ok('lifting the right thumb leaves the stick as it was', Math.abs(b4 - b2[0]) < 0.05, { b4, stick: b2[0] });
@@ -503,11 +494,7 @@ const { open } = require('./smoke.cjs');
               const e = g.score.state.list[0];
               if ((e && e.choreo) || Date.now() - t0 > 30000) {
                 clearInterval(iv);
-                res(
-                  e
-                    ? { name: e.name, pts: e.pts, base: e.base, choreo: !!e.choreo, move: g.S.move && g.S.move.id }
-                    : null,
-                );
+                res(e ? { name: e.name, pts: e.pts, base: e.base, choreo: !!e.choreo } : null);
               }
             }, 100);
         }),

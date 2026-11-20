@@ -1,6 +1,6 @@
-// Moves that last as long as the right thumb stays down: spiral, hydroblade, spread eagle, Biellmann. Started by both
-// thumbs circling (input/tricks.js, CFG.two). Since v3-look61 the left thumb steers her, pushes and eases off in all of
-// them as in plain skating (until then the spiral and hydroblade coasted, slowing, and steered less).
+// Moves that last as long as the right thumb (or both thumbs) stays down: spiral, hydroblade, spread eagle. Since
+// v3-look61 the left thumb steers her, pushes and eases off in all of them as in plain skating (until then the spiral and
+// hydroblade coasted, slowing, and steered less).
 import { CFG } from '../config.js';
 import { dimin } from '../core/math.js';
 const P = CFG.points;
@@ -135,40 +135,6 @@ export const createHydro = (S, api, dir) =>
           aRx: -0.3,
           aLe: -0.1,
           aRe: -0.1,
-        });
-      },
-    }),
-  });
-// Biellmann (v3-look61, Mark: "the move where one leg is raised behind over head and held with hand raised up grabbing
-// angle"): gliding on one foot, the free leg drawn up behind her until the blade is over her head, both hands up over
-// it holding the blade, back arched.
-export const createBiellmann = (S, api) =>
-  held(S, api, {
-    id: 'biellmann',
-    name: 'Biellmann',
-    minSpeed: 3,
-    minTime: 1.0,
-    extra: () => ({
-      blade(out) {
-        out.width = 1.2;
-      },
-      pose(T, kit) {
-        kit.set({
-          lean: 0.3,
-          bodyY: kit.HIP,
-          fL: 0,
-          lLx: 2.95,
-          lLk: 1.05,
-          lLz: 0,
-          lRx: 0,
-          lRk: 0.08,
-          lRz: 0,
-          aLz: -2.85,
-          aRz: 2.85,
-          aLx: -0.95,
-          aRx: -0.95,
-          aLe: -0.7,
-          aRe: -0.7,
         });
       },
     }),

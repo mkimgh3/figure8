@@ -3,6 +3,16 @@
 // (0..1): slow strokes give calm, broad, sustained gestures; quick ones give sharp, low, street-dance moves that hit on a
 // beat. Circling it turns her. Both thumbs moving in step (the same way, or mirrored like a pair of arms) bring out the
 // elegant gestures; both moving at random, out of step with each other, hip hop (v3-look48).
+// v3-look62 (Mark: "a fluidic experience of music into virtual choreography ... gestures each seamlessly transitioning
+// from one to another as not to break the trance"): the thumbs are not read for triggers here. They are read all the
+// time as a few flowing quantities (CFG.dance.express): how high on the glass the right thumb has drifted and whether
+// it is rising or falling (level), how far to one side (side), whether the two thumbs are opening apart or closing
+// together (open), and how fast they move (the mood). Each next pose is the one whose own shape best matches those
+// (every pose is measured the same way: arms high or low, open or folded, leaning one way or the other), with some
+// chance in it and no repeats, so a sequence is never the same twice. On top of the pose her body follows the thumbs
+// live: the right thumb lifts her right arm, the left her left, a rising thumb lifts her chest, a sideways one sways
+// her. And every joint moves on a spring toward its pose, keeping its momentum when the pose changes, so one movement
+// runs into the next without a join. The spiral, Biellmann, hydroblade and spread eagle are positions in it.
 import { CFG } from '../config.js';
 import { clamp, wrap, dimin } from '../core/math.js';
 
@@ -31,6 +41,11 @@ const CALM = [
   { lean: 0.08, fL: 0, lLx: 0.35, aLx: -0.95, aLz: 0.35, aLe: -2.05, aRx: -1.85, aRz: 0.25, aRe: -0.1, yaw: -0.4 },                                     // one hand to the heart, the other offered up and out
   { lean: 0.18, fL: 0, lLx: 1.05, lLk: 1.45, lRk: 0.12, aLz: -2.8, aLx: -0.35, aLe: -0.55, aRz: 1.1, aRx: 0.25, aRe: -0.2 },                           // free leg raised high behind, one arm reaching back over the head for it
   { lean: 0.12, fL: 0, lLx: 0.4, aLz: -0.95, aLx: -0.95, aLe: -0.1, aRz: 2.25, aRx: 0.55, aRe: -0.15, yaw: 0.6 },                                      // a fan: one arm low and forward, the other high and back
+  // v3-look62: the held moves as positions she flows through
+  { lean: 1.2, fL: 0, lRx: -1.2, lRk: 0.05, lLx: 0.55, lLk: 0, aLz: -1.45, aRz: 1.45, aLx: 0.35, aRx: 0.35, aLe: -0.1, aRe: -0.1 },                       // spiral: bowed level, the free leg stretched out behind
+  { lean: 0.3, fL: 0, lLx: 2.95, lLk: 1.05, lRk: 0.08, aLz: -2.85, aRz: 2.85, aLx: -0.95, aRx: -0.95, aLe: -0.7, aRe: -0.7 },                            // Biellmann: the free leg drawn up behind to her head, both hands up to it
+  { roll: 0.75, lean: 0.35, dy: -0.4, fL: 0, lRx: -1.65, lRk: 2.2, lLx: 0.75, lLk: 0.05, lLz: -0.35, aLz: -1.3, aRz: 1.3, aLx: -0.3, aRx: -0.3, aLe: -0.1, aRe: -0.1 }, // hydroblade: low over the ice on a deep edge
+  { lean: -0.12, dy: -0.06, lLx: 0.12, lRx: 0.12, lLk: 0.08, lRk: 0.08, lLz: -0.5, lRz: 0.5, aLz: -1.5, aRz: 1.5, aLe: -0.08, aRe: -0.08, yaw: 1.3 },    // spread eagle: feet turned out heel to heel, arms wide
 ];
 const LOW = { dy: -0.14, lLx: -0.55, lRx: -0.55, lLk: 0.85, lRk: 0.85, lLz: -0.3, lRz: 0.3 }; // the grounded stance street moves start from
 // prettier-ignore
@@ -100,6 +115,10 @@ const NAMES = {
     'Hand to heart',
     'Leg held high',
     'Fan',
+    'Spiral',
+    'Biellmann',
+    'Hydroblade',
+    'Spread eagle',
   ],
   sharp: [
     'Cocked arm',
@@ -173,12 +192,23 @@ const HIPHOP = [
 // Spinning: counter-clockwise takes the camel and then the scratch spin, clockwise the layback or attitude and then arms
 // overhead.
 const PICK = {
-  calm: { 1: [0, 1, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16], '-1': [2, 3, 4, 6, 7] },
-  sharp: { 1: [0, 3, 4, 7], '-1': [1, 2, 5, 6, 8] },
   slow: { 1: [0], '-1': [1, 2] },
   fast: { 1: [0], '-1': [1] },
 };
 const full = (p) => Object.assign({}, N, p);
+// A pose measured the way the thumbs are (v3-look62), each -1..1: level (arms high: up; hips low or bowed: down), open
+// (arms long and wide: 1; folded in: -1) and side (which way it leans, turns and reaches; its mirror image is the
+// opposite)
+const describe = (p) => {
+  const q = full(p),
+    arm = (Math.abs(q.aLz) + Math.abs(q.aRz)) / 2;
+  return {
+    level: clamp((arm - 1.3) / 1.4 + q.dy / 0.3 - Math.max(0, q.lean - 0.3) * 0.6, -1, 1),
+    open: clamp(1 - (Math.abs(q.aLe) + Math.abs(q.aRe)) / 1.6, -1, 1),
+    side: clamp(q.roll * 2 + q.yaw * 0.5 + (Math.abs(q.aRz) - Math.abs(q.aLz)) * 0.45, -1, 1),
+  };
+};
+const DESC = { calm: CALM.map(describe), sharp: SHARP.map(describe) };
 const mirror = (p) =>
   Object.assign({}, p, {
     roll: -p.roll,
@@ -229,7 +259,18 @@ export function createDance(S, api) {
       travelT: 0,
       // the moves she has shown, each once, in order (v3-look61: the choreography combination is named by them)
       parts: [],
+      // what the thumbs are saying (v3-look62, CFG.dance.express), each -1..1 and eased: level, side, open (see the top
+      // of the file); rise, sway: the right thumb's own motion up and across; lrise: the left thumb's, up
+      fx: { level: 0, side: 0, open: 0, rise: 0, sway: 0, lrise: 0 },
     };
+  const X = K.express,
+    // the right thumb's resting place on the glass (it follows the thumb slowly), and the thumbs' usual distance apart
+    home = { on: false, x: 0, y: 0, gap: 0 },
+    // each joint's speed (the springs), the pose now being taken as the thumbs are measured, and the last few chosen
+    vel = {},
+    want = { level: 0, open: 0, side: 0 },
+    lately = { calm: [], sharp: [] };
+  for (const k of KEYS) vel[k] = 0;
   const named = (n) => {
     if (n && !st.parts.includes(n)) st.parts.push(n);
   };
@@ -305,14 +346,46 @@ export function createDance(S, api) {
     spinSet = st.spin;
     dirSet = st.dir >= 0 ? 1 : -1;
     togSet = st.tog > 0.4 ? 1 : st.tog < -0.4 ? -1 : 0;
-    const ids =
-      (inSpin ? PICK[st.spin > 1 ? 'fast' : 'slow'][dirSet] : PICK[snap ? 'sharp' : 'calm'][togSet]) ||
-      set.map((_, k) => k);
-    let i = ids[Math.floor(Math.random() * ids.length)];
-    if (i === last && ids.length > 1) i = ids[(ids.indexOf(i) + 1) % ids.length];
+    let i,
+      flip = Math.random() < 0.5;
+    if (inSpin) {
+      const ids = PICK[st.spin > 1 ? 'fast' : 'slow'][dirSet] || set.map((_, k) => k);
+      i = ids[Math.floor(Math.random() * ids.length)];
+      if (i === last && ids.length > 1) i = ids[(ids.indexOf(i) + 1) % ids.length];
+    } else {
+      // the pose (or its mirror image) that best matches what the thumbs are saying, with some chance in it, and not
+      // one of the last few: so the dance follows the thumbs and is never the same twice
+      const key = snap ? 'sharp' : 'calm',
+        D = DESC[key],
+        was = lately[key],
+        f = st.fx;
+      let best = -Infinity;
+      for (let k = 0; k < set.length; k++) {
+        const d = D[k],
+          age = was.indexOf(k),
+          base =
+            -X.wLevel * (d.level - f.level) ** 2 -
+            X.wOpen * (d.open - f.open) ** 2 -
+            (age < 0 ? 0 : X.repeat / (age + 1));
+        for (const m of [false, true]) {
+          const sc = base - X.wSide * ((m ? -d.side : d.side) - f.side) ** 2 + Math.random() * X.chance;
+          if (sc > best) {
+            best = sc;
+            i = k;
+            flip = m;
+          }
+        }
+      }
+      was.unshift(i);
+      if (was.length > X.memory) was.pop();
+      const d = D[i];
+      want.level = d.level;
+      want.open = d.open;
+      want.side = flip ? -d.side : d.side;
+    }
     last = i;
     to = full(set[i]);
-    if (Math.random() < 0.5) to = mirror(to);
+    if (flip) to = mirror(to);
     let name = (inSpin ? NAMES[st.spin > 1 ? 'fast' : 'slow'] : NAMES[snap ? 'sharp' : 'calm'])[i];
     // Rook: the overhead stick spin, and about half his calm gestures with the stick (never mirrored: the stick stays in
     // his right hand)
@@ -373,7 +446,33 @@ export function createDance(S, api) {
     // cos how alike the two thumbs' directions are; from them, tog drifts toward 1 while they move together, -1 while they move apart, 0 with one alone
     // cosM: the same with the left thumb's movement mirrored left to right, so thumbs moving like a pair of arms count as
     // in step too. tog: 1 in step, -1 out of step, 0 one thumb alone. Out of step long enough, she dances hip hop.
-    feed(sb, dt, sa, cos, cosM) {
+    // ex (v3-look62): the right thumb's place (rx, ry, px) and motion (rvx, rvy, px/s), the left's (lx, ly, lvx, lvy) and
+    // whether it is down (left)
+    feed(sb, dt, sa, cos, cosM, ex) {
+      if (ex) {
+        const f = st.fx,
+          k = 1 - Math.exp(-X.ease * dt),
+          gap = ex.left ? Math.hypot(ex.rx - ex.lx, ex.ry - ex.ly) : 0;
+        if (!home.on) {
+          home.on = true;
+          home.x = ex.rx;
+          home.y = ex.ry;
+          home.gap = gap;
+        }
+        // its resting place drifts after it, so a thumb parked high does not hold her up for ever
+        const kh = 1 - Math.exp(-X.recentre * dt);
+        home.x += (ex.rx - home.x) * kh;
+        home.y += (ex.ry - home.y) * kh;
+        if (ex.left) home.gap += (gap - (home.gap || gap)) * kh + (home.gap ? 0 : gap);
+        const rise = clamp(-ex.rvy / X.speed, -1, 1),
+          sway = clamp(ex.rvx / X.speed, -1, 1);
+        f.rise += (rise - f.rise) * k;
+        f.sway += (sway - f.sway) * k;
+        f.lrise += ((ex.left ? clamp(-ex.lvy / X.speed, -1, 1) : rise * 0.6) - f.lrise) * k;
+        f.level += (clamp((-(ex.ry - home.y) / X.reach) * 0.8 + rise * 0.6, -1, 1) - f.level) * k;
+        f.side += (clamp(((ex.rx - home.x) / X.reach) * 0.8 + sway * 0.5, -1, 1) - f.side) * k;
+        f.open += ((ex.left ? clamp((gap - home.gap) / X.reach, -1, 1) : 0) - f.open) * k;
+      }
       const both = sa > K.moveSpeed && sb > K.moveSpeed;
       if (both) {
         st.sync += (Math.max(cos, cosM ?? cos) - st.sync) * (1 - Math.exp(-H.syncRate * dt));
@@ -467,11 +566,32 @@ export function createDance(S, api) {
         next(); // into hip hop, or out of it into the elegant gestures, at once
       else if (begun && st.held && !inSpin && !snap && st.mood > 0.6)
         next(true); // the thumbs have turned sharp: she breaks off the slow gesture at once
+      else if (
+        begun &&
+        st.held &&
+        !inSpin &&
+        !hipSet &&
+        u >= X.settle &&
+        Math.abs(want.level - st.fx.level) + Math.abs(want.side - st.fx.side) + 0.5 * Math.abs(want.open - st.fx.open) >
+          X.moveOn
+      )
+        next(); // the thumbs have moved on from this pose: so does she, without waiting for it to be held
       else if (u < 1) u = Math.min(1, u + dt / dur);
       else if (begun && (hold -= dt) <= 0 && st.held) next();
-      // calm poses ease in and out; sharp ones hit and stop
-      const e = snap ? 1 - Math.pow(1 - u, 3) : u * u * u * (u * (u * 6 - 15) + 10);
-      for (const k of KEYS) cur[k] = from[k] + (to[k] - from[k]) * e;
+      // every joint on a spring toward its pose (v3-look62; until then each pose was eased in over its own time from a
+      // standstill): it settles in about the pose's time, slowly for calm ones and at once for sharp ones, and keeps
+      // its momentum when the pose changes, so one movement runs into the next. Solved exactly, so a slow frame
+      // cannot make it overshoot.
+      {
+        const w = X.spring / dur,
+          e = Math.exp(-w * dt);
+        for (const k of KEYS) {
+          const d = cur[k] - to[k],
+            tmp = (vel[k] + w * d) * dt;
+          cur[k] = to[k] + (d + tmp) * e;
+          vel[k] = (vel[k] - w * tmp) * e;
+        }
+      }
       turned += (turnGoal - turned) * (1 - Math.exp(-K.follow * dt));
       S.yawX = cur.yaw + turned; // the rubber band: she trails the finger a little and eases to a stop after it
       if (!st.held) {
@@ -543,6 +663,21 @@ export function createDance(S, api) {
         out.aRe -= 0.2 * dip;
         out.roll += hw * H.sway * Math.sin(Math.PI * b);
       }
+      // her body follows the thumbs live (v3-look62), less in a spin and not in hip hop: the right thumb lifts her right
+      // arm and the left her left, a rising thumb lifts her chest and hips, a thumb moving across sways her; and she
+      // breathes, so she is never quite still
+      {
+        const f = st.fx,
+          a = X.live * (1 - hw) * (inSpin ? 0.35 : 1),
+          br = Math.sin(st.t * 0.9);
+        out.aLz = clamp(out.aLz - a * 0.5 * f.rise - 0.05 * br, -3.2, 0.6);
+        out.aRz = clamp(out.aRz + a * 0.5 * f.lrise + 0.05 * Math.sin(st.t * 0.9 + 0.7), -0.6, 3.2);
+        out.aLx -= a * 0.25 * f.sway;
+        out.aRx += a * 0.25 * f.sway;
+        out.lean -= a * 0.12 * f.rise;
+        out.roll += a * 0.14 * f.sway;
+        out.bodyY += a * 0.03 * f.rise + 0.006 * Math.sin(st.t * 1.3);
+      }
       out.side = 0;
       kit.set(out);
       // the joints take up the dance gradually over the first moment; hip hop hits hardest
@@ -550,4 +685,4 @@ export function createDance(S, api) {
     },
   };
 }
-export const POSES = { N, CALM, SHARP, HIPHOP, GROOVE };
+export const POSES = { N, CALM, SHARP, HIPHOP, GROOVE, NAMES, DESC };

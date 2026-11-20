@@ -251,6 +251,57 @@ function thumbs(kind) {
   ok('and is named in the element', e && /hip hop/.test(e.detail), e && e.detail);
 }
 
+// ---- the thumbs shape the dance (v3-look62)
+{
+  // dance for a while with the right thumb held high (or low) on the glass, and note the poses she takes
+  const run = (dy) => {
+    const game = createSkater(() => {}),
+      S = game.S;
+    S.vz = 5;
+    const d = createDance(S, game);
+    game.startMove(d);
+    const T = {},
+      kit = { HIP: 0.9, set: (o) => Object.assign(T, o) };
+    let level = 0,
+      n = 0,
+      jump = 0,
+      prev = null;
+    for (let i = 0; i < 60 * 22; i++) {
+      // the thumb drifts up (or down) and wanders a little there, slowly
+      const t = i / 60,
+        y = 600 + dy * Math.min(1, t / 2) + 12 * Math.sin(t * 1.7);
+      d.feed(60, 1 / 60, 0, 0, 0, { rx: 300 + 10 * Math.sin(t), ry: y, rvx: 0, rvy: 0, left: false });
+      game.update(1 / 60, { x: 0, y: 0.5 });
+      d.pose({ bodyY: 0.9 }, kit);
+      if (t > 3) {
+        level += (Math.abs(T.aLz) + Math.abs(T.aRz)) / 2;
+        n++;
+      }
+      // no joint ever jumps from one frame to the next
+      if (prev)
+        for (const k of ['aLz', 'aRz', 'lLx', 'lRx', 'lean', 'roll']) jump = Math.max(jump, Math.abs(T[k] - prev[k]));
+      prev = Object.assign({}, T);
+    }
+    return { arms: level / n, jump, parts: d.state.parts.slice() };
+  };
+  const hi = run(-130),
+    lo = run(130),
+    again = run(-130);
+  ok('the right thumb drifting high on the glass lifts her arms; low, it brings them down', hi.arms > lo.arms + 0.35, [
+    +hi.arms.toFixed(2),
+    +lo.arms.toFixed(2),
+  ]);
+  ok('she moves through many different poses', hi.parts.length >= 5 && lo.parts.length >= 5, [
+    hi.parts.length,
+    lo.parts.length,
+  ]);
+  ok('never the same sequence twice', hi.parts.join() !== again.parts.join());
+  ok('and no joint ever jumps: every movement runs into the next', Math.max(hi.jump, lo.jump) < 0.2, [
+    +hi.jump.toFixed(3),
+    +lo.jump.toFixed(3),
+  ]);
+}
+
 // ---- choreography combinations (v3-look61)
 {
   const sc = createScoring();

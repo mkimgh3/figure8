@@ -17,43 +17,31 @@ export const CFG = {
   // inside flickMs. It is read once the thumb has been still idleMs, or lifts. Anything slower or longer is a drag.
   // A twitch shorter than restPx followed by stillness counts as resting, not as a stroke.
   swipe: { flickPx: 50, flickMs: 300, restPx: 20, reversalPx: 22, idleMs: 110 },
-  // Two-thumb gestures. A swipe: read when the right thumb's swipe is read, from how the left thumb moved over the same
-  // time. Together: the left thumb went the same way (cosine above parallelCos) and at least sameMinPx, and at least
-  // sameShare of the right thumb's distance. Circles (v3-look61, Mark: "activated when both thumb in sync rotate together
-  // either clockwise or counter clockwise. when one does clockwise while the other counterclock it activates eagle or
-  // the move where one leg is raised behind over head"): the right thumb has circled `circle` radians and the left at
-  // least circleShare of that since the right went down, and both have turned circleRecent radians or more in the last
-  // recentMs (still circling briskly: a left thumb steering round a curve is not a circle). Both clockwise: spiral; both
-  // counter-clockwise: hydroblade;
-  // right clockwise and left counter-clockwise: spread eagle; right counter-clockwise and left clockwise: Biellmann.
-  // A right thumb circling starts choreography at once; a two-thumb circle within circleMs of the right thumb going down
-  // takes over from it. (Until v3-look61 a flick up was the spiral, a
-  // flick down the hydroblade, both thumbs swiped down and kept down a hydroblade, and the thumbs spreading apart a
-  // spread eagle.)
+  // Two-thumb gestures, read when the right thumb's swipe is read, from how the left thumb moved over the same time.
+  // Together: the left thumb went the same way (cosine above parallelCos) and at least sameMinPx, and at least sameShare
+  // of the right thumb's distance. Apart (spread eagle): opposite ways, each spreadEachPx or more, the gap growing by spreadPx.
   // After a two-thumb move starts, steering stays held until the left thumb has been still settleMs, or freezeMs at most.
+  // (v3-look61 read both thumbs circling as a spiral, hydroblade, spread eagle or Biellmann, and a flick down as a toe
+  // kick. Mark, the same day: "in my attempt to systemitize and categorize the movement into specific combos of keys
+  // have destroyed that element we designed before, now it has become an operation trying to activate the moves". So
+  // v3-look62 went back to these, and those positions are part of choreography instead: CFG.dance.express.)
   two: {
     parallelCos: 0.5,
     sameMinPx: 30,
     sameShare: 0.4,
-    circle: 3.6,
-    circleShare: 0.6,
-    circleRecent: 1.6,
-    recentMs: 400,
-    circleMs: 1500,
+    spreadPx: 80,
+    spreadEachPx: 25,
     settleMs: 150,
     freezeMs: 350,
   },
-  // Hockey stop: both thumbs swiped down while she moves at minSpeed or more (v3-look61: at once; before, it waited
-  // liftMs for a thumb to lift, and both kept down were a hydroblade).
+  // Hockey stop: both thumbs swiped down, and one of them lifted within liftMs of the swipe being read, while she moves at
+  // minSpeed or more. Both kept down past liftMs is a hydroblade.
   // She stops within maxTime seconds, holds the pose for `hold`, then turns back to face front over `rise`. snap: seconds to throw the blades sideways.
   stop: { minSpeed: 2.5, liftMs: 250, decel: 16, maxTime: 0.6, snap: 0.12, hold: 0.45, rise: 0.35 },
-  // Spiral, hydroblade, spread eagle, Biellmann: held while the right thumb stays down (each at least a moment), or maxTime
-  // seconds. Since v3-look61 (Mark: "for all these the left thumb should still have control of steer and speed") the left
-  // thumb steers, pushes and eases off in them as in plain skating; before, the spiral and hydroblade coasted, slowing.
+  // Spiral, hydroblade, spread eagle: held while the right thumb stays down (each at least a moment), or maxTime seconds.
+  // Since v3-look61 (Mark: "for all these the left thumb should still have control of steer and speed") the left thumb
+  // steers, pushes and eases off in them as in plain skating; before, the spiral and hydroblade coasted, slowing.
   held: { maxTime: 40 },
-  // Toe kick (v3-look61, Mark: "do right thumb down flick as toe kick in prep for jump"): she taps her free toe into the ice
-  // behind her. A jump within `window` seconds goes `lift` times higher, and skating backward it is a toe loop.
-  toe: { window: 2, lift: 1.18 },
   // Choreography combinations (v3-look61, Mark: "no longer announce choreo. rather, do delayed scoring. when choreo is
   // registered treated like combo, within a duration various choreo moves are scored as artistic only with the move combo
   // list ... if jump is activated within the duration, it gets added as artistic"): a dance's gestures, positions and
@@ -100,6 +88,30 @@ export const CFG = {
     // gestures, sharp ones, a slow spin, a fast spin, travelling for travelTime seconds) adds `kind` to a share that
     // starts at `base`, so all five give the full value and one alone gives 0.6 of it.
     score: { still: 0.35, travel: 0.35, spin: 0.3, travelSpeed: 4, travelTime: 1, base: 0.5, kind: 0.1 },
+    // How the thumbs are read while she dances (v3-look62, moves/dance.js). reach: how far (px) the right thumb drifts
+    // from its resting place to mean fully high, low or to one side (the resting place follows it at `recentre`, 1/s);
+    // speed: the thumb speed (px/s) that counts as fully rising, falling or sweeping; ease: how quickly those readings
+    // follow the thumbs (1/s). Choosing the next pose: wLevel, wOpen, wSide weigh how well a pose's shape matches the
+    // thumbs; chance: how much luck is added; repeat: how much one of the last `memory` poses is marked down. moveOn:
+    // how far the thumbs must have moved on from the pose she is in for her to leave it early, once it is `settle` of
+    // the way taken up. spring: how briskly joints follow (a pose is all but taken up in its own time at 5.5). live:
+    // how much her body follows the thumbs directly, on top of the pose.
+    express: {
+      reach: 110,
+      recentre: 0.06,
+      speed: 600,
+      ease: 5,
+      wLevel: 1.8,
+      wOpen: 0.5,
+      wSide: 0.7,
+      chance: 0.55,
+      repeat: 1.4,
+      memory: 5,
+      moveOn: 1.25,
+      settle: 0.7,
+      spring: 5.5,
+      live: 1,
+    },
     // Hip hop (v3-look48): both thumbs moving (faster than moveSpeed), each frame scored by how much in step they are (1:
     // the same way, or mirrored like a pair of arms; about 0.4 at random), smoothed at syncRate (1/s). Above inStep the
     // elegant gestures, below outOfStep hip hop, held while both have moved within `linger` seconds. Steps on the beat at
@@ -167,7 +179,6 @@ export const CFG = {
     eagle: [1.6, 2],
     hydro: [2.0, 2],
     dance: [3.6, 6], // per active second (dance.score)
-    biellmann: [2.2, 2],
     turn: 0.3,
     leap: 0.6,
     stop: 0.8, // stop: from full speed; less from slower
