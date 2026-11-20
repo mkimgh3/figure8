@@ -99,20 +99,24 @@ export const CFG = {
     // or to one side: arms (radians both arms rise or fall), bow (radians she bows when it is low), tip (radians she tips
     // sideways), sink (metres her hips drop when it is low). v3-look63: stronger and by the thumb's place, not only its
     // motion (Mark could not tell v3-look62's engine was there): moveOn 1.25 to 0.7, settle 0.7 to 0.45, chance 0.55 to
-    // 0.35, ease 5 to 7.
+    // 0.35, ease 5 to 7. v3-look65 (smooth, no sudden moves): trend, how quickly "where the thumbs have been lately"
+    // follows them (1/s), which is what poses are chosen by; minPose, the least seconds between pose changes; ease 7 to
+    // 4.5, arms 0.8 to 0.6, moveOn 0.7 to 0.9, settle 0.45 to 0.85.
     express: {
       reach: 110,
       recentre: 0.06,
       speed: 600,
-      ease: 7,
+      ease: 4.5,
+      trend: 1.1,
+      minPose: 1.5,
       wLevel: 1.8,
       wOpen: 0.5,
       wSide: 0.7,
       chance: 0.35,
       repeat: 1.4,
       memory: 5,
-      moveOn: 0.7,
-      settle: 0.45,
+      moveOn: 0.9,
+      settle: 0.85,
       spring: 5.5,
       live: 1,
       // turning gently she takes one of the open spin positions (camel, layback, attitude) this share of the time, and
@@ -121,7 +125,7 @@ export const CFG = {
       // how quickly her turning one way is taken up for reading a spin (1/s): slow enough that a thumb sweeping to and
       // fro does not count as circling
       spinEase: 1.8,
-      arms: 0.8,
+      arms: 0.6,
       bow: 0.22,
       tip: 0.24,
       sink: 0.09,

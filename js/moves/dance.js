@@ -262,6 +262,9 @@ export function createDance(S, api) {
       // what the thumbs are saying (v3-look62, CFG.dance.express), each -1..1 and eased: level, side, open (see the top
       // of the file); rise, sway: the right thumb's own motion up and across; lrise: the left thumb's, up
       fx: { level: 0, side: 0, open: 0, rise: 0, sway: 0, lrise: 0 },
+      // the same, where the thumbs have been lately (eased over a second or so): what the next pose is chosen by, so a
+      // thumb looping round does not ask for a new pose every half loop (v3-look65)
+      sl: { level: 0, side: 0, open: 0 },
     };
   const X = K.express,
     // the right thumb's resting place on the glass (it follows the thumb slowly), and the thumbs' usual distance apart
@@ -269,8 +272,13 @@ export function createDance(S, api) {
     // each joint's speed (the springs), the pose now being taken as the thumbs are measured, and the last few chosen
     vel = {},
     want = { level: 0, open: 0, side: 0 },
+    // where each joint is being led: it follows the pose a moment behind, and the joint's spring follows it, so a new
+    // pose is begun gently instead of with a kick (v3-look65)
+    lead = {},
     lately = { calm: [], sharp: [] };
   for (const k of KEYS) vel[k] = 0;
+  // seconds since the pose last changed
+  let since = 0;
   const named = (n) => {
     if (n && !st.parts.includes(n)) st.parts.push(n);
   };
@@ -349,7 +357,10 @@ export function createDance(S, api) {
       return hipStep();
     }
     routine = -1;
-    snap = !inSpin && st.poses > 0 && (sharp || Math.random() < st.mood);
+    // v3-look65 (Mark: "i keep seeing choppy movement i think it's hip hop it is not looking good remove it and focus on
+    // elegant smooth transition from one move to another no sudden jumps"): only the elegant set now. No hip hop, and
+    // none of the sharp street poses that hit in a tenth of a second; quick thumbs make her flow faster, not snap.
+    snap = false;
     const set = inSpin ? (st.spin > 1 ? SPIN_FAST : SPIN_SLOW) : snap ? SHARP : CALM;
     spinSet = st.spin;
     dirSet = st.dir >= 0 ? 1 : -1;
@@ -366,7 +377,7 @@ export function createDance(S, api) {
       const key = snap ? 'sharp' : 'calm',
         D = DESC[key],
         was = lately[key],
-        f = st.fx;
+        f = st.sl;
       let best = -Infinity;
       for (let k = 0; k < set.length; k++) {
         const d = D[k],
@@ -410,24 +421,22 @@ export function createDance(S, api) {
       name = 'Stick flourish';
     }
     named(name);
-    // she keeps turning as she dances: each pose faces a little further round, and now and then she turns right about
-    facing += turning
-      ? 0
-      : st.poses === 0
-        ? to.yaw * 0.4
-        : to.yaw + (Math.random() < (snap ? 0.15 : 0.25) ? (Math.random() < 0.5 ? -Math.PI : Math.PI) : 0);
+    // she keeps turning as she dances: each pose faces a little further round (v3-look65: no more sudden about-turns)
+    facing += turning ? 0 : st.poses === 0 ? to.yaw * 0.4 : to.yaw;
     to.yaw = facing;
     u = 0;
+    since = 0;
     st.poses++;
     if (inSpin) {
-      dur = 0.55 + Math.random() * 0.25;
+      dur = 0.8 + Math.random() * 0.3;
       hold = 1.2 + Math.random() * 1.4;
     } else if (snap) {
       dur = 0.12 + Math.random() * 0.08;
       hold = (0.2 + Math.random() * 0.3) * (1.4 - 0.6 * st.mood);
     } else {
-      dur = (1.1 + Math.random() * 0.9) * (1.25 - 0.6 * st.mood);
-      hold = 0.25 + Math.random() * 0.8;
+      // (v3-look65) a pose is taken over 1.1 to 2.4 seconds, a little quicker when the thumbs are quick
+      dur = (1.3 + Math.random() * 0.9) * (1.1 - 0.25 * st.mood);
+      hold = 0.3 + Math.random() * 0.8;
     }
   }
   return {
@@ -480,6 +489,10 @@ export function createDance(S, api) {
         f.level += (clamp((-(ex.ry - home.y) / X.reach) * 0.8 + rise * 0.6, -1, 1) - f.level) * k;
         f.side += (clamp(((ex.rx - home.x) / X.reach) * 0.8 + sway * 0.5, -1, 1) - f.side) * k;
         f.open += ((ex.left ? clamp((gap - home.gap) / X.reach, -1, 1) : 0) - f.open) * k;
+        const ks = 1 - Math.exp(-X.trend * dt);
+        st.sl.level += (f.level - st.sl.level) * ks;
+        st.sl.side += (f.side - st.sl.side) * ks;
+        st.sl.open += (f.open - st.sl.open) * ks;
       }
       const both = sa > K.moveSpeed && sb > K.moveSpeed;
       if (both) {
@@ -488,7 +501,7 @@ export function createDance(S, api) {
       } else st.bothT += dt;
       const want = st.bothT < H.linger ? (st.sync > H.inStep ? 1 : st.sync < H.outOfStep ? -1 : st.tog) : 0;
       st.tog += (want - st.tog) * (1 - Math.exp(-2.5 * dt));
-      st.hip = st.hip ? st.tog < -0.15 : st.tog < -0.6;
+      st.hip = false;
       st.mood += (clamp((sb - K.calmPx) / (K.sharpPx - K.calmPx), 0, 1) - st.mood) * (1 - Math.exp(-1.6 * dt));
     },
     // the right thumb circling turns her, as far as it circles; she follows it on a short rubber band
@@ -578,31 +591,33 @@ export function createDance(S, api) {
         next(); // into a spin, out of one, or from the open shape to the tight one
       else if (begun && st.held && st.spin === 0 && st.hip !== hipSet)
         next(); // into hip hop, or out of it into the elegant gestures, at once
-      else if (begun && st.held && !inSpin && !snap && st.mood > 0.6)
-        next(true); // the thumbs have turned sharp: she breaks off the slow gesture at once
       else if (
         begun &&
         st.held &&
         !inSpin &&
-        !hipSet &&
         u >= X.settle &&
-        Math.abs(want.level - st.fx.level) + Math.abs(want.side - st.fx.side) + 0.5 * Math.abs(want.open - st.fx.open) >
+        since >= X.minPose &&
+        Math.abs(want.level - st.sl.level) + Math.abs(want.side - st.sl.side) + 0.5 * Math.abs(want.open - st.sl.open) >
           X.moveOn
       )
-        next(); // the thumbs have moved on from this pose: so does she, without waiting for it to be held
+        next(); // the thumbs have moved on from this pose (where they have been lately, not this instant): so does she
       else if (u < 1) u = Math.min(1, u + dt / dur);
       else if (begun && (hold -= dt) <= 0 && st.held) next();
+      since += dt;
       // every joint on a spring toward its pose (v3-look62; until then each pose was eased in over its own time from a
       // standstill): it settles in about the pose's time, slowly for calm ones and at once for sharp ones, and keeps
       // its momentum when the pose changes, so one movement runs into the next. Solved exactly, so a slow frame
       // cannot make it overshoot.
       {
         const w = X.spring / dur,
-          e = Math.exp(-w * dt);
+          e = Math.exp(-w * dt),
+          kl = 1 - Math.exp(-2 * w * dt);
         for (const k of KEYS) {
-          const d = cur[k] - to[k],
+          if (lead[k] === undefined) lead[k] = cur[k];
+          lead[k] += (to[k] - lead[k]) * kl;
+          const d = cur[k] - lead[k],
             tmp = (vel[k] + w * d) * dt;
-          cur[k] = to[k] + (d + tmp) * e;
+          cur[k] = lead[k] + (d + tmp) * e;
           vel[k] = (vel[k] - w * tmp) * e;
         }
       }
@@ -661,7 +676,7 @@ export function createDance(S, api) {
       // on top of the pose: a slow sway when calm, a bounce on the beat when sharp
       for (const k of KEYS) if (k !== 'dy' && k !== 'yaw') out[k] = cur[k];
       const hw = st.hipW;
-      out.bodyY = kit.HIP + cur.dy - 0.04 * st.mood * Math.abs(Math.sin(beat)) * (1 - hw);
+      out.bodyY = kit.HIP + cur.dy;
       out.roll = cur.roll + 0.07 * (1 - st.mood) * Math.sin(st.t * 1.1) * (1 - hw);
       // hip hop's groove: down on every beat, the hips swaying one way on one beat and the other way on the next
       if (hw > 0.01) {

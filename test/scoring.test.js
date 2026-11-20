@@ -4,7 +4,7 @@ import { createScoring, jumpBase } from '../js/scoring.js';
 import { createSkater } from '../js/sim/skater.js';
 import { createTurn, createLeap, createStop } from '../js/moves/quick.js';
 import { createSpiral } from '../js/moves/held.js';
-import { createDance } from '../js/moves/dance.js';
+import { createDance, POSES } from '../js/moves/dance.js';
 import { CFG } from '../js/config.js';
 let failed = 0;
 const ok = (name, cond, info) => {
@@ -242,13 +242,14 @@ function thumbs(kind) {
   const rnd = thumbs('random'),
     same = thumbs('same'),
     mir = thumbs('mirror');
-  ok('thumbs moving at random: hip hop', rnd.hip, rnd.sync);
-  ok('thumbs moving the same way: no hip hop', !same.hip && same.sync > 0.9, same.sync);
-  ok('thumbs mirrored like a pair of arms: no hip hop', !mir.hip && mir.sync > 0.9, mir.sync);
-  ok('hip hop leaves her steering to the left thumb in full (v3-look61)', rnd.d.steer === 1 && same.d.steer === 1);
+  // v3-look65: no hip hop any more, however the thumbs move (Mark: "it is not looking good remove it")
+  ok('thumbs moving at random: no hip hop', !rnd.hip, rnd.sync);
+  ok('thumbs moving the same way: in step', !same.hip && same.sync > 0.9, same.sync);
+  ok('thumbs mirrored like a pair of arms: in step', !mir.hip && mir.sync > 0.9, mir.sync);
+  ok('she steers in full throughout', rnd.d.steer === 1 && same.d.steer === 1);
   rnd.r.game.endMove();
   const e = rnd.r.out[0];
-  ok('and is named in the element', e && /hip hop/.test(e.detail), e && e.detail);
+  ok('and no hip hop is named in the element', e && !/hip hop/.test(e.detail), e && e.detail);
 }
 
 // ---- the thumbs shape the dance (v3-look62)
@@ -296,7 +297,15 @@ function thumbs(kind) {
     lo.parts.length,
   ]);
   ok('never the same sequence twice', hi.parts.join() !== again.parts.join());
-  ok('and no joint ever jumps: every movement runs into the next', Math.max(hi.jump, lo.jump) < 0.2, [
+  const ELEGANT = new Set(
+    POSES.NAMES.calm.concat(POSES.NAMES.slow, POSES.NAMES.fast, ['Stick flourish', 'Stick spin']),
+  );
+  ok(
+    'only elegant moves: no hip hop routines and no sharp street poses (v3-look65)',
+    hi.parts.concat(lo.parts, again.parts).every((n) => ELEGANT.has(n)),
+    hi.parts.concat(lo.parts).filter((n) => !ELEGANT.has(n)),
+  );
+  ok('and no joint ever jumps: every movement runs into the next', Math.max(hi.jump, lo.jump) < 0.08, [
     +hi.jump.toFixed(3),
     +lo.jump.toFixed(3),
   ]);
@@ -329,7 +338,7 @@ function thumbs(kind) {
   // the thumb's turning speed (rad/s): sweeping arcs to and fro, quick steady circles, slow steady loops
   const scribble = run((t) => 7 * Math.cos(t * 2.6)),
     circles = run(() => 12),
-    loops = run(() => 5.5);
+    loops = run(() => 4.7);
   ok('a thumb sweeping to and fro is not a fast spin', scribble.fast < 0.05, +scribble.fast.toFixed(2));
   ok('quick steady circles are', circles.fast > 0.8, +circles.fast.toFixed(2));
   const gestures = loops.parts.filter((p) => !/spin/i.test(p)).length;

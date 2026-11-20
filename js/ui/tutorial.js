@@ -134,7 +134,7 @@ const MOVES = [
       ['Skate along with your left thumb', moving],
       ['Hold your right finger down, or drag it about', moveIs('dance')],
       [
-        'Let it wander. Drift it up and she rises and reaches; down and she sinks low. Slow is calm, quick is sharp',
+        'Let it wander. Drift it up and she rises and reaches; down and she sinks low. Loop it and she turns',
         amount('dance', (st) => st.t, 4),
         moveIs('dance'),
       ],
