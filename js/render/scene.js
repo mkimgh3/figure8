@@ -279,6 +279,10 @@ export function createScene(canvas) {
     camGy = 0,
     // her speed, smoothed more slowly, for the upright view's distance (so a push or a landing does not make it pump)
     pullSp = 0,
+    // how fast she is turning (rad/s: her path curving, a spin, turning as she dances), eased, and the turn she faced
+    // last frame; the view comes in closer the faster it is (C.turn)
+    swirl = 0,
+    lastYaw = null,
     dark = false,
     lookAhead = 1,
     // the view's swing round (radians), before zooming out takes it away
@@ -421,6 +425,16 @@ export function createScene(canvas) {
     if (Math.abs(S.gy - camGy) > 8) camGy = S.gy;
     else camGy += (S.gy - camGy) * (1 - Math.exp(-3 * dt));
     pullSp += (sp - pullSp) * (1 - Math.exp(-C.portraitEase * dt));
+    // v3-look66 (Mark: "make camera zoom in when doing tight turns and spirals and spins ... the faster the direction
+    // change zoom in a bit. more gradual direction change and zoom out"): how fast she is turning, on the ice (in the
+    // air it holds what it had, so a jump does not pump the view). It comes in quickly and goes back out slowly.
+    {
+      const yaw = game.yaw(),
+        w = lastYaw === null || dt <= 0 ? 0 : Math.abs(wrapA(yaw - lastYaw)) / dt;
+      lastYaw = yaw;
+      if (S.grounded && dt > 0)
+        swirl += (Math.min(w, 12) - swirl) * (1 - Math.exp(-(w > swirl ? C.turn.in : C.turn.out) * dt));
+    }
     const fast = clamp((camSp - 5) / 8, 0, 1),
       CV = CFG.canyon.view,
       fov = uCanyon.value
@@ -444,7 +458,9 @@ export function createScene(canvas) {
           : C.landscape;
     showK += ((showOn ? 1 : 0) - showK) * (1 - Math.exp(-4 * dt));
     const tilt = (C.tilt + tiltK + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
-      dist = (DIST + camSp * C.speedLift) * distK * portrait;
+      turnT = clamp((swirl - C.turn.from) / (C.turn.full - C.turn.from), 0, 1),
+      dist =
+        (DIST + camSp * C.speedLift) * distK * portrait * (1 - (1 - C.turn.zoom) * turnT * turnT * (3 - 2 * turnT));
     const closeH = dist * Math.cos(tilt),
       back = dist * Math.sin(tilt);
     view.zMax = Math.max(1.5, far.h / closeH);

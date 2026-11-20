@@ -237,6 +237,12 @@ export const CFG = {
     portraitFrom: 1.5,
     portraitSpan: 10,
     portraitEase: 1.4,
+    // The view also comes in closer the faster she turns (v3-look66, Mark: "it was camera zoom was just speed based so
+    // when i would skate around 30km/h and do intricate moves i couldnt see the detail. try combining camera zoom by
+    // speed with rate of direction change"): from `from` rad/s of turning (her path curving, a spin, turning in a dance)
+    // the distance shrinks, to `zoom` times at `full` rad/s; it follows the turning at `in` (1/s) coming closer and
+    // `out` going back, so it comes in promptly and eases out. Not in the Tunnel (its own chase view) or the overview.
+    turn: { from: 0.45, full: 2.4, zoom: 0.55, in: 1.4, out: 0.45 },
     // The front page (v3-look40): the view comes round low in front of her, `elev` degrees above level, as close as fits
     // her from `low` to `high` metres (her blades to her hands overhead) into the space between the status bar and the
     // choices, and `half` metres either side of her (the coat flying open). `ease` (1/s): how quickly the framing follows
