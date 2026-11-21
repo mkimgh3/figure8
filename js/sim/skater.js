@@ -320,7 +320,9 @@ export function createSkater(emit) {
       if (m && m.update(dt, steer) === false) endMove();
       sp = speed();
       if (mag > 0.1 && steerK > 0) {
-        const tv = (C.maxSpeed + S.bonus) * Math.pow(mag, 1.3); // gentle near the centre for fine work
+        // gentle near the centre for fine work; speedK: the place's top speed (v3-look78: doubled among the planets)
+        const top = C.maxSpeed * (S.speedK || 1),
+          tv = (top + S.bonus) * Math.pow(mag, 1.3);
         // push off from rest
         if (sp < 0.4) {
           S.vx += (ix / mag) * C.accel * dt;
@@ -344,7 +346,7 @@ export function createSkater(emit) {
                 C.accel *
                   (m && m.accel !== undefined ? m.accel : 1) *
                   (S.boostT > 0 ? CFG.fall.boostAccel : 1) *
-                  (1 - (0.55 * sp) / C.maxSpeed) *
+                  (1 - (0.55 * sp) / top) *
                   (Math.abs(da) > 1.6 ? 0.3 : 1) *
                   dt,
             );

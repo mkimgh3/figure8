@@ -1197,7 +1197,7 @@ const { open } = require('./smoke.cjs');
       g.solar.update(5, S, 0, 0);
       const m1 = g.solar.planets.find((q) => q.name === 'Mercury');
       const sat = g.solar.planets.find((q) => q.name === 'Saturn'),
-        satAU = Math.hypot(sat.x - sun.x, sat.z - sun.z) / 36;
+        satAU = Math.hypot(sat.x - sun.x, sat.z - sun.z) / g.solar.AU;
       // into the sun: pushed back out of it
       const hit = g.solar.hit(sun.x, sun.z + 0.5);
       // found by coming near
@@ -1209,11 +1209,30 @@ const { open } = require('./smoke.cjs');
       g.solar.update(0, S, 0, 0);
       S.x = keep[0];
       S.z = keep[1];
+      // across Mars's orbit: its orbit discovered, and announced
+      const told = [];
+      g.solar.onFind = (n, orbit) => told.push(n + (orbit ? ' orbit' : ''));
+      let lo = 5000,
+        hi = 15000;
+      for (let k = 0; k < 40; k++) {
+        const m = (lo + hi) / 2;
+        if (g.solar.sideOf('Mars', sun.x, sun.z + m) < 0) lo = m;
+        else hi = m;
+      }
+      S.x = sun.x;
+      S.z = sun.z + lo - 4;
+      g.solar.update(0, S, 0, 0);
+      S.z = sun.z + lo + 4;
+      g.solar.update(0, S, 0, 0);
+      const orbits = g.solar.orbits;
+      S.x = keep[0];
+      S.z = keep[1];
       // zoomed out: only the found ones show
       g.solar.update(0, S, 1, 0);
       const shown = g.solar.planets.filter((q) => q.visible).map((q) => q.name);
       g.solar.update(0, S, 0, 0);
-      const sheet = g.world.paper;
+      const sheet = g.world.paper,
+        speedK = S.speedK;
       g.setLook(1);
       const off = !g.solar.on;
       g.setPlace(0);
@@ -1227,6 +1246,10 @@ const { open } = require('./smoke.cjs');
         shown,
         space: !!(sheet && sheet.space),
         off,
+        orbits,
+        told,
+        speedK,
+        after: S.speedK,
       };
     });
     ok(
@@ -1236,6 +1259,10 @@ const { open } = require('./smoke.cjs');
         sol.moved > 0.5 &&
         sol.satAU > 9 &&
         sol.satAU < 10.1 &&
+        sol.orbits.includes('Mars') &&
+        sol.told.includes('Mars orbit') &&
+        sol.speedK === 2 &&
+        sol.after === 1 &&
         sol.hit &&
         sol.found.join() === 'Mars' &&
         sol.shown.join() === 'Mars' &&

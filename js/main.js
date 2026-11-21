@@ -33,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look77';
+const BUILD = 'v3-look78';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -49,7 +49,7 @@ const hud = createHud(world.coarse),
   spray = createSpray(world.scene),
   icicles = createIcicles(world.scene),
   forest = createIslands(world.scene),
-  solar = createSolar(world.scene, world.renderer),
+  solar = createSolar(world.scene, world.renderer, world.camera),
   models = createModels(world.scene),
   stick = createStick(world.scene);
 // Each skater's realistic body (Microsoft Rocketbox avatars, MIT licence) loads in the background the first time that
@@ -559,8 +559,10 @@ const applyScene = () => {
   }
   world.setLook(look);
   world.setPaper(sheet);
-  // paper at dusk: the solar system, its sun a few metres ahead of her (v3-look77)
+  // paper at dusk: the solar system, its sun a few metres ahead of her (v3-look77), where her top speed is doubled
+  // (v3-look78: at her usual top speed the Earth is 8 min 19 s away, as it is for light)
   solar.set(!!(sheet && sheet.space), S.x, S.z);
+  S.speedK = sheet && sheet.space ? 2 : 1;
   world.setPlace(place);
   boardStill();
   forest.set(place.trees);
@@ -770,6 +772,7 @@ const persist = () => {
     gq: world.auto ? 'Auto' : world.qualityName,
     snd: audio.on ? 1 : 0,
     sol: solar.found,
+    solo: solar.orbits,
     va: world.angles.on ? 1 : 0,
     sc: scores[0].serialise(),
     sci: scores[1].serialise(),
@@ -913,9 +916,9 @@ hud.on('viewbtn', () => {
   dirty = true;
 });
 // the planets she has found on paper at dusk (v3-look77): saved, and each announced the first time she comes near it
-solar.restore(saved && saved.sol);
-solar.onFind = (name) => {
-  hud.say(name, 'discovered', 2.4);
+solar.restore(saved && saved.sol, saved && saved.solo);
+solar.onFind = (name, orbit) => {
+  hud.say(name + (orbit ? ' orbit' : '') + ' discovered!', null, 2.6);
   dirty = true;
 };
 // Sound: on or off
@@ -1120,7 +1123,7 @@ function frame(now) {
       else if (input.keys.KeyD || input.keys.ArrowRight) game.airRotate(-15 * dt);
     }
     const before = trace.count;
-    trace.speed = game.speed() / CFG.steer.maxSpeed;
+    trace.speed = Math.min(1, game.speed() / CFG.steer.maxSpeed);
     game.update(dt, steer);
     score.tick(dt);
     // a choreography combination that has closed: scored now, all artistry. Not announced (v3-look70, Mark: "remove
@@ -1270,7 +1273,7 @@ function frame(now) {
   if (draw) {
     world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
     forest.update(S.x, S.z);
-    solar.update(paused ? 0 : dt, S, world.view.e, now);
+    solar.update(paused ? 0 : dt, S, world.view.e, now, paused);
     trace.sharpen(world.view.e);
   }
   hud.update(dt, game.speed(), trace.colorAt(S.skated));

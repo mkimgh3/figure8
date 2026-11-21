@@ -212,9 +212,13 @@ export function createScene(canvas) {
     if (sheet) setPaper(sheet);
   }
   // ---- paper: a blank sheet in place of the lake (c: a CFG.paper entry), or null for the ice
-  let sheet = null;
+  let sheet = null,
+    angleList = null;
   function setPaper(c) {
     sheet = c;
+    // a sheet with its own changing angles (v3-look78: among the planets, one nearly straight down)
+    angleList = c && c.angles ? c.angles : null;
+    angI = 0;
     ice.mesh.visible = !c;
     // (v3-look77) the sheet at dusk is invisible: she skates over the sky, among the planets (solar.js)
     paper.mesh.visible = !!c && !c.space;
@@ -464,11 +468,12 @@ export function createScene(canvas) {
       const A = C.angles,
         live = anglesOn && !uCanyon.value && !showOn && zoomT < 0.01;
       if (live && S.grounded) angT += dt;
+      const list = angleList || A.list;
       if (angT >= A.hold) {
         angT = 0;
-        angI = (angI + 1) % A.list.length;
+        angI = (angI + 1) % list.length;
       }
-      const goal = live ? A.list[angI] : A.list[0],
+      const goal = live ? list[angI % list.length] : list[0],
         ka = 1 - Math.exp(-A.ease * dt);
       angTilt += (goal[0] - angTilt) * ka;
       angDist += (goal[1] - angDist) * ka;
@@ -480,10 +485,12 @@ export function createScene(canvas) {
           ? C.portraitNear + (C.portraitFar - C.portraitNear) * pullT * pullT * (3 - 2 * pullT)
           : C.landscape;
     showK += ((showOn ? 1 : 0) - showK) * (1 - Math.exp(-4 * dt));
+    // (never quite straight down: v3-look78's nearly top-down view among the planets stops at 2 degrees)
     const tilt =
-        Math.min(
-          C.angles.max,
+        clamp(
           C.tilt + tiltK + angTilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air,
+          2,
+          C.angles.max,
         ) * DEG,
       turnT = clamp((swirl - C.turn.from) / (C.turn.full - C.turn.from), 0, 1),
       dist =

@@ -556,6 +556,17 @@ export const CFG = {
       night: true,
       // v3-look77: the sheet is not drawn, and the solar system is out on it (render/solar.js)
       space: true,
+      // v3-look78 (Mark: "this landscape also has a near top down view as well as other camera views. the top down view
+      // is zoomed out slightly farther than normal"): its own changing angles (CFG.camera.angles): the usual view, nearly
+      // straight down and a little further back, low and close, the usual again, straight down, high and back
+      angles: [
+        [0, 1],
+        [-40, 1.45],
+        [13, 0.86],
+        [0, 1],
+        [-40, 1.45],
+        [-16, 1.12],
+      ],
     },
   },
   // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop. dust: how many
