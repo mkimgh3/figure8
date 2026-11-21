@@ -467,7 +467,18 @@ export function createSkater(emit) {
   };
   // every finished move that counts leaves her with some extra speed to spend, the more the move was worth
   // (less for a kind of move she has done in the last bonus.repeatWindow seconds: bonus.repeat times for each)
-  const MOVES = { twizzles: 1, twirl: 1, spiral: 1, eagle: 1, hydro: 1, dance: 1, turn: 1, leap: 1, stop: 1 };
+  const MOVES = {
+    twizzles: 1,
+    twirl: 1,
+    spiral: 1,
+    eagle: 1,
+    hydro: 1,
+    dance: 1,
+    turn: 1,
+    leap: 1,
+    changeleap: 1,
+    stop: 1,
+  };
   let moveHist = [];
   const emitMove = (type, data) => {
     if (type === 'element' && data && MOVES[data.kind] && data.counted !== false) {

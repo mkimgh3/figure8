@@ -31,13 +31,13 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
   const READS = {
     // v3-look76: left hydroblade, right spiral, up split leap, down toe kick
     up: 'Split leap',
+    changeleap: 'Change leap flip',
     down: 'Toe kick',
     left: 'Hydroblade',
     right: 'Spiral',
     spread: 'Spread eagle',
     stop: 'Hockey stop',
     'both-down-held': 'Hydroblade',
-    twirl: 'Twizzles',
     dance: 'Choreography',
     jump: 'Jump',
     none: 'no move',

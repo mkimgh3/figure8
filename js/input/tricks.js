@@ -4,7 +4,8 @@
 // swipe up becomes leap and swipe down becomes toe kick in prep for jump". Forward and backward swap by spinning past
 // half a turn in choreography and letting go, see CFG.dance.settle.)
 //   flick left         -> hydroblade; flick right -> spiral (each lasts a moment, and for as long as the finger stays down)
-//   flick up           -> split leap; a circle within afterLeapMs of it is twizzles
+//   flick up           -> split leap; in a spiral, or just after one, the change leap flip (v3-look80). Since
+//                         v3-look80 a circle after the leap is choreography like any other (no twizzles)
 //   flick down         -> toe kick: a jump soon after goes higher (CFG.toe)
 //   anything else      -> choreography (moves/dance.js) once the finger has been down holdMs with nothing else going on:
 //                         held still, or dragged further or slower than a flick. It lasts while the finger stays down; the
@@ -20,8 +21,7 @@
 import { CFG } from '../config.js';
 import { Stroke, Swipe, reversalsOf } from './recognizer.js';
 import { createSpiral, createEagle, createHydro } from '../moves/held.js';
-import { createTwirl } from '../moves/twirl.js';
-import { createToeKick, createLeap, createStop } from '../moves/quick.js';
+import { createToeKick, createLeap, createChangeLeap, createStop } from '../moves/quick.js';
 import { createDance } from '../moves/dance.js';
 
 export function createTricks(game, taps, log) {
@@ -42,8 +42,6 @@ export function createTricks(game, taps, log) {
   // for the log: what the stroke was read as, and whether it was a two-thumb gesture
   let outcome = '',
     two = false;
-  // a circle before this time is twizzles
-  let leapUntil = -1e9;
   // both thumbs swiped down: waiting to see whether one lifts (hockey stop) or both stay (hydroblade)
   let stopWait = null;
   // the left thumb while it is down (kept, stilled, until the right thumb lifts if it lifts first), and where it was
@@ -120,9 +118,15 @@ export function createTricks(game, taps, log) {
     if (r.dir === 'right') return start(createSpiral(S, game), 'right', together);
     if (r.dir === 'left') return start(createHydro(S, game, inward), 'left', together);
     if (r.dir === 'down') return start(createToeKick(S, game), 'down', false);
-    if (r.dir === 'up' && start(createLeap(S, game), 'up', together)) {
-      leapUntil = t + CFG.twirl.afterLeapMs;
-      return true;
+    if (r.dir === 'up') {
+      // in a spiral, or within changeLeap.after seconds of one ending (the thumb that held it lifted to flick)
+      const H = S.heldEnd,
+        spiral =
+          (S.move && S.move.id === 'spiral') ||
+          (!S.move && H && H.id === 'spiral' && S.clock - H.t < CFG.changeLeap.after);
+      return spiral
+        ? start(createChangeLeap(S, game), 'changeleap', together)
+        : start(createLeap(S, game), 'up', together);
     }
     return false;
   }
@@ -136,9 +140,7 @@ export function createTricks(game, taps, log) {
     if (t - stroke.t0 < CFG.dance.holdMs && !circling) return false;
     if (role === 'done') return true;
     if (role === 'air') return S.landT >= CFG.dance.afterLand;
-    if (role !== 'pending' || stopWait || swipe.pending()) return false;
-    // straight after a split leap a circle means twizzles, so only a finger kept still starts choreography then
-    return !(t < leapUntil && stroke.path >= CFG.swipe.restPx);
+    return role === 'pending' && !stopWait && !swipe.pending();
   }
   function dance() {
     const circled = role === 'pending' ? stroke.turn : 0;
@@ -230,16 +232,12 @@ export function createTricks(game, taps, log) {
       sync();
       // screen-clockwise is skater-clockwise
       if (role === 'air') return void game.airRotate(-d);
-      // twizzles and choreography: the finger's circling turns her
+      // choreography: the finger's circling turns her
       if (role === 'held' && own.rotate) own.rotate(-d);
       if (!reading()) return;
       if (swipe.t0 === null)
         leftAt = left && !leftLifted ? { x: left.x, y: left.y, turn: left.turn, path: left.path } : null;
       swipe.add(stroke.x - px, stroke.y - py, t);
-      // a circle straight after a split leap is twizzles; any other time it is part of choreography
-      if (role === 'pending' && t < leapUntil && Math.abs(stroke.turn) >= CFG.twirl.startTurn && S.grounded) {
-        if (start(createTwirl(S, game, -stroke.turn), 'twirl', false)) leapUntil = -1e9;
-      }
       // a circle starts choreography straight away, without waiting for the next frame
       if (role === 'pending' && mayDance(t)) dance();
     },

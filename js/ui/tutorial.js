@@ -82,13 +82,11 @@ const JUMPS = [
 
 const MOVES = [
   {
-    name: 'Twizzles',
+    name: 'Change leap flip',
     steps: [
       ['Skate along with your left thumb', moving],
-      ['Flick your right finger up for a split leap', element('leap')],
-      ['Straight after the leap, circle your right finger', moveIs('twirl')],
-      ['Keep circling: two turns', amount('twirl', (st) => Math.abs(st.goal) / TAU, 2), moveIs('twirl')],
-      ['Lift to finish', element('twizzles')],
+      ['Flick your right finger right for a spiral, and keep it down', moveIs('spiral')],
+      ['Lift and flick it up straight away', element('changeleap')],
     ],
   },
   {

@@ -173,7 +173,7 @@ const { open } = require('./smoke.cjs');
     ok('and the thumb shows what it was read as', tag === 'Split leap', tag);
   }
   seen = await play(R(circle(300, 560, 36, 2.2, 90)));
-  ok('a circle straight after a split leap is twizzles', seen.includes('twirl'), seen);
+  ok('a circle straight after a split leap is no longer twizzles (v3-look80)', !seen.includes('twirl'), seen);
   await calm();
   // v3-look76: no three-turn on a flick any more (spinning past half a turn and letting go swaps direction)
   seen = await play(R(line(380, 560, 300, 556, 6)));
@@ -774,7 +774,7 @@ const { open } = require('./smoke.cjs');
     logObj.strokes.length >= 5 &&
       logObj.strokes.some((x) => x.read === 'jump') &&
       logObj.strokes.some((x) => x.read === 'right') &&
-      logObj.strokes.some((x) => x.read === 'twirl') &&
+      logObj.strokes.some((x) => x.read === 'up') &&
       logObj.strokes.some((x) => x.two && x.left) &&
       logObj.strokes.some((x) => x.read === 'tap'),
     logObj.strokes.map((x) => x.read),
@@ -937,8 +937,8 @@ const { open } = require('./smoke.cjs');
     steps: [...document.getElementById('tlist').children].map((li) => [li.className, li.textContent]),
   }));
   ok(
-    'Spins & steps lists spins first, all five steps of Twizzles at once',
-    tu.name === 'Twizzles' && tu.steps.length === 5 && /left thumb/i.test(tu.steps[0][1]),
+    'Spins & steps lists spins first, all three steps of the Change leap flip at once',
+    tu.name === 'Change leap flip' && tu.steps.length === 3 && /left thumb/i.test(tu.steps[0][1]),
     tu,
   );
   await ev('pointerdown', 1, 100, 560);
@@ -1333,9 +1333,9 @@ const { open } = require('./smoke.cjs');
     ok(
       'View: the angle moves on to the next, and the menu holds each named view in turn',
       ang.on &&
-        ang.label === 'Changing' &&
-        ang2 === (ang.i0 + 1) % 4 &&
-        labels.join() === 'Axo:axo,Flat:flat,High:high,Top:top,Changing:axo',
+        ang.label === 'Auto' &&
+        ang2 === (ang.i0 + 1) % 6 &&
+        labels.join() === 'Axo:axo,Flat:flat,High:high,Top:top,Auto:axo',
       { ang, ang2, labels },
     );
     await p.evaluate(() => window.__game.setChar(0));
@@ -1509,7 +1509,7 @@ const { open } = require('./smoke.cjs');
       CFG.jump.gravity = grav;
       await wait(6000);
       r.after = +g.world.angles.airLift.toFixed(2);
-      g.world.angles.mode = 'changing';
+      g.world.angles.mode = 'auto';
       return r;
     });
     await p.setViewportSize({ width: 390, height: 844 });

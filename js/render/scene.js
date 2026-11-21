@@ -295,9 +295,9 @@ export function createScene(canvas) {
     swing = 0,
     air = 0,
     time = 0,
-    // the changing angle (C.angles): 'changing', or the name of the view held (Menu > View); which one, how long it has
+    // the changing angle (C.angles): 'auto' (they come round in turn), or the name of the view held (Menu > View); which one, how long it has
     // been held, and where the view is on its way to it
-    angMode = 'changing',
+    angMode = 'auto',
     angI = 0,
     angT = 0,
     angTilt = 0,
@@ -499,14 +499,14 @@ export function createScene(canvas) {
     {
       const A = C.angles,
         free = !uCanyon.value && !showOn && zoomT < 0.01,
-        live = angMode === 'changing' && free;
+        live = angMode === 'auto' && free;
       if (live && S.grounded) angT += dt;
       const list = angleList || A.list;
       if (angT >= A.hold) {
         angT = 0;
         angI = (angI + 1) % list.length;
       }
-      const goal = A.views[live ? list[angI % list.length] : free && angMode !== 'changing' ? angMode : list[0]],
+      const goal = A.views[live ? list[angI % list.length] : free && angMode !== 'auto' ? angMode : list[0]],
         ka = 1 - Math.exp(-A.ease * dt);
       angTilt += (goal[0] - angTilt) * ka;
       angDist += (goal[1] - angDist) * ka;
@@ -665,27 +665,25 @@ export function createScene(canvas) {
     sky,
     toggleZoom,
     update,
-    // Menu > View: mode, 'changing' or the name of a view to hold (C.angles.views); on: changing or not (off holds axo);
+    // Menu > View: mode, 'auto' or the name of a view to hold (C.angles.views); on: auto or not (off holds axo);
     // name: the view shown now; next(): move on to the next angle now (for tests and screenshots)
     angles: {
       get mode() {
         return angMode;
       },
       set mode(v) {
-        angMode = v === 'changing' || C.angles.views[v] ? v : 'changing';
+        angMode = C.angles.views[v] ? v : 'auto';
         angI = 0;
         angT = 0;
       },
       get on() {
-        return angMode === 'changing';
+        return angMode === 'auto';
       },
       set on(v) {
-        this.mode = v ? 'changing' : 'axo';
+        this.mode = v ? 'auto' : 'axo';
       },
       get name() {
-        return angMode === 'changing'
-          ? (angleList || C.angles.list)[angI % (angleList || C.angles.list).length]
-          : angMode;
+        return angMode === 'auto' ? (angleList || C.angles.list)[angI % (angleList || C.angles.list).length] : angMode;
       },
       get index() {
         return angI;

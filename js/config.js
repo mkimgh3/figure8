@@ -53,7 +53,13 @@ export const CFG = {
   // and announced when the window closes, named by its moves (the first maxNames of them). Each dance adds what it is
   // worth (points.dance, CFG.dance.score); each jump in it jumpArt of its points (it is scored as a jump as well).
   choreo: { window: 4, jumpArt: 0.5, maxNames: 6 },
-  twirl: { startTurn: 3.1, afterLeapMs: 3000 }, // a circle is twizzles for afterLeapMs after a split leap; any other time it is part of choreography
+  // twizzles: no gesture since v3-look80 (Mark: "remove twizzle after leap"; a circle after the leap is choreography);
+  // the move is kept for its scoring
+  twirl: { startTurn: 3.1 },
+  // The change leap flip (v3-look80, Mark: "if leap activated while in spiral motion do a toe change leap flip"): the
+  // flick up in a spiral, or within `after` seconds of one ending, is this instead of the split leap. It takes `time`
+  // seconds; she leaves the ice at `up` of the way through and lands at `down`, `height` m up at the top.
+  changeLeap: { time: 1.05, up: 0.2, down: 0.84, height: 0.72, after: 0.8 },
   // Choreography: the right thumb down holdMs with nothing else going on (held still, or dragged further or slower than a
   // flick), or still down afterLand seconds after a jump lands, or after the move it started is over. It lasts while that
   // thumb stays down. Circling turns her, turnRatio of a turn for each finger circle, following the finger at `follow` (1/s)
@@ -276,6 +282,7 @@ export const CFG = {
     dance: [3.6, 6], // per active second (dance.score)
     turn: 0.3,
     leap: 0.6,
+    changeLeap: 1.4,
     stop: 0.8, // stop: from full speed; less from slower
     // a jump out of curves and figures (radians turned in the seconds before take-off) beats one from a straight run-up
     entry: [
@@ -340,10 +347,11 @@ export const CFG = {
     // v3-look79, the views by name (Mark: "lets call low camera view flat view, default view axo and top down view
     // top"): axo, the place's own; flat, low and close; high, high and back; top, nearly straight down and a little
     // further back (v3-look78, among the planets). Each [degrees more side-on, times the distance]. `list`: the order
-    // they come round in. Menu > View: Changing, or one of them held (save key `va`).
+    // they come round in (v3-look80, Mark: "top and high view for all for changing, call changing auto": top joins
+    // high everywhere). Menu > View: Auto, or one of them held (save key `va`).
     angles: {
       views: { axo: [0, 1], flat: [13, 0.86], high: [-16, 1.12], top: [-40, 1.45] },
-      list: ['axo', 'flat', 'axo', 'high'],
+      list: ['axo', 'flat', 'axo', 'high', 'axo', 'top'],
       hold: 22,
       ease: 0.45,
       max: 66,

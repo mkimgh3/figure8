@@ -30,6 +30,8 @@ function held(S, api, o) {
       // how: see endMove in skater.js. Scored by the time held, so one cut short is already worth less; a crash
       // out of it counts for nothing
       end(how) {
+        // which held move ended last, and when (v3-look80: a flick up just after a spiral is the change leap flip)
+        S.heldEnd = { id: o.id, t: S.clock };
         api.emit('element', {
           kind: o.id,
           name: o.name,

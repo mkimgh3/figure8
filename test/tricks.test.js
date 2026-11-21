@@ -433,13 +433,17 @@ for (const [label, leftPath] of [
     now: r.move,
   });
 }
-// --- twizzles and the split leap
+// --- the split leap (v3-look80: no twizzles after it) and the change leap flip out of a spiral
 {
   const r = rig();
   r.stroke(real('flickUp'));
-  r.wait(300);
+  r.wait(800);
   r.stroke(circle(300, 560, 40, 2, 60));
-  ok('a circle straight after a split leap -> twizzles', r.seen.has('twirl') && !r.seen.has('dance'), [...r.seen]);
+  ok(
+    'a circle straight after a split leap -> choreography, not twizzles',
+    !r.seen.has('twirl') && r.seen.has('dance'),
+    [...r.seen],
+  );
 }
 {
   const r = rig();
@@ -447,10 +451,28 @@ for (const [label, leftPath] of [
   r.wait(800);
   r.down([300, 560]);
   r.wait(CFG.dance.holdMs + 60);
+  ok('a finger held still after a split leap -> choreography', r.move === 'dance', r.move);
+}
+// a spiral held, the thumb lifted, then a flick up: straight away, or 0.3 s later; and much later just a split leap
+for (const [gap, want] of [
+  [40, 'changeleap'],
+  [300, 'changeleap'],
+  [2500, 'leap'],
+]) {
+  const r = rig(),
+    back = r.S.back;
+  r.stroke(real('flickRight'), null);
+  r.wait(1500);
+  r.up();
+  r.wait(gap);
+  r.stroke(real('flickUp'));
+  const read = r.logged[r.logged.length - 1].read;
+  r.wait(1500);
   ok(
-    'a finger held still after a split leap -> choreography, without waiting out afterLeapMs',
-    r.move === 'dance',
-    r.move,
+    `a flick up ${gap} ms after a held spiral -> ${want}` +
+      (want === 'changeleap' ? ', landing the other way round' : ''),
+    r.seen.has(want) && (want !== 'changeleap' || (r.S.back !== back && read === 'changeleap')),
+    { seen: [...r.seen], read, back: r.S.back },
   );
 }
 // --- two thumbs

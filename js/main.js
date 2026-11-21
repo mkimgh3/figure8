@@ -33,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look79';
+const BUILD = 'v3-look80';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -906,10 +906,11 @@ hud.on('uibtn', () => {
   setUi(uiIx + 1);
   dirty = true;
 });
-// View: the camera's angle changing now and then (v3-look72), or one view held: axo, flat, high or top (v3-look79,
-// named by Mark). Saved; before v3-look79 `va` was 1 (changing) or 0 (fixed, which was axo).
-const VIEWS = ['changing', 'axo', 'flat', 'high', 'top'];
-world.angles.mode = !saved || saved.va === undefined || saved.va === 1 ? 'changing' : saved.va === 0 ? 'axo' : saved.va;
+// View: Auto, the camera's angle moving on now and then (v3-look72; called Changing until v3-look80), or one view
+// held: axo, flat, high or top (v3-look79, named by Mark). Saved; before v3-look79 `va` was 1 (changing) or 0 (fixed,
+// which was axo); in v3-look79 'changing' was Auto. Anything not a view's name is Auto.
+const VIEWS = ['auto', 'axo', 'flat', 'high', 'top'];
+world.angles.mode = saved && saved.va === 0 ? 'axo' : saved && saved.va;
 const showView = () => hud.text('viewname', world.angles.mode.charAt(0).toUpperCase() + world.angles.mode.slice(1));
 showView();
 hud.on('viewbtn', () => {
