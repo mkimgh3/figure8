@@ -32,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look72';
+const BUILD = 'v3-look73';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -217,8 +217,8 @@ const MAX_HAIR = {
 // wide chest and shoulder narrow waist thick legs. beard is decorative non functional does not move". On the same
 // model: the trunk drawn in at the waist and let out across the ribs (taperTrunk in avatar.js; rows of [height in the
 // model's metres, across, front to back]), the collarbones moved out 5 cm each side, a deep chest, lats under the
-// arms, bigger arms and thick legs (MAX_BULK, MAX_BUMPS), no fur mantle (it hid all that; cut down to a collar it
-// stood out like a plate); and a sculpted beard that rides on his head (beard.js).
+// arms, bigger arms and thick legs (MAX_BULK, MAX_BUMPS); and a sculpted beard that rides on his head (beard.js).
+// v3-look72 took his fur mantle off; v3-look73 put it back (size 1.1) and brought the beard forward to lie over it.
 const MAX_SHAPE = {
   mid: -0.01,
   taper: [
@@ -243,11 +243,12 @@ const MAX_BEARD = {
   cell: 0.0056,
   melt: 0.022,
   shapes: [
-    // the beard below the chin, down onto the top of his chest, wide and flat
-    { a: [0, -0.1, 1.545], b: [0, -0.15, 1.405], r: [0.046, 0.016], flat: 1.5 },
+    // the beard below the chin, out over the fur on his chest (v3-look73: further forward, to lie on the mantle), wide
+    // and flat
+    { a: [0, -0.1, 1.545], b: [0, -0.215, 1.425], r: [0.046, 0.018], flat: 1.5 },
     // from each side of the jaw in to the point
-    { a: [0.068, -0.045, 1.58], b: [0.02, -0.14, 1.43], r: [0.026, 0.014], flat: 1.2 },
-    { a: [-0.068, -0.045, 1.58], b: [-0.02, -0.14, 1.43], r: [0.026, 0.014], flat: 1.2 },
+    { a: [0.068, -0.045, 1.58], b: [0.02, -0.2, 1.445], r: [0.026, 0.014], flat: 1.2 },
+    { a: [-0.068, -0.045, 1.58], b: [-0.02, -0.2, 1.445], r: [0.026, 0.014], flat: 1.2 },
     // the moustache, from under the nose out to the corners of the mouth and down
     { a: [0.006, -0.128, 1.603], b: [0.038, -0.118, 1.584], r: [0.009, 0.008] },
     { a: [-0.006, -0.128, 1.603], b: [-0.038, -0.118, 1.584], r: [0.009, 0.008] },
@@ -255,8 +256,8 @@ const MAX_BEARD = {
     { a: [-0.038, -0.118, 1.584], b: [-0.044, -0.112, 1.545], r: [0.008, 0.005] },
   ],
   braids: [
-    { a: [0.017, -0.152, 1.415], b: [0.024, -0.185, 1.3], r: 0.011, rings: [0.42, 0.78] },
-    { a: [-0.017, -0.152, 1.415], b: [-0.024, -0.185, 1.3], r: 0.011, rings: [0.42, 0.78] },
+    { a: [0.017, -0.222, 1.43], b: [0.026, -0.265, 1.315], r: 0.011, rings: [0.42, 0.78] },
+    { a: [-0.017, -0.222, 1.43], b: [-0.026, -0.265, 1.315], r: 0.011, rings: [0.42, 0.78] },
   ],
   colour: 0xc8884f,
   ring: 0xdfe3ea,
@@ -271,8 +272,9 @@ AV_OPTS[1] = {
   skirt: false,
   inflate: MAX_BULK,
   bumps: MAX_BUMPS,
-  // no fur mantle since v3-look72: it hid his shoulders and chest
-  mantle: false,
+  // his fur mantle (back in v3-look73, Mark: "bring back his viking fur clothing"): a little larger than before
+  // (1), to lie over his broader shoulders; at 1.2 it was a ring round him
+  mantle: { size: 1.1 },
   longHair: MAX_HAIR,
   // the base model's round face, drawn in a little at the cheeks and jaw (v3-look43)
   slimFace: 0.1,
