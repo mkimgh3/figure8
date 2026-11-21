@@ -11,6 +11,7 @@ import * as THREE from './three.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { HIP } from './model.js';
 import { createHair } from './hair.js';
+import { buildBeard } from './beard.js';
 import { starDot } from './atmos.js';
 import { createRibbon, clothTexture } from './ribbon.js';
 import { ICE_GLSL, ICE_UNIFORMS, iceMirror } from '../core/terrain.js';
@@ -1034,7 +1035,8 @@ function buildTiara(top, c, r) {
 // bulk up a body: push each vertex out along its normal by an amount (metres) set per bone and blended by
 // the skin weights, so muscle follows the limbs and the seams between body and head stay closed
 // bumps: round swellings (metres) centred near a joint, for muscles that sit around one, like boulder shoulders:
-// [{ bone, a: height, r: radius, out: push the centre out to the side, up: and up }]
+// [{ bone, a: height, r: radius, out: push the centre out to the side, up: and up }], or { at: [x, y, z] (the centre
+// in the model's own metres: x across, -y forward, z up), a, r } (v3-look72: Ivor's chest and back)
 function inflate(mesh, amounts, bumps) {
   const g = mesh.geometry,
     P = g.attributes.position,
@@ -1059,6 +1061,7 @@ function inflate(mesh, amounts, bumps) {
   };
   const bs = (bumps || [])
     .map((b) => {
+      if (b.at) return { c: new THREE.Vector3(...b.at), a: b.a, r2: b.r * b.r };
       const c = b.mid ? at(b.bone).lerp(at(b.mid), 0.5) : at(b.bone);
       if (!c) return null;
       c.x += Math.sign(c.x) * (b.out || 0);
@@ -1139,6 +1142,42 @@ function inflate(mesh, amounts, bumps) {
   N2.needsUpdate = true;
   g.computeBoundingBox();
   g.computeBoundingSphere();
+}
+
+// Reshape a body's trunk (v3-look72, Ivor: "make ivor torso more narrow and wider shoulder"): each vertex of the trunk
+// is drawn in toward the spine across (x) and front to back (y) by a share set by its height, blended by how much it
+// is skinned to the spine and pelvis, so the arms, legs and neck are left where they are and the seams stay closed.
+// o.taper: [[height (model metres), across, front to back], ...] (1 leaves it; between rows it is eased); o.mid: the
+// trunk's middle front to back.
+function taperTrunk(mesh, o) {
+  const g = mesh.geometry,
+    P = g.attributes.position,
+    I = g.attributes.skinIndex,
+    W = g.attributes.skinWeight;
+  if (!I || !W) return;
+  const trunk = mesh.skeleton.bones.map((b) => /(Spine|Pelvis)/.test(b.name.replace(/_/g, ' ')));
+  const T = o.taper,
+    at = (z, k) => {
+      if (z <= T[0][0]) return T[0][k];
+      for (let n = 1; n < T.length; n++)
+        if (z <= T[n][0]) {
+          const u = THREE.MathUtils.smoothstep(z, T[n - 1][0], T[n][0]);
+          return T[n - 1][k] + (T[n][k] - T[n - 1][k]) * u;
+        }
+      return T[T.length - 1][k];
+    };
+  for (let i = 0; i < P.count; i++) {
+    let w = 0;
+    for (let k = 0; k < 4; k++) if (trunk[I.getComponent(i, k)]) w += W.getComponent(i, k);
+    if (w <= 0) continue;
+    const z = P.getZ(i),
+      fx = 1 + (at(z, 1) - 1) * w,
+      fy = 1 + (at(z, 2) - 1) * w;
+    P.setX(i, P.getX(i) * fx);
+    P.setY(i, o.mid + (P.getY(i) - o.mid) * fy);
+  }
+  P.needsUpdate = true;
+  g.computeVertexNormals();
 }
 
 export function loadAvatar(models, ix, opts, U, onReady) {
@@ -1243,6 +1282,7 @@ export function loadAvatar(models, ix, opts, U, onReady) {
           }
           P.needsUpdate = true;
         }
+      if (opts.shape) taperTrunk(bodyMesh, opts.shape);
       if (opts.inflate)
         skinned.forEach((m) => {
           if (m.material === body) inflate(m, opts.inflate, opts.bumps);
@@ -1288,6 +1328,31 @@ export function loadAvatar(models, ix, opts, U, onReady) {
       zero.forEach((o) => o.rotation.set(0, 0, 0));
       proxy.body.position.y = HIP;
       proxy.hero.updateMatrixWorld(true);
+      // Broader shoulders (v3-look72, Ivor): each collarbone, and with it the arm, moved out from the spine by
+      // opts.shape.shoulders (model metres), so the arms hang further out and the shoulders' cap is stretched over them.
+      // Moving the bones, not the skin: the arm moves whole and bends as before.
+      if (opts.shape && opts.shape.shoulders) {
+        root.updateMatrixWorld(true);
+        const toMesh = bodyMesh.bindMatrix.clone().invert(),
+          meshAt = (b) =>
+            new THREE.Vector3()
+              .applyMatrix4(skeleton.boneInverses[skeleton.bones.indexOf(b)].clone().invert())
+              .applyMatrix4(toMesh),
+          la = bone('Bip01 L UpperArm'),
+          ra = bone('Bip01 R UpperArm'),
+          k =
+            la.getWorldPosition(new THREE.Vector3()).distanceTo(ra.getWorldPosition(new THREE.Vector3())) /
+            meshAt(la).distanceTo(meshAt(ra)),
+          spine = bone('Bip01 Spine2').getWorldPosition(new THREE.Vector3());
+        for (const sd of ['L', 'R']) {
+          const c = bone('Bip01 ' + sd + ' Clavicle'),
+            w = c.getWorldPosition(new THREE.Vector3()),
+            out = w.clone().sub(spine).setY(0).normalize();
+          w.addScaledVector(out, opts.shape.shoulders * k);
+          c.position.copy(c.parent.worldToLocal(w));
+          c.updateMatrixWorld(true);
+        }
+      }
 
       // skirt and blades are built in the model's own rest pose
       // at rest every bone carries the same transform from bind space to the world; undo it for the skirt's vertices
@@ -1378,6 +1443,18 @@ export function loadAvatar(models, ix, opts, U, onReady) {
         }
         return { top, c: lo.clone().add(hi).multiplyScalar(0.5), r: hi.clone().sub(lo).multiplyScalar(0.5) };
       };
+      // Ivor's beard (v3-look72): one sculpted piece in the head mesh's space, riding on the head bone
+      if (opts.beard) {
+        const hm = skinned.find((m) => m.material === head && m.geometry.attributes._hair);
+        if (hm) {
+          const bd = buildBeard(hm, opts.beard),
+            hb = bone('Bip01 Head');
+          bd.matrixAutoUpdate = false;
+          bd.matrix.multiplyMatrices(hm.skeleton.boneInverses[hm.skeleton.bones.indexOf(hb)], hm.bindMatrix);
+          hb.add(bd);
+          gear.push(bd);
+        }
+      }
       if (opts.tiara) {
         const h = headTop();
         if (h) {

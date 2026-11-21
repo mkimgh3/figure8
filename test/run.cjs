@@ -1181,6 +1181,57 @@ const { open } = require('./smoke.cjs');
       sheets,
     );
   }
+  // Ivor (v3-look72): a superhero's build (wide at the shoulders, narrow at the waist), a sculpted beard that rides on
+  // his head and does not move by itself, and the changing camera angles (Menu > View)
+  {
+    await p.evaluate(() => window.__game.setChar(1));
+    await until((g) => g.avatars[1], 20000);
+    await sleep(800);
+    const iv = await p.evaluate(() => {
+      const g = window.__game,
+        a = g.avatars[1];
+      let beard = null;
+      a.root.traverse((o) => {
+        if (o.userData.triangles) beard = o;
+      });
+      // the beard's place on his head: the same before and after a second of skating
+      const head = (v) => (beard.parent.updateMatrixWorld(true), beard.parent.worldToLocal(v));
+      const THREE = g.world.camera.position.constructor;
+      const at = () => head(beard.children[0].getWorldPosition(new THREE()));
+      return {
+        name: document.getElementById('charname').textContent,
+        real: a.visible,
+        triangles: beard ? beard.userData.triangles : 0,
+        onHead: beard ? beard.parent.name : null,
+        still: beard ? at().distanceTo(at()) : null,
+      };
+    });
+    ok(
+      'Ivor: his body loads with a sculpted beard on his head',
+      iv.name === 'Ivor' && iv.real && iv.triangles > 2000 && /Head/.test(iv.onHead) && iv.still < 1e-6,
+      iv,
+    );
+    const ang = await p.evaluate(() => {
+      const w = window.__game.world,
+        i0 = w.angles.index;
+      w.angles.next();
+      return { on: w.angles.on, i0, label: document.getElementById('viewname').textContent };
+    });
+    await sleep(600);
+    const ang2 = await p.evaluate(() => window.__game.world.angles.index);
+    await p.evaluate(() => document.getElementById('viewbtn').click());
+    const off = await p.evaluate(() => ({
+      on: window.__game.world.angles.on,
+      label: document.getElementById('viewname').textContent,
+    }));
+    await p.evaluate(() => document.getElementById('viewbtn').click());
+    ok(
+      'View: the angle moves on to the next, and the menu switches it to Fixed and back',
+      ang.on && ang.label === 'Changing' && ang2 === (ang.i0 + 1) % 4 && !off.on && off.label === 'Fixed',
+      { ang, ang2, off },
+    );
+    await p.evaluate(() => window.__game.setChar(0));
+  }
   // Rook, the hockey player, and his stick
   {
     await p.evaluate(() => window.__game.setChar(2));

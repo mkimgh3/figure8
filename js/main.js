@@ -32,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look71';
+const BUILD = 'v3-look72';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -176,22 +176,27 @@ const AV_OPTS = [
 ];
 // Ivor: tall, shirtless and muscular; the bulk is added along the normals, most on the chest, shoulders and arms
 const MAX_BULK = {
-  Spine2: 0.032,
-  Spine1: 0.016,
-  Spine: 0.002,
-  Clavicle: 0.03,
-  Neck: 0.034,
-  UpperArm: 0.024,
-  Forearm: 0.012,
-  Thigh: 0.014,
-  Calf: 0.009,
+  Spine2: 0.036,
+  Spine1: 0.004,
+  Spine: -0.008,
+  Clavicle: 0.036,
+  Neck: 0.036,
+  UpperArm: 0.034,
+  Forearm: 0.02,
+  Thigh: 0.034,
+  Calf: 0.022,
   RCheek: -0.004,
   LCheek: -0.004,
 };
 // boulder shoulders: a round swell over each shoulder joint, and the traps rising toward the neck
 const MAX_BUMPS = [
-  { bone: 'Bip01 L UpperArm', a: 0.042, r: 0.085, out: 0.02, up: 0.015 },
-  { bone: 'Bip01 R UpperArm', a: 0.042, r: 0.085, out: 0.02, up: 0.015 },
+  { bone: 'Bip01 L UpperArm', a: 0.052, r: 0.09, out: 0.02, up: 0.015 },
+  { bone: 'Bip01 R UpperArm', a: 0.052, r: 0.09, out: 0.02, up: 0.015 },
+  // v3-look72: his chest, and the lats that widen his back under the arms
+  { at: [0.075, -0.13, 1.32], a: 0.022, r: 0.065 },
+  { at: [-0.075, -0.13, 1.32], a: 0.022, r: 0.065 },
+  { at: [0.155, 0.03, 1.22], a: 0.02, r: 0.08 },
+  { at: [-0.155, 0.03, 1.22], a: 0.02, r: 0.08 },
   { bone: 'Bip01 L UpperArm', mid: 'Bip01 Neck', a: 0.022, r: 0.06, up: 0.03 },
   { bone: 'Bip01 R UpperArm', mid: 'Bip01 Neck', a: 0.022, r: 0.06, up: 0.03 },
 ];
@@ -208,15 +213,66 @@ const MAX_HAIR = {
   windy: 0.4,
   colours: [0xd29a62, 0xefc08a, 0xf8dcae],
 };
+// v3-look72, Mark: "make ivor torso more narrow and wider shoulder give him viking beard", then "superhero type body
+// wide chest and shoulder narrow waist thick legs. beard is decorative non functional does not move". On the same
+// model: the trunk drawn in at the waist and let out across the ribs (taperTrunk in avatar.js; rows of [height in the
+// model's metres, across, front to back]), the collarbones moved out 5 cm each side, a deep chest, lats under the
+// arms, bigger arms and thick legs (MAX_BULK, MAX_BUMPS), no fur mantle (it hid all that; cut down to a collar it
+// stood out like a plate); and a sculpted beard that rides on his head (beard.js).
+const MAX_SHAPE = {
+  mid: -0.01,
+  taper: [
+    [0.86, 1, 1],
+    [0.95, 0.94, 0.97],
+    [1.05, 0.8, 0.9],
+    [1.14, 0.82, 0.92],
+    [1.23, 0.98, 0.99],
+    [1.32, 1.12, 1.05],
+    [1.41, 1.06, 1.03],
+    [1.48, 1, 1],
+  ],
+  shoulders: 0.05,
+};
+// (heights and places in the head's own metres: x across, -y forward, z up)
+const MAX_BEARD = {
+  thick: [0.006, 0.02],
+  top: 1.7,
+  bottom: 1.55,
+  soft: 0.004,
+  // the mesh's grain: 5.6 mm, about 15,000 triangles (4.2 mm was 27,600 and looked the same from the play view)
+  cell: 0.0056,
+  melt: 0.022,
+  shapes: [
+    // the beard below the chin, down onto the top of his chest, wide and flat
+    { a: [0, -0.1, 1.545], b: [0, -0.15, 1.405], r: [0.046, 0.016], flat: 1.5 },
+    // from each side of the jaw in to the point
+    { a: [0.068, -0.045, 1.58], b: [0.02, -0.14, 1.43], r: [0.026, 0.014], flat: 1.2 },
+    { a: [-0.068, -0.045, 1.58], b: [-0.02, -0.14, 1.43], r: [0.026, 0.014], flat: 1.2 },
+    // the moustache, from under the nose out to the corners of the mouth and down
+    { a: [0.006, -0.128, 1.603], b: [0.038, -0.118, 1.584], r: [0.009, 0.008] },
+    { a: [-0.006, -0.128, 1.603], b: [-0.038, -0.118, 1.584], r: [0.009, 0.008] },
+    { a: [0.038, -0.118, 1.584], b: [0.044, -0.112, 1.545], r: [0.008, 0.005] },
+    { a: [-0.038, -0.118, 1.584], b: [-0.044, -0.112, 1.545], r: [0.008, 0.005] },
+  ],
+  braids: [
+    { a: [0.017, -0.152, 1.415], b: [0.024, -0.185, 1.3], r: 0.011, rings: [0.42, 0.78] },
+    { a: [-0.017, -0.152, 1.415], b: [-0.024, -0.185, 1.3], r: 0.011, rings: [0.42, 0.78] },
+  ],
+  colour: 0xc8884f,
+  ring: 0xdfe3ea,
+};
 AV_OPTS[1] = {
   url: 'assets/max_model.js',
+  shape: MAX_SHAPE,
+  beard: MAX_BEARD,
   // no hair texture: his dreadlocks replace the model's hair cards
   tex: Object.assign(texOf('max'), { hair: null }),
   height: 1.92,
   skirt: false,
   inflate: MAX_BULK,
   bumps: MAX_BUMPS,
-  mantle: true,
+  // no fur mantle since v3-look72: it hid his shoulders and chest
+  mantle: false,
   longHair: MAX_HAIR,
   // the base model's round face, drawn in a little at the cheeks and jaw (v3-look43)
   slimFace: 0.1,
@@ -706,6 +762,7 @@ const persist = () => {
     uv: 3,
     gq: world.auto ? 'Auto' : world.qualityName,
     snd: audio.on ? 1 : 0,
+    va: world.angles.on ? 1 : 0,
     sc: scores[0].serialise(),
     sci: scores[1].serialise(),
     sct: scores[2].serialise(),
@@ -836,6 +893,15 @@ const setUi = (i) => {
 setUi(uiIx);
 hud.on('uibtn', () => {
   setUi(uiIx + 1);
+  dirty = true;
+});
+// View: the camera's angle changing now and then, or fixed (v3-look72; saved)
+world.angles.on = !(saved && saved.va === 0);
+const showView = () => hud.text('viewname', world.angles.on ? 'Changing' : 'Fixed');
+showView();
+hud.on('viewbtn', () => {
+  world.angles.on = !world.angles.on;
+  showView();
   dirty = true;
 });
 // Sound: on or off

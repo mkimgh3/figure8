@@ -59,7 +59,7 @@ function limb(a, b, ra, rb) {
   return f;
 }
 // a smooth union: the two shapes melt into each other over about k metres
-const smin = (a, b, k) => {
+export const smin = (a, b, k) => {
   const h = Math.max(k - Math.abs(a - b), 0) / k;
   return Math.min(a, b) - h * h * k * 0.25;
 };
@@ -72,6 +72,12 @@ function surfaceNets(f, lo, n, cell) {
   for (let k = 0; k < nz; k++)
     for (let j = 0; j < ny; j++)
       for (let i = 0; i < nx; i++) vals[at(i, j, k)] = f(lo[0] + i * cell, lo[1] + j * cell, lo[2] + k * cell);
+  return netsOf(vals, lo, n, cell);
+}
+// the same from values already worked out on the grid (x fastest, then y, then z); also used for Ivor's beard
+export function netsOf(vals, lo, n, cell) {
+  const [nx, ny, nz] = n,
+    at = (i, j, k) => i + nx * (j + ny * k);
   const cx = nx - 1,
     cy = ny - 1,
     cz = nz - 1,

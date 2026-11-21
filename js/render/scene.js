@@ -288,7 +288,13 @@ export function createScene(canvas) {
     // the view's swing round (radians), before zooming out takes it away
     swing = 0,
     air = 0,
-    time = 0;
+    time = 0,
+    // the changing angle (C.angles): which one, how long it has been held, and where the view is on its way to it
+    anglesOn = true,
+    angI = 0,
+    angT = 0,
+    angTilt = 0,
+    angDist = 1;
   const DIST = Math.hypot(C.closeHeight, C.closeBack);
   // The front page: the view comes round low in front of her and frames her in the space left free by the status bar
   // and the choices (band: CSS pixels from the screen's top left). v3-look39 and before came in close from above and
@@ -450,6 +456,21 @@ export function createScene(canvas) {
     air += ((S.grounded && S.visY < 0.05 ? 0 : 1) - air) * (1 - Math.exp(-(S.grounded ? 2.5 : 6) * dt));
     distK += (distGoal - distK) * (1 - Math.exp(-2 * dt));
     tiltK += (tiltGoal - tiltK) * (1 - Math.exp(-2 * dt));
+    // the changing angle: on the ice it moves on every so often; in the Tunnel, on the front page, zoomed out or Fixed it
+    // eases back to the place's own view
+    {
+      const A = C.angles,
+        live = anglesOn && !uCanyon.value && !showOn && zoomT < 0.01;
+      if (live && S.grounded) angT += dt;
+      if (angT >= A.hold) {
+        angT = 0;
+        angI = (angI + 1) % A.list.length;
+      }
+      const goal = live ? A.list[angI] : A.list[0],
+        ka = 1 - Math.exp(-A.ease * dt);
+      angTilt += (goal[0] - angTilt) * ka;
+      angDist += (goal[1] - angDist) * ka;
+    }
     // upright: close when she is slow, further back the faster she goes, easing back in as she slows; sideways: closer
     const pullT = clamp((pullSp - C.portraitFrom) / C.portraitSpan, 0, 1),
       portrait =
@@ -457,10 +478,18 @@ export function createScene(canvas) {
           ? C.portraitNear + (C.portraitFar - C.portraitNear) * pullT * pullT * (3 - 2 * pullT)
           : C.landscape;
     showK += ((showOn ? 1 : 0) - showK) * (1 - Math.exp(-4 * dt));
-    const tilt = (C.tilt + tiltK + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air) * DEG,
+    const tilt =
+        Math.min(
+          C.angles.max,
+          C.tilt + tiltK + angTilt + C.tiltSpeed * clamp((camSp - 4) / 8, 0, 1) + C.tiltAir * air,
+        ) * DEG,
       turnT = clamp((swirl - C.turn.from) / (C.turn.full - C.turn.from), 0, 1),
       dist =
-        (DIST + camSp * C.speedLift) * distK * portrait * (1 - (1 - C.turn.zoom) * turnT * turnT * (3 - 2 * turnT));
+        (DIST + camSp * C.speedLift) *
+        distK *
+        angDist *
+        portrait *
+        (1 - (1 - C.turn.zoom) * turnT * turnT * (3 - 2 * turnT));
     const closeH = dist * Math.cos(tilt),
       back = dist * Math.sin(tilt);
     view.zMax = Math.max(1.5, far.h / closeH);
@@ -594,6 +623,23 @@ export function createScene(canvas) {
     sky,
     toggleZoom,
     update,
+    // Menu > View: the changing angles on or off; next(): move on to the next angle now (for tests and screenshots)
+    angles: {
+      get on() {
+        return anglesOn;
+      },
+      set on(v) {
+        anglesOn = !!v;
+        angI = 0;
+        angT = 0;
+      },
+      get index() {
+        return angI;
+      },
+      next() {
+        angT = C.angles.hold;
+      },
+    },
     snapTo,
     showcase,
     edgeColour,

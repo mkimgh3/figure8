@@ -280,6 +280,25 @@ export const CFG = {
     // gentler and slower. It was from 0.45, full 2.4, zoom 0.55, in 1.4, out 0.45.
     // v3-look69: zoom 0.82 (from a nearer view, it needs less).
     turn: { from: 0.6, full: 2.8, zoom: 0.82, in: 0.6, out: 0.3 },
+    // Changing angles (v3-look72, Mark: "incorporate additional camera angle, it could be procedural or just cycling
+    // through"): every `hold` seconds on the ice (not in the air, not on the front page, not zoomed out, not in the
+    // Tunnel) the view moves on to the next of `list`: [degrees more side-on, times the distance]. The place's own
+    // view, low and close (her moves seen from the side), the place's own again, then high and back (the drawing seen
+    // from above). Only the pitch and the distance change, never the way the view faces, so steering is as before and
+    // nothing swings round (he gets dizzy). It eases over about five seconds (`ease`, 1/s). `max`: the most side-on the
+    // view ever is (degrees from straight down), so even low, fast and in the air it never looks out at the horizon.
+    // Menu > View: Changing or Fixed (save key `va`).
+    angles: {
+      list: [
+        [0, 1],
+        [13, 0.86],
+        [0, 1],
+        [-16, 1.12],
+      ],
+      hold: 22,
+      ease: 0.45,
+      max: 66,
+    },
     // The front page (v3-look40): the view comes round low in front of her, `elev` degrees above level, as close as fits
     // her from `low` to `high` metres (her blades to her hands overhead) into the space between the status bar and the
     // choices, and `half` metres either side of her (the coat flying open). `ease` (1/s): how quickly the framing follows
@@ -386,10 +405,12 @@ export const CFG = {
   // waves: how high the ice rises and falls (CFG.waves; 0 or left out: flat). tilt: degrees more side-on the view is,
   // so the slopes show. Rolling ice (v3-look47) comes last so the places saved before it keep their numbers.
   // Tunnel (the Canyon until v3-look60): its view chases her along the run (CFG.canyon.view, since v3-look56).
+  // v3-look72 (Mark: "the rolling hill camera is very nice. implement on all views except for tunnel"): every place
+  // but the Tunnel has Rolling ice's tilt.
   places: [
-    { name: 'Open lake', trees: false },
-    { name: 'Islands', trees: true, camera: 1.35 },
-    { name: 'Paper', trees: false, paper: true },
+    { name: 'Open lake', trees: false, tilt: 18 },
+    { name: 'Islands', trees: true, camera: 1.35, tilt: 18 },
+    { name: 'Paper', trees: false, paper: true, tilt: 18 },
     { name: 'Rolling ice', trees: false, waves: 1, tilt: 18 },
     { name: 'Tunnel', trees: false, canyon: true },
   ],
