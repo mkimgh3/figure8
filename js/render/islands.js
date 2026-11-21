@@ -27,67 +27,11 @@ const hash = (i, j, k) => {
   return s - Math.floor(s);
 };
 
-// a fir: a short trunk and five overlapping tiers of branches with ragged tips, dark green, snow lying on the
-// upper side of each tier (v3-look74: thicker, most of each tier white and the top one capped, the green showing
-// underneath and at the tips)
-function firGeometry() {
-  const parts = [],
-    paint = (g, f) => {
-      const p = g.attributes.position,
-        c = [];
-      for (let i = 0; i < p.count; i++) {
-        const col = f(p.getX(i), p.getY(i), p.getZ(i), i);
-        c.push(col.r, col.g, col.b);
-      }
-      g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
-      return g;
-    };
-  const bark = new THREE.Color(0x4a3426),
-    green = new THREE.Color(0x1e4a33),
-    deep = new THREE.Color(0x143424),
-    snow = new THREE.Color(0xf6f9ff),
-    c = new THREE.Color();
-  const h = (k) => {
-    const x = Math.sin(k * 91.7) * 43758.5;
-    return x - Math.floor(x);
-  };
-  parts.push(paint(new THREE.CylinderGeometry(0.05, 0.08, 0.25, 6).translate(0, 0.125, 0), () => bark));
-  [
-    [0.12, 0.44, 0.3],
-    [0.27, 0.37, 0.28],
-    [0.42, 0.3, 0.26],
-    [0.57, 0.22, 0.24],
-    [0.72, 0.13, 0.28],
-  ].forEach(([y, r, ht], ti) => {
-    const g = new THREE.ConeGeometry(r, ht, 14, 2).translate(0, y + ht / 2, 0),
-      q = g.attributes.position;
-    // ragged, drooping tips
-    for (let i = 0; i < q.count; i++) {
-      const x = q.getX(i),
-        z = q.getZ(i),
-        a = Math.atan2(z, x),
-        k = 1 + 0.12 * Math.sin(a * 7 + ti * 1.7) * (0.6 + h(Math.round(a * 10) + ti * 31));
-      q.setX(i, x * k);
-      q.setZ(i, z * k);
-      if (q.getY(i) < y + 0.01) q.setY(i, q.getY(i) - 0.03 * h(i + ti * 7));
-    }
-    parts.push(
-      paint(g, (x, py, z, i) => {
-        const up = (py - y) / ht,
-          sn = Math.max(
-            THREE.MathUtils.smoothstep(up + 0.3 * (h(i * 3 + ti) - 0.5), 0.12, 0.42),
-            ti === 4 ? THREE.MathUtils.smoothstep(up, 0.05, 0.3) : 0,
-          );
-        return c.copy(up < 0.15 ? deep : green).lerp(snow, sn * 0.96);
-      }),
-    );
-  });
-  const g = mergeGeometries(parts.map((p) => p.toNonIndexed()));
-  g.computeVertexNormals();
-  return g; // unit height, base at 0
-}
-
-// The outside of the fir (unit height) at height y: the widest of the tiers there
+// A fir: a short trunk and five tiers of branches (v3-look75, Mark: "make the trees more rounder and dimensional"). Each
+// tier is turned on a lathe: from deep under the branches out to a drooping lip, then up over a full, rounded top to the
+// next tier, with ragged tips round the lip. Smooth shading, dark under each tier and snow lying thick on top (most of
+// each tier white, the top one capped), the green showing at the lip and underneath.
+// TIERS: [height of its lip, radius there, height to its top] (unit height, base at 0)
 const TIERS = [
   [0.12, 0.44, 0.3],
   [0.27, 0.37, 0.28],
@@ -95,153 +39,141 @@ const TIERS = [
   [0.57, 0.22, 0.24],
   [0.72, 0.13, 0.28],
 ];
-const outer = (y) => {
+// a tier's radius u of the way from its lip to its top: full and rounded, not a straight cone
+const tierR = (r, u) => r * Math.pow(Math.max(0, 1 - u), 0.72);
+// the ragged tips: how far out the branches reach at angle a round tier ti (1 on average), most at the lip
+const rag = (a, ti) => 1 + 0.09 * Math.sin(a * 7 + ti * 1.7) + 0.05 * Math.sin(a * 13 + ti * 3.1);
+// how much of the ragged reach a point this far out (a share of the tier's radius) takes
+const ragW = (f) => THREE.MathUtils.smoothstep(f, 0.7, 0.98);
+function firGeometry() {
+  const parts = [],
+    bark = new THREE.Color(0x4a3426),
+    green = new THREE.Color(0x1f4b34),
+    deep = new THREE.Color(0x0e2619),
+    snow = new THREE.Color(0xf6f9ff),
+    c = new THREE.Color(),
+    SEG = 14;
+  const trunk = new THREE.CylinderGeometry(0.05, 0.08, 0.25, 8).translate(0, 0.125, 0),
+    tc = [];
+  for (let i = 0; i < trunk.attributes.position.count; i++) tc.push(bark.r, bark.g, bark.b);
+  trunk.setAttribute('color', new THREE.Float32BufferAttribute(tc, 3));
+  parts.push(trunk);
+  TIERS.forEach(([y, r, ht], ti) => {
+    // the profile, from deep under the branches out to the lip and up over the top
+    const prof = [
+        [r * 0.4, y + 0.05, 'under'],
+        [r * 0.93, y - 0.014, 'under'],
+        [r, y + 0.006, 'lip'],
+        [tierR(r, 0.3), y + ht * 0.3, 0.3],
+        [tierR(r, 0.65), y + ht * 0.65, 0.65],
+        [0.002, y + ht, 1],
+      ],
+      g = new THREE.LatheGeometry(
+        prof.map(([x, py]) => new THREE.Vector2(x, py)),
+        SEG,
+      ),
+      q = g.attributes.position,
+      col = [],
+      P = prof.length;
+    for (let i = 0; i < q.count; i++) {
+      const k = i % P,
+        x = q.getX(i),
+        z = q.getZ(i),
+        a = Math.atan2(z, x),
+        w = ragW(Math.hypot(x, z) / r),
+        f = 1 + (rag(a, ti) - 1) * w;
+      q.setX(i, x * f);
+      q.setZ(i, z * f);
+      // the tips droop a little where they reach furthest
+      q.setY(i, q.getY(i) - 0.03 * w * Math.max(0, rag(a, ti) - 1) * 4);
+      const kind = prof[k][2],
+        noise = 0.15 * Math.sin(a * 5 + ti) + 0.1 * Math.sin(a * 11 + ti * 2);
+      if (kind === 'under') c.copy(deep);
+      else if (kind === 'lip') c.copy(green).lerp(snow, THREE.MathUtils.clamp(0.35 + noise * 2, 0, 0.7));
+      else {
+        const sn = Math.max(
+          THREE.MathUtils.smoothstep(kind + noise, 0.05, 0.4),
+          ti === TIERS.length - 1 ? THREE.MathUtils.smoothstep(kind, 0.02, 0.25) : 0,
+        );
+        c.copy(green).lerp(snow, sn * 0.96);
+      }
+      col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    parts.push(g);
+  });
+  // the lathe's own smooth normals are kept (worked out before the tips were made ragged, close enough)
+  return mergeGeometries(parts); // unit height, base at 0
+}
+
+// The outside of the fir at height y and angle a, where its lights hang: the widest of the tiers there
+const outer = (y, a) => {
   let r = 0;
-  for (const [y0, r0, ht] of TIERS) if (y >= y0 && y <= y0 + ht) r = Math.max(r, r0 * (1 - (y - y0) / ht));
-  return r * 1.06 + 0.012;
+  TIERS.forEach(([y0, r0, ht], ti) => {
+    if (y < y0 || y > y0 + ht) return;
+    const t = tierR(r0, (y - y0) / ht);
+    r = Math.max(r, t * (1 + (rag(a, ti) - 1) * ragW(t / r0)));
+  });
+  return r * 1.03 + 0.012;
 };
-// Christmas light themes. colours: the bulbs' colours; pick: which bulb takes which colour ('mix': at random, 'run':
-// in turn along the string, 'string': one colour for each string); hang: how they are hung ('spiral': round and up,
-// `turns` times, `strings` of them; 'swags': drooping round each tier; 'strands': straight down from the top, `strands`
-// of them; 'scatter': anywhere over the tree); n: bulbs on a tree of average size; mode: how they light up (0 steady, 1
-// twinkling, 2 chasing along the string, 3 slowly breathing, all together, 4 two colours taking turns, 5 a rainbow running
-// along the string, 6 falling, like drops of light running down); lit: the share of the trees lit; top: the colour of
-// a star on top (none if left out); size: the bulbs, times the usual.
+// Christmas light themes (v3-look75, Mark: "more lights multiple spiral going down"): every theme is hung as several
+// strings wound round the tree from the top down; the moving ones run down them. Each string's bulbs are close (about
+// 48 to a string), so it reads as a line. colours: the bulbs' colours; pick:
+// which bulb takes which colour ('mix': at random, 'run': in turn along the string, 'string': one colour for each
+// string); strings: how many; turns: how many times each goes round; dir: which way round (1 or -1); n: bulbs on a tree
+// of average size; mode: how they light up (0 steady, 1 twinkling, 2 chasing down the strings, 3 slowly breathing, all
+// together, 4 two colours taking turns, 5 a rainbow running down, 6 falling, like drops of light running down); lit:
+// the share of the trees lit; top: the colour of a star on top (none if left out); size: the bulbs, times the usual.
+// prettier-ignore
 export const LIGHTS = [
-  {
-    name: 'Classic',
-    colours: [0xff3a30, 0x2fd25a, 0x2f7bff, 0xffb020, 0xff4fd8],
-    pick: 'mix',
-    hang: 'spiral',
-    turns: 4.5,
-    n: 44,
-    mode: 0,
-    lit: 0.85,
-    top: 0xffd76a,
-  },
-  {
-    name: 'Warm white',
-    colours: [0xffb05a, 0xffc684],
-    pick: 'mix',
-    hang: 'swags',
-    n: 52,
-    mode: 1,
-    lit: 0.9,
-    top: 0xfff0d0,
-  },
-  {
-    name: 'Ice',
-    colours: [0x8fd0ff, 0xeaf6ff, 0x4f9dff],
-    pick: 'mix',
-    hang: 'strands',
-    strands: 9,
-    n: 54,
-    mode: 1,
-    lit: 0.8,
-  },
-  {
-    name: 'Red and gold',
-    colours: [0xff1414, 0xffb21c],
-    pick: 'run',
-    hang: 'spiral',
-    turns: 3.5,
-    n: 40,
-    mode: 4,
-    lit: 0.85,
-    top: 0xffc23d,
-  },
-  {
-    name: 'Candy cane',
-    colours: [0xff1c1c, 0xffffff],
-    pick: 'string',
-    hang: 'spiral',
-    turns: 2.5,
-    strings: 2,
-    n: 48,
-    mode: 2,
-    lit: 0.8,
-  },
-  { name: 'Violet', colours: [0xb45cff, 0xff6fd0, 0x7a62ff], pick: 'mix', hang: 'scatter', n: 46, mode: 3, lit: 0.85 },
-  {
-    name: 'Gold',
-    colours: [0xffa41c, 0xffc84e],
-    pick: 'mix',
-    hang: 'swags',
-    n: 48,
-    mode: 0,
-    lit: 0.9,
-    top: 0xfff2b0,
-    size: 1.1,
-  },
-  { name: 'Rainbow', colours: [0xffffff], pick: 'mix', hang: 'spiral', turns: 5, n: 50, mode: 5, lit: 0.75 },
-  {
-    name: 'Emerald and silver',
-    colours: [0x34ff8c, 0xe6f0ff],
-    pick: 'run',
-    hang: 'strands',
-    strands: 8,
-    n: 48,
-    mode: 6,
-    lit: 0.8,
-  },
-  {
-    name: 'Snowfall',
-    colours: [0xffffff, 0xcfe6ff],
-    pick: 'mix',
-    hang: 'strands',
-    strands: 11,
-    n: 60,
-    mode: 6,
-    lit: 0.85,
-    top: 0xffffff,
-  },
+  { name: 'Classic', colours: [0xff3a30, 0x2fd25a, 0x2f7bff, 0xffb020, 0xff4fd8], pick: 'mix', strings: 4, turns: 2, dir: 1, n: 190, mode: 0, lit: 0.85, top: 0xffd76a },
+  { name: 'Warm white', colours: [0xffb05a, 0xffc684], pick: 'mix', strings: 3, turns: 2.5, dir: -1, n: 180, mode: 1, lit: 0.9, top: 0xfff0d0 },
+  { name: 'Ice', colours: [0x8fd0ff, 0xeaf6ff, 0x4f9dff], pick: 'mix', strings: 5, turns: 1.5, dir: 1, n: 200, mode: 1, lit: 0.8 },
+  { name: 'Red and gold', colours: [0xff1414, 0xffb21c], pick: 'string', strings: 4, turns: 2, dir: -1, n: 190, mode: 4, lit: 0.85, top: 0xffc23d },
+  { name: 'Candy cane', colours: [0xff1c1c, 0xffffff], pick: 'string', strings: 4, turns: 2, dir: 1, n: 200, mode: 2, lit: 0.85 },
+  { name: 'Violet', colours: [0xb45cff, 0xff6fd0, 0x7a62ff], pick: 'mix', strings: 3, turns: 2.5, dir: -1, n: 180, mode: 3, lit: 0.85 },
+  { name: 'Gold', colours: [0xffa41c, 0xffc84e], pick: 'mix', strings: 3, turns: 2.5, dir: 1, n: 180, mode: 0, lit: 0.9, top: 0xfff2b0, size: 1.1 },
+  { name: 'Rainbow', colours: [0xffffff], pick: 'mix', strings: 3, turns: 2, dir: -1, n: 180, mode: 5, lit: 0.8 },
+  { name: 'Emerald and silver', colours: [0x34ff8c, 0xe6f0ff], pick: 'string', strings: 4, turns: 1.75, dir: 1, n: 190, mode: 6, lit: 0.85 },
+  { name: 'Snowfall', colours: [0xffffff, 0xcfe6ff], pick: 'mix', strings: 5, turns: 1.25, dir: -1, n: 200, mode: 6, lit: 0.85, top: 0xffffff },
 ];
-// the bulbs of one tree, in its own space (unit height): [x, y, z, along the string 0..1, colour index]
+// the bulbs of one tree, in its own space (unit height): [x, y, z, how far down its string 0..1, colour index]. Each
+// string starts at the top and winds down to the lowest tier; its bulbs are evenly spaced along it (so they do not
+// crowd at the top where it is short), the strings evenly spread round
 function hangLights(T, rnd) {
   const out = [],
-    n = T.n,
-    put = (a, y, along, ci, r = outer(y)) => out.push(Math.cos(a) * r, y, Math.sin(a) * r, along, ci);
-  if (T.hang === 'spiral') {
-    const S = T.strings || 1,
-      per = Math.round(n / S),
-      ph = rnd() * 6.28;
-    for (let s = 0; s < S; s++)
-      for (let k = 0; k < per; k++) {
-        const t = (k + 0.5) / per,
-          y = 0.13 + t * 0.82;
-        put(ph + (s / S) * 6.28 + t * T.turns * 6.28, y, t, T.pick === 'string' ? s : T.pick === 'run' ? k : -1);
-      }
-  } else if (T.hang === 'swags') {
-    // each tier's lower edge, in five drooping loops round it
-    const total = TIERS.reduce((a, t) => a + t[1], 0);
-    let done = 0;
-    TIERS.forEach(([y0, r0], ti) => {
-      const m = Math.max(5, Math.round((n * r0) / total)),
-        ph = rnd() * 6.28;
-      for (let k = 0; k < m; k++) {
-        const u = k / m,
-          loop = (u * 5) % 1,
-          y = y0 + 0.07 - 0.05 * Math.sin(loop * Math.PI);
-        put(ph + u * 6.28, y, (ti + u) / TIERS.length, T.pick === 'run' ? done + k : -1);
-      }
-      done += m;
-    });
-  } else if (T.hang === 'strands') {
-    const S = T.strands,
-      per = Math.max(3, Math.round(n / S)),
-      ph = rnd() * 6.28;
-    for (let s = 0; s < S; s++)
-      for (let k = 0; k < per; k++) {
-        const t = k / (per - 1),
-          y = 0.97 - t * 0.82;
-        put(ph + (s / S) * 6.28 + t * 0.35, y, t, T.pick === 'run' ? k : -1);
-      }
-  } else {
-    for (let k = 0; k < n; k++) {
-      const y = 0.13 + (1 - Math.sqrt(rnd())) * 0.84;
-      put(rnd() * 6.28, y, rnd(), -1);
+    S = T.strings,
+    per = Math.max(4, Math.round(T.n / S)),
+    ph = rnd() * 6.28,
+    N = 160,
+    path = [],
+    len = [0];
+  for (let q = 0; q <= N; q++) {
+    const t = q / N,
+      y = 0.96 - t * 0.83,
+      a = T.dir * t * T.turns * 6.28;
+    path.push([a, y]);
+    if (q) {
+      const [a0, y0] = path[q - 1],
+        r0 = outer(y0, a0 + ph),
+        r1 = outer(y, a + ph);
+      len.push(
+        len[q - 1] + Math.hypot(r1 * Math.cos(a) - r0 * Math.cos(a0), r1 * Math.sin(a) - r0 * Math.sin(a0), y - y0),
+      );
     }
   }
+  const L = len[N];
+  for (let s = 0; s < S; s++)
+    for (let k = 0; k < per; k++) {
+      const d = ((k + 0.5) / per) * L;
+      let q = 1;
+      while (q < N && len[q] < d) q++;
+      const f = (d - len[q - 1]) / Math.max(1e-6, len[q] - len[q - 1]),
+        a = path[q - 1][0] + (path[q][0] - path[q - 1][0]) * f + ph + (s / S) * 6.28,
+        y = path[q - 1][1] + (path[q][1] - path[q - 1][1]) * f,
+        r = outer(y, a);
+      out.push(Math.cos(a) * r, y, Math.sin(a) * r, d / L, T.pick === 'string' ? s : T.pick === 'run' ? k : -1);
+    }
   return out;
 }
 // A bulb is drawn twice: its glass, solid in its own colour (so a red bulb stays red over pale snow), and at night a
@@ -274,7 +206,7 @@ const BULB_TIME = { value: 0 },
   BULB_NIGHT = { value: 0 };
 function bulbMaterial(dot, mode, halo) {
   const m = new THREE.PointsMaterial({
-    size: halo ? 1.5 : 0.3,
+    size: halo ? 1.15 : 0.26,
     sizeAttenuation: true,
     vertexColors: true,
     alphaMap: dot,
