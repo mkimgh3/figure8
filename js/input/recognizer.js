@@ -99,6 +99,62 @@ export class Stroke {
 }
 
 // Remembers the last quick tap so the next touch can be read as the second half of a double tap.
+// Where a finger turns back on itself (v3-look79): the to-and-fro of a thumb shaking to fast music. A reversal is the
+// finger moving faster than minPx px/s the opposite way (cosine below cos) from where it was lately heading: its
+// direction eased over `lag` seconds, and only while it moves, so a slow turnaround or a pause keeps the old heading.
+// At most one every `gap` seconds. A loop turns its heading steadily and does not count; a loop so tight and quick that
+// its ends are turnarounds does (the dance tells those apart by their pace and by the spin).
+export class Reversals {
+  constructor(cfg) {
+    this.c = cfg;
+    this.dx = 0;
+    this.dy = 0;
+    this.t = null;
+    this.last = -9;
+  }
+  // vx, vy: the finger's velocity (px/s); t: seconds. True when it has just turned back.
+  feed(vx, vy, t) {
+    const c = this.c,
+      dt = this.t === null ? 0 : Math.min(0.1, Math.max(0, t - this.t)),
+      sp = Math.hypot(vx, vy);
+    this.t = t;
+    if (sp < c.minPx) return false;
+    const ux = vx / sp,
+      uy = vy / sp;
+    if ((this.dx || this.dy) && ux * this.dx + uy * this.dy < c.cos && t - this.last >= c.gap) {
+      this.last = t;
+      this.dx = ux;
+      this.dy = uy;
+      return true;
+    }
+    const k = this.dx || this.dy ? 1 - Math.exp(-dt / c.lag) : 1,
+      nx = this.dx + (ux - this.dx) * k,
+      ny = this.dy + (uy - this.dy) * k,
+      n = Math.hypot(nx, ny) || 1;
+    this.dx = nx / n;
+    this.dy = ny / n;
+    return false;
+  }
+}
+// The reversals in a recorded stroke (points: [dx, dy, ms], as Stroke keeps them), as ms from its start: its velocity
+// worked out as Stroke does it (eased over 60 ms)
+export function reversalsOf(points, cfg) {
+  const r = new Reversals(cfg),
+    out = [];
+  let vx = 0,
+    vy = 0;
+  for (let i = 1; i < points.length; i++) {
+    const [x0, y0, t0] = points[i - 1],
+      [x, y, t] = points[i],
+      dtv = Math.max(1, t - t0),
+      kv = 1 - Math.exp(-dtv / 60);
+    vx += (((x - x0) / dtv) * 1000 - vx) * kv;
+    vy += (((y - y0) / dtv) * 1000 - vy) * kv;
+    if (r.feed(vx, vy, t / 1000)) out.push(t);
+  }
+  return out;
+}
+
 export class TapTracker {
   constructor(cfg) {
     this.cfg = cfg;

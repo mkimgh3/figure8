@@ -1321,16 +1321,22 @@ const { open } = require('./smoke.cjs');
     });
     await sleep(600);
     const ang2 = await p.evaluate(() => window.__game.world.angles.index);
-    await p.evaluate(() => document.getElementById('viewbtn').click());
-    const off = await p.evaluate(() => ({
-      on: window.__game.world.angles.on,
-      label: document.getElementById('viewname').textContent,
-    }));
-    await p.evaluate(() => document.getElementById('viewbtn').click());
+    // the menu goes round Changing, Axo, Flat, High, Top (v3-look79) and back
+    const labels = await p.evaluate(() => {
+      const out = [];
+      for (let i = 0; i < 5; i++) {
+        document.getElementById('viewbtn').click();
+        out.push(document.getElementById('viewname').textContent + ':' + window.__game.world.angles.name);
+      }
+      return out;
+    });
     ok(
-      'View: the angle moves on to the next, and the menu switches it to Fixed and back',
-      ang.on && ang.label === 'Changing' && ang2 === (ang.i0 + 1) % 4 && !off.on && off.label === 'Fixed',
-      { ang, ang2, off },
+      'View: the angle moves on to the next, and the menu holds each named view in turn',
+      ang.on &&
+        ang.label === 'Changing' &&
+        ang2 === (ang.i0 + 1) % 4 &&
+        labels.join() === 'Axo:axo,Flat:flat,High:high,Top:top,Changing:axo',
+      { ang, ang2, labels },
     );
     await p.evaluate(() => window.__game.setChar(0));
   }
@@ -1462,6 +1468,55 @@ const { open } = require('./smoke.cjs');
       'portrait: the view pulls back at speed and comes back in as she slows',
       fast > slow * 1.4 && back < fast * 0.8,
       { slow: +slow.toFixed(1), fast: +fast.toFixed(1), back: +back.toFixed(1) },
+    );
+  }
+  // v3-look79 (Mark: in the flat view held sideways "the skater jump is too close to top and overlap with score and the
+  // indicator ring goes beyond screen"): a big jump there, held at its top; the view rises so that the top of her and of
+  // the ring stays below the score, and settles back after she lands
+  {
+    await p.setViewportSize({ width: 844, height: 390 });
+    await p.evaluate(() => {
+      const g = window.__game;
+      g.setPlace(0);
+      g.world.angles.mode = 'flat';
+    });
+    await sleep(6000);
+    const fit = await p.evaluate(async () => {
+      const g = window.__game,
+        S = g.S,
+        CFG = g.CFG,
+        grav = CFG.jump.gravity,
+        cam = g.world.camera;
+      S.vx = 0;
+      S.vz = -6.5;
+      S.bonus = 3;
+      S.toeUntil = S.clock + 2;
+      g.game.jump();
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 400 && S.vy > 0; i++) await wait(10);
+      CFG.jump.gravity = 0;
+      S.vy = 0;
+      await wait(3500);
+      const top = cam.position
+          .clone()
+          .set(S.x, S.gy + S.y + CFG.camera.airFit.clear - 0.2, S.z)
+          .project(cam),
+        r = {
+          y: +S.y.toFixed(2),
+          lift: +g.world.angles.airLift.toFixed(2),
+          topPx: Math.round(((1 - top.y) / 2) * 390),
+        };
+      CFG.jump.gravity = grav;
+      await wait(6000);
+      r.after = +g.world.angles.airLift.toFixed(2);
+      g.world.angles.mode = 'changing';
+      return r;
+    });
+    await p.setViewportSize({ width: 390, height: 844 });
+    ok(
+      'sideways, flat view: a big jump stays below the score, and the view settles back after the landing',
+      fit.lift > 0.3 && fit.topPx > 60 && fit.after < fit.lift * 0.7,
+      fit,
     );
   }
   ok('no errors during the run', errs.length === 0, errs);

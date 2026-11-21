@@ -17,6 +17,10 @@ export const CFG = {
   // inside flickMs. It is read once the thumb has been still idleMs, or lifts. Anything slower or longer is a drag.
   // A twitch shorter than restPx followed by stillness counts as resting, not as a stroke.
   swipe: { flickPx: 50, flickMs: 300, restPx: 20, reversalPx: 22, idleMs: 110 },
+  // A thumb turning back on itself (v3-look79, recognizer.js Reversals): moving faster than minPx (px/s) the opposite way
+  // (cosine below cos) from where it was lately heading (eased over `lag` seconds, only while it moves); at most one
+  // every `gap` seconds. The to-and-fro of a thumb shaking to fast music; the log keeps their times for the music tests.
+  reversal: { minPx: 260, lag: 0.08, cos: -0.2, gap: 0.09 },
   // Two-thumb gestures, read when the right thumb's swipe is read, from how the left thumb moved over the same time.
   // Together: the left thumb went the same way (cosine above parallelCos) and at least sameMinPx, and at least sameShare
   // of the right thumb's distance. Apart (spread eagle): opposite ways, each spreadEachPx or more, the gap growing by spreadPx.
@@ -148,8 +152,10 @@ export const CFG = {
       // dance.js); a step nobody jabs for is taken by itself in about `unfold` seconds.
       quick: 0.5,
       accent: {
-        calmPx: 300,
-        livelyPx: 650,
+        // v3-look79: 280 to 950 (was 300 to 650). In Mark's 21 Nov log his thumb ran at about 400 px/s to Circle of
+        // Life and 800 to Never Too Much, so the old range read both songs' dancing much the same, the fast one maxed out
+        calmPx: 280,
+        livelyPx: 950,
         rise: 2.5,
         fall: 1.2,
         hitPx: 380,
@@ -176,6 +182,38 @@ export const CFG = {
     // `steer` of the usual while she dances it (v3-look61: 1, all of it; at 0.35 steering in choreography felt stiff, since
     // a left thumb steering while the right one dances reads as out of step). accel (v3-look61: 1, was 0.8): how hard the
     // left thumb pushes her while she dances.
+    // The groove (v3-look79). Mark, with a log of dancing to Never Too Much: "pay attention to any intentional discord
+    // movement of chaotic moves, these are moves where i am dancing to fast pace music". To fast music his thumb shakes
+    // to and fro, two to three times a second, often in short bursts. Each turn back (CFG.reversal) is half a step: her
+    // feet step and her body sways and bounces in time with the thumb, whatever its rhythm (early, late, uneven), and
+    // waits when it pauses. Reversals between minH and maxH seconds apart count; `full` of them within `window` seconds
+    // (or four of the thumb's own half-steps, if longer) bring the whole groove, rising at `rise` and settling at `fall`
+    // (1/s); not in a spin. A step is one reversal when they come slower than `one` s apart, two below that, four below
+    // `four`. `follow` (1/s): how closely her rhythm keeps up with the thumb's. Her legs go `stance` of the way to a soft
+    // two-footed stance (the arms keep the dance's shapes and phrases); on each step she sinks `dip` m (knees `knee`),
+    // sways `sway` rad toward the foot she is on, lifts the other heel (`lift`, rad of knee), swings her arms `swing` rad
+    // and bends her elbows `elbow`; at the thumb's own quick rate her shoulders shimmy (`shimmy`). Pose changes and
+    // accents wait for the next step, so they land on her beat. A new dance within `carry` s takes up the last one's groove.
+    groove: {
+      minH: 0.12,
+      maxH: 0.9,
+      window: 1.2,
+      full: 4,
+      rise: 3,
+      fall: 1.5,
+      one: 0.35,
+      four: 0.15,
+      follow: 22,
+      stance: 0.75,
+      dip: 0.035,
+      knee: 0.11,
+      sway: 0.06,
+      lift: 0.45,
+      swing: 0.22,
+      elbow: 0.25,
+      shimmy: 0.05,
+      carry: 1,
+    },
     hiphop: { bpm: 96, syncRate: 2, inStep: 0.75, outOfStep: 0.6, linger: 0.6, dip: 0.05, sway: 0.07, steer: 1 },
   },
   // the speed tuck (render/poses.js), from `from` m/s (50 km/h), fully at `full` (61 km/h): reached in the Canyon
@@ -299,18 +337,23 @@ export const CFG = {
     // from above). Only the pitch and the distance change, never the way the view faces, so steering is as before and
     // nothing swings round (he gets dizzy). It eases over about five seconds (`ease`, 1/s). `max`: the most side-on the
     // view ever is (degrees from straight down), so even low, fast and in the air it never looks out at the horizon.
-    // Menu > View: Changing or Fixed (save key `va`).
+    // v3-look79, the views by name (Mark: "lets call low camera view flat view, default view axo and top down view
+    // top"): axo, the place's own; flat, low and close; high, high and back; top, nearly straight down and a little
+    // further back (v3-look78, among the planets). Each [degrees more side-on, times the distance]. `list`: the order
+    // they come round in. Menu > View: Changing, or one of them held (save key `va`).
     angles: {
-      list: [
-        [0, 1],
-        [13, 0.86],
-        [0, 1],
-        [-16, 1.12],
-      ],
+      views: { axo: [0, 1], flat: [13, 0.86], high: [-16, 1.12], top: [-40, 1.45] },
+      list: ['axo', 'flat', 'axo', 'high'],
       hold: 22,
       ease: 0.45,
       max: 66,
     },
+    // v3-look79 (Mark: "during flat view in phone landscape mode sometimes the skater jump is too close to top and
+    // overlap with score and the indicator ring goes beyond screen. might have to look a little higher"): in a jump the
+    // view rises just enough to keep the top of her (`clear` metres over her blades: her hands, the jump's ring) `top`
+    // CSS pixels below the screen's top edge [upright, sideways], judged at the top of the jump, so it rises once, as
+    // she takes off (`rise`, 1/s), and settles back after the landing (`fall`); never more than `max` metres.
+    airFit: { clear: 2.2, top: [130, 84], rise: 4, fall: 1.4, max: 8 },
     // The front page (v3-look40): the view comes round low in front of her, `elev` degrees above level, as close as fits
     // her from `low` to `high` metres (her blades to her hands overhead) into the space between the status bar and the
     // choices, and `half` metres either side of her (the coat flying open). `ease` (1/s): how quickly the framing follows
@@ -559,14 +602,7 @@ export const CFG = {
       // v3-look78 (Mark: "this landscape also has a near top down view as well as other camera views. the top down view
       // is zoomed out slightly farther than normal"): its own changing angles (CFG.camera.angles): the usual view, nearly
       // straight down and a little further back, low and close, the usual again, straight down, high and back
-      angles: [
-        [0, 1],
-        [-40, 1.45],
-        [13, 0.86],
-        [0, 1],
-        [-40, 1.45],
-        [-16, 1.12],
-      ],
+      angles: ['axo', 'top', 'flat', 'axo', 'top', 'high'],
     },
   },
   // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop. dust: how many

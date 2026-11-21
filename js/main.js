@@ -33,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look78';
+const BUILD = 'v3-look79';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -773,7 +773,7 @@ const persist = () => {
     snd: audio.on ? 1 : 0,
     sol: solar.found,
     solo: solar.orbits,
-    va: world.angles.on ? 1 : 0,
+    va: world.angles.mode,
     sc: scores[0].serialise(),
     sci: scores[1].serialise(),
     sct: scores[2].serialise(),
@@ -906,12 +906,14 @@ hud.on('uibtn', () => {
   setUi(uiIx + 1);
   dirty = true;
 });
-// View: the camera's angle changing now and then, or fixed (v3-look72; saved)
-world.angles.on = !(saved && saved.va === 0);
-const showView = () => hud.text('viewname', world.angles.on ? 'Changing' : 'Fixed');
+// View: the camera's angle changing now and then (v3-look72), or one view held: axo, flat, high or top (v3-look79,
+// named by Mark). Saved; before v3-look79 `va` was 1 (changing) or 0 (fixed, which was axo).
+const VIEWS = ['changing', 'axo', 'flat', 'high', 'top'];
+world.angles.mode = !saved || saved.va === undefined || saved.va === 1 ? 'changing' : saved.va === 0 ? 'axo' : saved.va;
+const showView = () => hud.text('viewname', world.angles.mode.charAt(0).toUpperCase() + world.angles.mode.slice(1));
 showView();
 hud.on('viewbtn', () => {
-  world.angles.on = !world.angles.on;
+  world.angles.mode = VIEWS[(VIEWS.indexOf(world.angles.mode) + 1) % VIEWS.length];
   showView();
   dirty = true;
 });

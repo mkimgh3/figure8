@@ -1,6 +1,7 @@
 // Playtest log: what each touch was read as, how each jump went, and how smoothly the game ran.
 // It stays on the device until the player copies it (Menu > Copy log) and pastes it to Claude.
 import { CFG } from './config.js';
+import { reversalsOf } from './input/recognizer.js';
 const KEY = 'icedoodle2-log';
 
 export function createLog(build) {
@@ -46,7 +47,8 @@ export function createLog(build) {
       data.resumed = (data.resumed || 0) + 1;
     }
   } catch (e) {}
-  const at = () => +((performance.now() - t0) / 1000).toFixed(1);
+  // (v3-look79) to the hundredth of a second, to line touches up with a song's beat (it was to the tenth)
+  const at = () => +((performance.now() - t0) / 1000).toFixed(2);
   let acc = 0,
     frames = 0,
     worst = 0,
@@ -70,6 +72,9 @@ export function createLog(build) {
         Object.assign(
           { t: at(), role, read: outcome, x0: Math.round(s.x0), y0: Math.round(s.y0), pts: pts.flat() },
           s.summary(),
+          // (v3-look79) where the thumb turned back on itself, as ms from its touch, found at full detail before the
+          // points above were thinned: the rhythm of a thumb shaking to music
+          { rev: reversalsOf(s.points, CFG.reversal) },
           extra || {},
         ),
       );

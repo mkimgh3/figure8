@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import { createSkater } from '../js/sim/skater.js';
 import { createTricks } from '../js/input/tricks.js';
-import { TapTracker } from '../js/input/recognizer.js';
+import { TapTracker, reversalsOf } from '../js/input/recognizer.js';
 import { CFG } from '../js/config.js';
 let failed = 0;
 const ok = (name, cond, info) => {
@@ -633,6 +633,90 @@ for (const pause of [0, 140, 200]) {
   // 0.3: which phrase and pose she takes is random, and the biggest step seen is about 0.18 to 0.28 (at 0.25 this
   // failed by chance about one run in several)
   ok('even an accent is no jump: no joint moves more than 0.3 of a radian in a frame', jabs.jump < 0.3, jabs);
+}
+// --- the groove (v3-look79): Mark's thumb shaking to Never Too Much (his 21 Nov log), played at its recorded speed. Each
+// turn back is half a step: she takes up the groove, at about his pace, and steps in time; his tight quick circling is a
+// spin, not a groove; and the groove never makes a joint jump.
+{
+  const F4 = JSON.parse(fs.readFileSync(new URL('./fixtures/session4.json', import.meta.url))).strokes;
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  const groove = (names) => {
+    const r = rig(),
+      T = {},
+      kit = { HIP: 0.9, set: (o) => Object.assign(T, o) };
+    let st = null,
+      most = 0,
+      jump = 0,
+      prev = null,
+      first = true;
+    for (const name of names) {
+      const f = F4[name],
+        pts = [];
+      for (let i = 0; i < f.pts.length; i += 3) pts.push([f.x0 + f.pts[i], f.y0 + f.pts[i + 1], f.pts[i + 2]]);
+      r.down(pts[0]);
+      if (first) r.wait(400);
+      first = false;
+      let k = 0;
+      for (let ms = 0; ms <= pts[pts.length - 1][2]; ms += 16) {
+        r.wait(16);
+        while (k < pts.length - 2 && pts[k + 1][2] < ms) k++;
+        const a = pts[k],
+          b = pts[k + 1],
+          u = clamp01((ms - a[2]) / Math.max(1, b[2] - a[2]));
+        r.tricks.move(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, r.t);
+        const m = r.S.move;
+        if (!m || m.id !== 'dance') continue;
+        st = m.state;
+        most = Math.max(most, st.gv.amt);
+        m.pose({ bodyY: 0.9 }, kit);
+        if (prev)
+          for (const j of [
+            'aLz',
+            'aRz',
+            'aLx',
+            'aRx',
+            'lLx',
+            'lRx',
+            'lLz',
+            'lRz',
+            'lLk',
+            'lRk',
+            'lean',
+            'roll',
+            'bodyY',
+          ])
+            jump = Math.max(jump, Math.abs(T[j] - prev[j]));
+        prev = Object.assign({}, T);
+      }
+    }
+    const gv = st ? st.gv : {};
+    return {
+      most: +most.toFixed(2),
+      h: +(gv.h || 0).toFixed(3),
+      n: gv.n,
+      steps: gv.steps,
+      spin: st ? st.spin : null,
+      jump: +jump.toFixed(3),
+      footwork: st ? st.parts.includes('Footwork') : false,
+    };
+  };
+  const shake = groove(['shake4']),
+    burst = groove(['shake1']),
+    circle = groove(['circle']);
+  ok(
+    'his to-and-fro to fast music: she takes up the groove at his pace and steps in time',
+    shake.most > 0.8 && shake.h > 0.15 && shake.h < 0.3 && shake.steps >= 4 && shake.footwork,
+    shake,
+  );
+  ok('even a burst of under two seconds brings it in', burst.most > 0.5 && burst.steps >= 2, burst);
+  ok('his tight quick circling is a spin, not a groove', circle.most < 0.25, circle);
+  ok('the groove is no jump: no joint moves more than 0.3 of a radian in a frame', shake.jump < 0.3, shake);
+  // and the log finds his turns back from the recorded points themselves
+  const p3 = F4.shake3.pts,
+    pts3 = [];
+  for (let i = 0; i < p3.length; i += 3) pts3.push([p3[i], p3[i + 1], p3[i + 2]]);
+  const revs = reversalsOf(pts3, CFG.reversal);
+  ok('the log reads the turns back in a stroke (about five a second)', revs.length >= 6 && revs.length <= 12, revs);
 }
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);

@@ -295,12 +295,15 @@ export function createScene(canvas) {
     swing = 0,
     air = 0,
     time = 0,
-    // the changing angle (C.angles): which one, how long it has been held, and where the view is on its way to it
-    anglesOn = true,
+    // the changing angle (C.angles): 'changing', or the name of the view held (Menu > View); which one, how long it has
+    // been held, and where the view is on its way to it
+    angMode = 'changing',
     angI = 0,
     angT = 0,
     angTilt = 0,
-    angDist = 1;
+    angDist = 1,
+    // how far the view has risen to keep a jump in it (C.airFit), metres
+    airLift = 0;
   const DIST = Math.hypot(C.closeHeight, C.closeBack);
   // The front page: the view comes round low in front of her and frames her in the space left free by the status bar
   // and the choices (band: CSS pixels from the screen's top left). v3-look39 and before came in close from above and
@@ -386,6 +389,35 @@ export function createScene(canvas) {
     onTube(S.ts - bk, phiNow, Math.min(high, 2 * TB.r - V.inside), TB);
     camP.set(TB.x, TB.y, TB.z);
   }
+  // In a jump (C.airFit): how far the view has to rise for the top of her, at the top of the jump, to stay clear of the
+  // score at the top of the screen. Worked out exactly for the view as it is this frame (raising the camera and the
+  // point it looks at together), then eased, so it rises once as she takes off and settles after she lands.
+  const _f = new THREE.Vector3(),
+    _u = new THREE.Vector3();
+  function fitJump(S, dt, e) {
+    const F = C.airFit;
+    let need = 0;
+    if (!S.grounded && e < 0.5) {
+      const el = renderer.domElement,
+        hh = el.clientHeight || window.innerHeight,
+        apex = S.y + (S.vy > 0 ? S.vy ** 2 / (2 * Math.max(0.1, CFG.jump.gravity)) : 0),
+        lim = 1 - (2 * F.top[camera.aspect < 1 ? 0 : 1]) / hh;
+      _f.subVectors(camL, camP).normalize();
+      _u.copy(camera.up).addScaledVector(_f, -camera.up.dot(_f)).normalize();
+      const rx = S.x - camP.x,
+        ry = S.gy + apex + F.clear - camP.y,
+        rz = S.z - camP.z,
+        depth = rx * _f.x + ry * _f.y + rz * _f.z,
+        y = rx * _u.x + ry * _u.y + rz * _u.z,
+        k = lim * tanHalf;
+      if (depth > 0.5 && y > k * depth) need = Math.min(F.max, (y - k * depth) / Math.max(0.05, _u.y - k * _f.y));
+    }
+    airLift += (need - airLift) * (1 - Math.exp(-(need > airLift ? F.rise : F.fall) * dt));
+    if (airLift > 1e-4) {
+      camP.y += airLift;
+      camL.y += airLift;
+    }
+  }
   function toggleZoom() {
     view.zf = 1;
     view.px = 0;
@@ -466,14 +498,15 @@ export function createScene(canvas) {
     // eases back to the place's own view
     {
       const A = C.angles,
-        live = anglesOn && !uCanyon.value && !showOn && zoomT < 0.01;
+        free = !uCanyon.value && !showOn && zoomT < 0.01,
+        live = angMode === 'changing' && free;
       if (live && S.grounded) angT += dt;
       const list = angleList || A.list;
       if (angT >= A.hold) {
         angT = 0;
         angI = (angI + 1) % list.length;
       }
-      const goal = live ? list[angI % list.length] : list[0],
+      const goal = A.views[live ? list[angI % list.length] : free && angMode !== 'changing' ? angMode : list[0]],
         ka = 1 - Math.exp(-A.ease * dt);
       angTilt += (goal[0] - angTilt) * ka;
       angDist += (goal[1] - angDist) * ka;
@@ -529,7 +562,7 @@ export function createScene(canvas) {
       camL.copy(aim);
       // the left thumb steers on the ice as the screen shows it (skater.js), so no turning here
       swing = view.yaw = 0;
-    }
+    } else fitJump(S, dt, e);
     // the screen's up: the way the view faces (camera.up, which is north, -z, when not swung)
     let upYaw = view.yaw;
     if (showK > 0.002) {
@@ -632,18 +665,34 @@ export function createScene(canvas) {
     sky,
     toggleZoom,
     update,
-    // Menu > View: the changing angles on or off; next(): move on to the next angle now (for tests and screenshots)
+    // Menu > View: mode, 'changing' or the name of a view to hold (C.angles.views); on: changing or not (off holds axo);
+    // name: the view shown now; next(): move on to the next angle now (for tests and screenshots)
     angles: {
-      get on() {
-        return anglesOn;
+      get mode() {
+        return angMode;
       },
-      set on(v) {
-        anglesOn = !!v;
+      set mode(v) {
+        angMode = v === 'changing' || C.angles.views[v] ? v : 'changing';
         angI = 0;
         angT = 0;
       },
+      get on() {
+        return angMode === 'changing';
+      },
+      set on(v) {
+        this.mode = v ? 'changing' : 'axo';
+      },
+      get name() {
+        return angMode === 'changing'
+          ? (angleList || C.angles.list)[angI % (angleList || C.angles.list).length]
+          : angMode;
+      },
       get index() {
         return angI;
+      },
+      // how far the view has risen to keep a jump in it (metres; for tests)
+      get airLift() {
+        return airLift;
       },
       next() {
         angT = C.angles.hold;

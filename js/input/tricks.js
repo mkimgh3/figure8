@@ -18,7 +18,7 @@
 // the air it turns her, and when the move it started or took up is over (finished, a fall, a launch pad) and it is still
 // down, she dances. Time comes in with every call (ms). This file never reads a clock, so it can be tested with a made-up one.
 import { CFG } from '../config.js';
-import { Stroke, Swipe } from './recognizer.js';
+import { Stroke, Swipe, reversalsOf } from './recognizer.js';
 import { createSpiral, createEagle, createHydro } from '../moves/held.js';
 import { createTwirl } from '../moves/twirl.js';
 import { createToeKick, createLeap, createStop } from '../moves/quick.js';
@@ -289,7 +289,15 @@ export function createTricks(game, taps, log) {
       // a tap that took up a winding-down dance can still be the first half of a double tap
       if (outcome === 'dance-continue' && tap) taps.tap(t);
       if (role === 'held' && S.move === own && own.release) own.release();
-      log.stroke('trick', outcome, stroke, { armed: api.armed, two, left: leftPoints() });
+      // (v3-look79, for the music tests) the left thumb's turns back too, as ms from the right thumb's touch (l0: when the
+      // left one went down, the same way)
+      log.stroke('trick', outcome, stroke, {
+        armed: api.armed,
+        two,
+        left: leftPoints(),
+        l0: left ? Math.round(left.t0 - stroke.t0) : undefined,
+        lrev: left ? reversalsOf(left.points, CFG.reversal) : undefined,
+      });
       stroke = null;
       swipe = null;
       role = null;

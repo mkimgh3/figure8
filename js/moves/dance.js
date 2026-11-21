@@ -15,12 +15,20 @@
 // runs into the next without a join. The spiral, Biellmann, hydroblade and spread eagle are positions in it.
 import { CFG } from '../config.js';
 import { clamp, wrap, dimin } from '../core/math.js';
+import { Reversals } from '../input/recognizer.js';
 
 // A pose is the joint angles of poses.js plus dy (hip height above or below standing) and yaw (which way she turns to face).
 // The pose tables below keep one pose per row (prettier-ignore), so poses can be compared at a glance.
 // prettier-ignore
 const N = { roll: 0, lean: 0.08, dy: 0, fL: 1, fR: 1, aLx: 0, aRx: 0, aLz: -0.8, aRz: 0.8, aLe: -0.3, aRe: -0.3, lLx: 0, lRx: 0, lLz: 0, lRz: 0, lLk: 0.05, lRk: 0.05, yaw: 0, arch: 0 };
 const KEYS = Object.keys(N);
+// (v3-look79) the groove's stance, for the legs only: both blades on the ice, knees soft, feet a little apart (the thighs
+// are set from how far she leans, so the legs stay under her)
+const STEP = { lLz: -0.07, lRz: 0.07, lLk: 0.25, lRk: 0.25, fL: 1, fR: 1 };
+const median = (a) => {
+  const b = a.slice().sort((x, y) => x - y);
+  return b.length % 2 ? b[(b.length - 1) / 2] : (b[b.length / 2 - 1] + b[b.length / 2]) / 2;
+};
 // prettier-ignore
 const CALM = [
   { lean: 0.7, fL: 0, lRx: -0.7, lLx: 0.7, lLk: 0, aLz: -1.5, aRz: 1.5, aLx: 0.5, aRx: -0.4, aLe: -0.1, aRe: -0.1 },                                   // arabesque, one arm leading
@@ -382,6 +390,33 @@ export function createDance(S, api) {
     lastPhrase = -1,
     // how much her body follows the thumbs directly just now (eased, so going into a spin position does not jolt it)
     amp = X.live;
+  // (v3-look79) the groove (CFG.dance.groove): amt, how much she is in it (0..1); h, the thumb's time between turning
+  // back (s, the median of the last few); n, reversals to a step; shown, her rhythm, counted in reversals (it follows
+  // count, the reversals so far, and the time since the last); step, the step she is on, and stepNow, true on the frame
+  // a step begins (pose changes and accents wait for it)
+  const G = K.groove,
+    rev = new Reversals(CFG.reversal),
+    gv = {
+      amt: 0,
+      h: 0.25,
+      n: 2,
+      shown: 0,
+      count: 0,
+      last: null,
+      ivs: [],
+      times: [],
+      pend: 0,
+      step: 0,
+      stepNow: false,
+    };
+  gv.steps = 0;
+  // a new dance straight after the last (the thumb lifted and came back) takes up its groove
+  if (S.groove && S.clock - S.groove.t < G.carry) {
+    gv.amt = S.groove.amt * 0.8;
+    gv.h = S.groove.h;
+    gv.n = S.groove.n;
+  }
+  st.gv = gv;
   const named = (n) => {
     if (n && !st.parts.includes(n)) st.parts.push(n);
   };
@@ -708,9 +743,12 @@ export function createDance(S, api) {
         // near stillness. A thumb going round in a loop does neither.
         ft += dt;
         sinceHit += dt;
+        // (v3-look79) the thumb turning back on itself: half a step of the groove
+        if (rev.feed(ex.rvx, ex.rvy, ft)) gv.pend++;
         trail.push(ft, ex.rvx, ex.rvy);
         while (trail[0] < ft - A.window) trail.splice(0, 3);
-        if (sp > A.hitPx && sinceHit >= A.gap) {
+        // in the groove, at most one every other step
+        if (sp > A.hitPx && sinceHit >= Math.max(A.gap, gv.amt * 2 * gv.n * gv.h)) {
           let ox = 0,
             oy = 0,
             slow = sp;
@@ -822,10 +860,52 @@ export function createDance(S, api) {
       else gain *= Math.exp(-dt / K.gainFade);
       S.spinGain = gain;
       S.spinGainT = S.clock;
-      // how much quicker everything goes when the thumb is energetic (v3-look68)
+      // (v3-look79) the groove: each turn back of the thumb is half a step (CFG.dance.groove)
+      {
+        if (gv.pend) {
+          gv.pend = 0;
+          if (gv.last !== null) {
+            const iv = st.t - gv.last;
+            if (iv >= G.minH && iv <= G.maxH) {
+              gv.ivs.push(iv);
+              if (gv.ivs.length > 6) gv.ivs.shift();
+              gv.h = median(gv.ivs);
+            }
+          }
+          gv.last = st.t;
+          gv.times.push(st.t);
+          gv.count++;
+          // reversals to a step: changed only on a multiple of eight, where every choice is at the start of a step on the
+          // same foot, so her rhythm never jumps
+          const n = gv.h >= G.one ? 1 : gv.h >= G.four ? 2 : 4;
+          if (n !== gv.n && (gv.count % 8 === 0 || gv.amt < 0.05)) gv.n = n;
+        }
+        while (gv.times.length && gv.times[0] < st.t - Math.max(G.window, 4 * gv.h)) gv.times.shift();
+        // not while she spins (fast circling, or turning gently in a spin position)
+        const on =
+          st.spin < 2 && !inSpin && (st.held || st.rel < 0.6) ? clamp((gv.times.length - 1) / (G.full - 1), 0, 1) : 0;
+        gv.amt += (on - gv.amt) * (1 - Math.exp(-(on > gv.amt ? G.rise : G.fall) * dt));
+        // her rhythm runs on toward the next turn back at the thumb's pace and waits there if it is late; an early one
+        // brings it on at once
+        const goal = gv.last === null ? gv.shown : gv.count + Math.min(0.98, (st.t - gv.last) / gv.h);
+        gv.shown += (goal - gv.shown) * (1 - Math.exp(-G.follow * dt));
+        const k = Math.floor(gv.shown / gv.n);
+        gv.stepNow = k !== gv.step;
+        if (gv.stepNow) {
+          gv.step = k;
+          if (gv.amt > 0.3) gv.steps++;
+        }
+        if (gv.amt > 0.6) {
+          st.kinds.footwork = 1;
+          named('Footwork');
+        }
+      }
+      // how much quicker everything goes when the thumb is energetic (v3-look68); in the groove, a new pose or an
+      // accent waits for her next step, so it lands on her beat
       const brisk = 1 - X.quick * st.en,
-        jab = hit;
-      hit = null;
+        onBeat = gv.amt < 0.5 || gv.stepNow,
+        jab = hit && onBeat ? hit : null;
+      if (jab || sinceHit > 0.5) hit = null;
       if (
         begun &&
         (st.held
@@ -842,6 +922,7 @@ export function createDance(S, api) {
         st.held &&
         !inSpin &&
         !midPhrase() &&
+        onBeat &&
         u >= X.settle &&
         since >= X.minPose * brisk &&
         Math.abs(want.level - st.sl.level) + Math.abs(want.side - st.sl.side) + 0.5 * Math.abs(want.open - st.sl.open) >
@@ -849,7 +930,7 @@ export function createDance(S, api) {
       )
         next(); // the thumbs have moved on from this pose (where they have been lately, not this instant): so does she
       else if (u < 1) u = Math.min(1, u + dt / dur);
-      else if (begun && (hold -= dt) <= 0 && st.held) {
+      else if (begun && (hold -= dt) <= 0 && st.held && onBeat) {
         // a phrase begun on a jab unfolds by itself, slowly, to its end; then she flows on
         if (midPhrase() && !inSpin && st.spin < 2) gesture(null, true);
         else next();
@@ -903,6 +984,7 @@ export function createDance(S, api) {
       S.flipYaw = wrap(y - k * Math.PI);
       S.flipK = 2.6; // her body eases the rest of the way round
       const m = st.t > 0 ? st.moodSum / st.t : 0;
+      S.groove = { amt: gv.amt, h: gv.h, n: gv.n, t: S.clock };
       api.emit('element', {
         kind: 'dance',
         choreo: true,
@@ -963,6 +1045,45 @@ export function createDance(S, api) {
         out.aRe -= 0.2 * dip;
         out.roll += hw * H.sway * Math.sin(Math.PI * b);
       }
+      // (v3-look79) the groove: her legs go to a soft two-footed stance (the arms keep the dance's shapes and phrases);
+      // her weight goes from one foot to the other in time with the thumb's to and fro (on each step she is over one
+      // blade, sinking, the other heel lifted), her body swaying with it and her arms swinging, and at the thumb's own
+      // quick rate her shoulders shimmy
+      {
+        const g = gv.amt;
+        if (g > 0.01) {
+          const c = Math.cos((Math.PI * gv.shown) / gv.n),
+            dip = c * c,
+            slow = clamp((gv.n * gv.h - 0.35) / 0.5, 0, 1),
+            sb = G.stance * g,
+            thigh = -(out.lean - N.lean) - 0.1;
+          out.lLx += (thigh - out.lLx) * sb;
+          out.lRx += (thigh - out.lRx) * sb;
+          for (const k in STEP) out[k] += (STEP[k] - out[k]) * sb;
+          out.bodyY += (kit.HIP - 0.04 - out.bodyY) * sb;
+          const both = Math.min(out.fL, out.fR),
+            liftL = Math.max(0, -c) ** 1.5 * both,
+            liftR = Math.max(0, c) ** 1.5 * both;
+          out.bodyY -= g * G.dip * (1 + slow) * dip;
+          out.lLk += g * (G.knee * dip + G.lift * liftL);
+          out.lRk += g * (G.knee * dip + G.lift * liftR);
+          out.lLx += g * (-0.5 * G.knee * dip + 0.12 * liftL);
+          out.lRx += g * (-0.5 * G.knee * dip + 0.12 * liftR);
+          out.fL -= g * 0.6 * liftL;
+          out.fR -= g * 0.6 * liftR;
+          out.roll += g * G.sway * (1 + 0.6 * slow) * c;
+          out.aLx += g * G.swing * c;
+          out.aRx -= g * G.swing * c;
+          out.aLe -= g * G.elbow;
+          out.aRe -= g * G.elbow;
+          if (gv.n > 1) {
+            const sh = Math.cos(Math.PI * gv.shown);
+            out.aLz += g * G.shimmy * sh;
+            out.aRz += g * G.shimmy * sh;
+            out.roll += g * 0.02 * sh;
+          }
+        }
+      }
       // Her body follows the thumbs live (v3-look62), less in a spin and not in hip hop. v3-look63 (Mark: "i couldnt
       // tell anything you just did with the new engine"): it follows where the right thumb is, not only how it moves,
       // and much more strongly. Thumb high on the glass: both arms rise, her chest lifts, she grows tall. Low: the arms
@@ -997,7 +1118,7 @@ export function createDance(S, api) {
       out.side = 0;
       kit.set(out);
       // the joints take up the dance gradually over the first moment; hip hop hits hardest
-      return (4 + (10 + 14 * Math.max(st.mood, hw, st.en)) * Math.min(1, st.t / 0.9)) * (1 + 0.4 * hw);
+      return (4 + (10 + 14 * Math.max(st.mood, hw, st.en)) * Math.min(1, st.t / 0.9)) * (1 + 0.4 * hw) + 10 * gv.amt;
     },
   };
 }
