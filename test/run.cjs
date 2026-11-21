@@ -1182,6 +1182,68 @@ const { open } = require('./smoke.cjs');
       sheets,
     );
   }
+  // Paper at dusk (v3-look77): the solar system, the sun just ahead of her, the planets going round, cut off by the
+  // invisible plane, found as she comes near them, and only the found ones showing zoomed out
+  {
+    const sol = await p.evaluate(() => {
+      const g = window.__game,
+        S = g.S;
+      g.setPlace(2);
+      g.setLook(2);
+      const on = g.solar.on,
+        sun = g.solar.sun,
+        ahead = sun.z < S.z && Math.hypot(sun.x - S.x, sun.z - S.z) < 12;
+      const m0 = g.solar.planets.find((q) => q.name === 'Mercury');
+      g.solar.update(5, S, 0, 0);
+      const m1 = g.solar.planets.find((q) => q.name === 'Mercury');
+      const sat = g.solar.planets.find((q) => q.name === 'Saturn'),
+        satAU = Math.hypot(sat.x - sun.x, sat.z - sun.z) / 36;
+      // into the sun: pushed back out of it
+      const hit = g.solar.hit(sun.x, sun.z + 0.5);
+      // found by coming near
+      g.solar.forget();
+      const mars = g.solar.planets.find((q) => q.name === 'Mars');
+      const keep = [S.x, S.z];
+      S.x = mars.x;
+      S.z = mars.z + mars.r + 3;
+      g.solar.update(0, S, 0, 0);
+      S.x = keep[0];
+      S.z = keep[1];
+      // zoomed out: only the found ones show
+      g.solar.update(0, S, 1, 0);
+      const shown = g.solar.planets.filter((q) => q.visible).map((q) => q.name);
+      g.solar.update(0, S, 0, 0);
+      const sheet = g.world.paper;
+      g.setLook(1);
+      const off = !g.solar.on;
+      g.setPlace(0);
+      return {
+        on,
+        ahead,
+        moved: +Math.hypot(m1.x - m0.x, m1.z - m0.z).toFixed(2),
+        satAU: +satAU.toFixed(2),
+        hit: !!hit && Math.hypot(hit.x - sun.x, hit.z - sun.z) > sun.r,
+        found: g.solar.found,
+        shown,
+        space: !!(sheet && sheet.space),
+        off,
+      };
+    });
+    ok(
+      'Paper at dusk: the solar system, the sun ahead of her, planets going round and found as she comes near',
+      sol.on &&
+        sol.ahead &&
+        sol.moved > 0.5 &&
+        sol.satAU > 9 &&
+        sol.satAU < 10.1 &&
+        sol.hit &&
+        sol.found.join() === 'Mars' &&
+        sol.shown.join() === 'Mars' &&
+        sol.space &&
+        sol.off,
+      sol,
+    );
+  }
   // Islands (v3-look74): the trees carry Christmas lights, one theme to an island, so several round her
   {
     await p.evaluate(() => window.__game.setPlace(1));

@@ -554,6 +554,8 @@ export const CFG = {
       glow: 1.15,
       bloom: [0.28, 0.12, 1.05],
       night: true,
+      // v3-look77: the sheet is not drawn, and the solar system is out on it (render/solar.js)
+      space: true,
     },
   },
   // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop. dust: how many

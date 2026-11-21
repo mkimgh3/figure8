@@ -16,6 +16,7 @@ import { createRing } from './render/ring.js';
 import { createSpray } from './render/spray.js';
 import { createIcicles } from './render/icicles.js';
 import { createIslands } from './render/islands.js';
+import { createSolar } from './render/solar.js';
 import { createHud } from './ui/hud.js';
 import { createTutorial } from './ui/tutorial.js';
 import { createLog } from './log.js';
@@ -32,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look76';
+const BUILD = 'v3-look77';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -48,6 +49,7 @@ const hud = createHud(world.coarse),
   spray = createSpray(world.scene),
   icicles = createIcicles(world.scene),
   forest = createIslands(world.scene),
+  solar = createSolar(world.scene, world.renderer),
   models = createModels(world.scene),
   stick = createStick(world.scene);
 // Each skater's realistic body (Microsoft Rocketbox avatars, MIT licence) loads in the background the first time that
@@ -557,6 +559,8 @@ const applyScene = () => {
   }
   world.setLook(look);
   world.setPaper(sheet);
+  // paper at dusk: the solar system, its sun a few metres ahead of her (v3-look77)
+  solar.set(!!(sheet && sheet.space), S.x, S.z);
   world.setPlace(place);
   boardStill();
   forest.set(place.trees);
@@ -765,6 +769,7 @@ const persist = () => {
     uv: 3,
     gq: world.auto ? 'Auto' : world.qualityName,
     snd: audio.on ? 1 : 0,
+    sol: solar.found,
     va: world.angles.on ? 1 : 0,
     sc: scores[0].serialise(),
     sci: scores[1].serialise(),
@@ -907,6 +912,12 @@ hud.on('viewbtn', () => {
   showView();
   dirty = true;
 });
+// the planets she has found on paper at dusk (v3-look77): saved, and each announced the first time she comes near it
+solar.restore(saved && saved.sol);
+solar.onFind = (name) => {
+  hud.say(name, 'discovered', 2.4);
+  dirty = true;
+};
 // Sound: on or off
 const showSound = () => hud.text('soundname', audio.on ? 'On' : 'Off');
 showSound();
@@ -1050,6 +1061,18 @@ let edgeAt = 0,
   edgeCss = '';
 function matchEdges(now) {
   if (!standaloneIOS) return;
+  // held upright: black above and below, the view fading into the bottom strip (v3-look77)
+  const upright = window.innerHeight > window.innerWidth;
+  document.body.classList.toggle('edge-black', upright);
+  if (upright) {
+    if (edgeCss !== '#000') {
+      edgeCss = '#000';
+      document.documentElement.style.backgroundColor = '#000';
+      document.body.style.backgroundColor = '#000';
+      if (edgeMeta) edgeMeta.setAttribute('content', '#000');
+    }
+    return;
+  }
   const key = [lookIx, placeIx, models.index, front.open, world.view.zoomed, menuOpen()].join();
   if (key !== edgeKey) {
     edgeKey = key;
@@ -1146,7 +1169,7 @@ function frame(now) {
     tutorial.tick(dt, { S, speed: game.speed(), armed: tricks.armed, now });
     // a shore turns her along it: she keeps the speed that runs along the coast and loses what was heading inland
     {
-      const t = forest.hit(S.x, S.z);
+      const t = forest.hit(S.x, S.z) || solar.hit(S.x, S.z);
       if (t) {
         S.x = t.x;
         S.z = t.z;
@@ -1247,6 +1270,7 @@ function frame(now) {
   if (draw) {
     world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
     forest.update(S.x, S.z);
+    solar.update(paused ? 0 : dt, S, world.view.e, now);
     trace.sharpen(world.view.e);
   }
   hud.update(dt, game.speed(), trace.colorAt(S.skated));
@@ -1281,6 +1305,7 @@ window.__game = {
   tutorial,
   world,
   forest,
+  solar,
   setPlace,
   game,
   S,

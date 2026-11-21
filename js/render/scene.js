@@ -216,7 +216,9 @@ export function createScene(canvas) {
   function setPaper(c) {
     sheet = c;
     ice.mesh.visible = !c;
-    paper.mesh.visible = paper.shade.visible = !!c;
+    // (v3-look77) the sheet at dusk is invisible: she skates over the sky, among the planets (solar.js)
+    paper.mesh.visible = !!c && !c.space;
+    paper.shade.visible = !!c;
     blob.material.color.setHex(c ? 0x2a2a2e : 0x14284f);
     if (c) paper.set(c);
     // no diamond dust over a drawing on paper

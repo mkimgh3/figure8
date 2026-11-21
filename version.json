@@ -1,5 +1,5 @@
 {
- "build": "v3-look76",
+ "build": "v3-look77",
  "files": [
   "assets/ROCKETBOX-LICENSE.txt",
   "assets/ava_body.jpg",
@@ -64,6 +64,7 @@
   "js/render/scene.js",
   "js/render/sky.js",
   "js/render/slide.js",
+  "js/render/solar.js",
   "js/render/spray.js",
   "js/render/stick.js",
   "js/render/three.js",
