@@ -48,6 +48,13 @@ export function createSkater(emit) {
     fingerTurn: 0,
     push: 0,
     curve: 0,
+    // her path's bend (v3-look81): signed curvature in 1/m (+ the way S.turn is +), eased; arcTurn: radians turned one
+    // way while it is tight; arcTight: a tight curve held long enough for the switch leap (CFG.changeLeap); arcHd: the way
+    // she was travelling the step before
+    arc: 0,
+    arcTurn: 0,
+    arcTight: false,
+    arcHd: 0,
     entry: 0,
     clock: 0,
     fallEndT: -99,
@@ -402,6 +409,22 @@ export function createSkater(emit) {
         S.curve * Math.exp(-dt / 2.2) +
         Math.abs(wrap(S.facing - prevFacing)) +
         (S.move && S.move.id !== 'fall' ? 1.2 * dt : 0); // recent curving and figures
+    // Her path's bend, from the way she travels (not the way she faces, which spins and dances turn). A jump of more
+    // than 0.6 rad in one step is a reset or a crash, not a curve.
+    {
+      const K = CFG.changeLeap,
+        hd = Math.atan2(S.vx, S.vz);
+      let dh = wrap(hd - S.arcHd);
+      S.arcHd = hd;
+      if (Math.abs(dh) > 0.6) dh = 0;
+      if (S.grounded) {
+        const k = sp > K.minSpeed ? dh / (sp * Math.max(dt, 1e-3)) : 0;
+        S.arc += (k - S.arc) * (1 - Math.exp(-dt / K.ease));
+        const tight = Math.abs(S.arc) >= 1 / K.radius;
+        S.arcTurn = tight ? S.arcTurn + (dh * S.arc > 0 ? Math.abs(dh) : 0) : 0;
+        S.arcTight = tight && S.arcTurn >= K.turned;
+      }
+    }
     if (canyon) {
       // on the tube: along it and round it; she cannot go back past its closed top end
       S.ts -= S.vz * dt;

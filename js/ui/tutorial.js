@@ -82,11 +82,11 @@ const JUMPS = [
 
 const MOVES = [
   {
-    name: 'Change leap flip',
+    name: 'Switch leap',
     steps: [
       ['Skate along with your left thumb', moving],
-      ['Flick your right finger right for a spiral, and keep it down', moveIs('spiral')],
-      ['Lift and flick it up straight away', element('changeleap')],
+      ['Keep turning your left thumb round one way, so she skates a tight circle', (c) => c.S.arcTight],
+      ['Still circling, flick your right finger up', element('changeleap')],
     ],
   },
   {

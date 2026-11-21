@@ -40,12 +40,13 @@ function rig() {
     stroke: (role, read, s, extra) => logged.push(Object.assign({ read }, extra)),
   });
   let t = 1000,
-    twoCalls = 0;
+    twoCalls = 0,
+    stick = null;
   tricks.onTwoThumb = () => twoCalls++;
   const seen = new Set();
   const tick = () => {
     t += 16;
-    game.update(0.016, { x: 0, y: 0.6 });
+    game.update(0.016, stick ? stick(t) : { x: 0, y: 0.6 });
     tricks.frame(t);
     if (S.move) seen.add(S.move.id);
   };
@@ -67,6 +68,10 @@ function rig() {
     },
     wait(ms) {
       for (let k = 0; k < ms; k += 16) tick();
+    },
+    // the left thumb as the game reads it, from the time (ms); unset, straight ahead at 0.6
+    steer(f) {
+      stick = f;
     },
     // the right thumb: down at a point (a double tap if `dbl`), then along a path one point per frame, then up
     down(p, dbl) {
@@ -433,7 +438,7 @@ for (const [label, leftPath] of [
     now: r.move,
   });
 }
-// --- the split leap (v3-look80: no twizzles after it) and the change leap flip out of a spiral
+// --- the split leap (v3-look80: no twizzles after it) and the switch leap on a tight circle (v3-look81)
 {
   const r = rig();
   r.stroke(real('flickUp'));
@@ -453,26 +458,35 @@ for (const [label, leftPath] of [
   r.wait(CFG.dance.holdMs + 60);
   ok('a finger held still after a split leap -> choreography', r.move === 'dance', r.move);
 }
-// a spiral held, the thumb lifted, then a flick up: straight away, or 0.3 s later; and much later just a split leap
-for (const [gap, want] of [
-  [40, 'changeleap'],
-  [300, 'changeleap'],
-  [2500, 'leap'],
+// the left thumb turning round at w rad/s (a circle of about 6.9 / w m), then a flick up: on a tight circle either way
+// the switch leap; on a wide curve, a straight, or a held spiral move going straight (v3-look80's trigger), the split leap
+const circling = (w) => (t) => ({ x: 0.6 * Math.sin((w * t) / 1000), y: 0.6 * Math.cos((w * t) / 1000) });
+for (const [name, w, spiral, want] of [
+  ['a tight circle clockwise', 1.6, false, 'changeleap'],
+  ['a tight circle anticlockwise', -1.6, false, 'changeleap'],
+  ['a wide curve', 0.3, false, 'leap'],
+  ['a straight line', 0, false, 'leap'],
+  ['a held spiral going straight', 0, true, 'leap'],
 ]) {
   const r = rig(),
     back = r.S.back;
-  r.stroke(real('flickRight'), null);
-  r.wait(1500);
-  r.up();
-  r.wait(gap);
+  r.steer(circling(w));
+  if (spiral) {
+    r.stroke(real('flickRight'), null);
+    r.wait(1500);
+    r.up();
+    r.wait(40);
+  } else r.wait(2500);
+  const radius = r.S.arc ? +Math.abs(1 / r.S.arc).toFixed(1) : null;
   r.stroke(real('flickUp'));
   const read = r.logged[r.logged.length - 1].read;
   r.wait(1500);
   ok(
-    `a flick up ${gap} ms after a held spiral -> ${want}` +
-      (want === 'changeleap' ? ', landing the other way round' : ''),
-    r.seen.has(want) && (want !== 'changeleap' || (r.S.back !== back && read === 'changeleap')),
-    { seen: [...r.seen], read, back: r.S.back },
+    `a flick up on ${name} -> ` + (want === 'changeleap' ? 'switch leap, landing the other way round' : 'split leap'),
+    want === 'changeleap'
+      ? r.seen.has('changeleap') && r.S.back !== back && read === 'changeleap'
+      : r.seen.has('leap') && !r.seen.has('changeleap'),
+    { seen: [...r.seen], read, back: r.S.back, radius },
   );
 }
 // --- two thumbs

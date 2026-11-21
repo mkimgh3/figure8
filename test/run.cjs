@@ -937,8 +937,8 @@ const { open } = require('./smoke.cjs');
     steps: [...document.getElementById('tlist').children].map((li) => [li.className, li.textContent]),
   }));
   ok(
-    'Spins & steps lists spins first, all three steps of the Change leap flip at once',
-    tu.name === 'Change leap flip' && tu.steps.length === 3 && /left thumb/i.test(tu.steps[0][1]),
+    'Spins & steps lists spins first, all three steps of the Switch leap at once',
+    tu.name === 'Switch leap' && tu.steps.length === 3 && /left thumb/i.test(tu.steps[0][1]),
     tu,
   );
   await ev('pointerdown', 1, 100, 560);

@@ -56,10 +56,12 @@ export const CFG = {
   // twizzles: no gesture since v3-look80 (Mark: "remove twizzle after leap"; a circle after the leap is choreography);
   // the move is kept for its scoring
   twirl: { startTurn: 3.1 },
-  // The change leap flip (v3-look80, Mark: "if leap activated while in spiral motion do a toe change leap flip"): the
-  // flick up in a spiral, or within `after` seconds of one ending, is this instead of the split leap. It takes `time`
-  // seconds; she leaves the ice at `up` of the way through and lands at `down`, `height` m up at the top.
-  changeLeap: { time: 1.05, up: 0.2, down: 0.84, height: 0.72, after: 0.8 },
+  // The switch leap (v3-look80 as the "change leap flip"; v3-look81, Mark: "when skater is moving in spiral by constant
+  // steering counter or clockwise. when at certain radius or smaller and activates swipe up it changes from standard leap
+  // jump to switch leap"): the flick up while she skates a curve one way no wider than `radius` m (her path's bend eased
+  // over `ease` s, at `minSpeed` m/s or more) that has already taken her `turned` radians round. It takes `time` seconds;
+  // she leaves the ice at `up` of the way through and lands at `down`, `height` m up at the top.
+  changeLeap: { time: 1.05, up: 0.2, down: 0.84, height: 0.72, radius: 6, turned: 1.2, ease: 0.4, minSpeed: 1.5 },
   // Choreography: the right thumb down holdMs with nothing else going on (held still, or dragged further or slower than a
   // flick), or still down afterLand seconds after a jump lands, or after the move it started is over. It lasts while that
   // thumb stays down. Circling turns her, turnRatio of a turn for each finger circle, following the finger at `follow` (1/s)

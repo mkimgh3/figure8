@@ -31,7 +31,7 @@ export function createInput(canvas, game, tricks, taps, view, hud, onPinchClose)
   const READS = {
     // v3-look76: left hydroblade, right spiral, up split leap, down toe kick
     up: 'Split leap',
-    changeleap: 'Change leap flip',
+    changeleap: 'Switch leap',
     down: 'Toe kick',
     left: 'Hydroblade',
     right: 'Spiral',

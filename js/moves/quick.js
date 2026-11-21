@@ -228,15 +228,15 @@ export function createLeap(S, api) {
   };
 }
 
-// The change leap flip (v3-look80, Mark: "if leap activated while in spiral motion do a toe change leap flip"): the flick
-// up in a spiral, or straight after one, is this instead of the split leap. Out of the spiral she brings her free leg
-// down behind her and picks its toe into the ice, springs up into a split, and switches her legs through in the air
-// (the front leg sweeps back, the back one forward) as she turns half way round, landing on the leg that came forward,
-// the other stretched out behind her, arms open. The half turn swaps forward and backward skating, so out of a
-// forward spiral she lands skating backward. She turns the way she was curving.
+// The switch leap (v3-look80 as the "change leap flip"; v3-look81, Mark: "i didnt mean literal spiral but when skater
+// is moving in spiral by constant steering counter or clockwise"): the flick up while she skates a tight curve one way
+// is this instead of the split leap. She brings her free leg down behind her and picks its toe into the ice, springs up
+// into a split, and switches her legs through in the air (the front leg sweeps back, the back one forward) as she turns
+// half way round, landing on the leg that came forward, the other stretched out behind her, arms open. The half turn
+// swaps forward and backward skating, so skating forward she lands skating backward. She turns the way she was curving.
 export function createChangeLeap(S, api) {
   const C = CFG.changeLeap,
-    dir = S.turn > 0 ? 1 : -1;
+    dir = (S.arc || S.turn) > 0 ? 1 : -1;
   let t = 0,
     y = 0;
   const u = () => clamp(t / C.time, 0, 1),
@@ -247,7 +247,7 @@ export function createChangeLeap(S, api) {
     steer: 0.5,
     start() {
       api.ensureSpeed(4);
-      api.emit('say', { big: 'Change leap flip', small: '', hold: 0.7 });
+      api.emit('say', { big: 'Switch leap', small: '', hold: 0.7 });
     },
     update(dt) {
       t += dt;
@@ -268,7 +268,7 @@ export function createChangeLeap(S, api) {
       S.flipK = 6;
       api.emit('element', {
         kind: 'changeleap',
-        name: 'Change leap flip',
+        name: 'Switch leap',
         detail: S.back ? 'landed backward' : 'landed forward',
         base: CFG.points.changeLeap * done,
         counted: how !== 'crash' && done >= 0.5,
