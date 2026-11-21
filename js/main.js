@@ -32,7 +32,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look73';
+const BUILD = 'v3-look74';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -566,6 +566,7 @@ const applyScene = () => {
   // the crystals on her clothes flash brighter at night
   avU.uSparkle.value = look.sparkle || 1;
   avatars.forEach((a) => a && a.night(look.night ? 1 : 0));
+  forest.night(look.night ? 1 : 0);
   duet.night(look.night ? 1 : 0);
   icicles.strength = look.night ? 1 : 0.75;
   hud.text('timename', look.name);

@@ -1181,6 +1181,18 @@ const { open } = require('./smoke.cjs');
       sheets,
     );
   }
+  // Islands (v3-look74): the trees carry Christmas lights, one theme to an island, so several round her
+  {
+    await p.evaluate(() => window.__game.setPlace(1));
+    await sleep(600);
+    const isl = await p.evaluate(() => {
+      const g = window.__game;
+      g.forest.update(g.S.x, g.S.z);
+      return { bulbs: g.forest.bulbs, themes: [...new Set(g.forest.themes)].length };
+    });
+    ok('Islands: the trees are lit, with several themes round her', isl.bulbs > 5000 && isl.themes >= 4, isl);
+    await p.evaluate(() => window.__game.setPlace(0));
+  }
   // Ivor (v3-look72): a superhero's build (wide at the shoulders, narrow at the waist), a sculpted beard that rides on
   // his head and does not move by itself, and the changing camera angles (Menu > View)
   {
