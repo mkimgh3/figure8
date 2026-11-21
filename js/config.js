@@ -72,6 +72,14 @@ export const CFG = {
     spinIn: 2.2,
     spinOut: 1.3,
     spinFast: 5,
+    // Settling (v3-look76, Mark: "when right thumb is held down for a bit and not moving anymore, return the skater
+    // rotation to the direction of the travel ... if i spin only 1/4 turn and let go, the skater returns to direction
+    // of travel it was originally starting from. but if i spin 3/4 and let go, then it returns to skating backwards"):
+    // with the thumb still for `rest` seconds (slower than restPx px/s) and no spin going, or with it lifted and the
+    // spin over, she comes round (at `rate`, 1/s) to face the way she is going, forward or backward, whichever is
+    // nearer; past half a turn round she ends skating the other way. `bias` (a share of a half turn) leans an even
+    // choice back the way she came: a quarter turn unwinds, three quarters goes on to backward.
+    settle: { rest: 0.5, restPx: 40, rate: 2.4, bias: 0.08 },
     turnRatio: 0.5,
     follow: 3.5,
     glide: 2.6,
@@ -241,6 +249,10 @@ export const CFG = {
     repeat: [1, 0.7, 0.5],
     repeatWindow: 20,
   },
+  // Toe kick (v3-look61, back in v3-look76 as the flick down, Mark: "swipe down becomes toe kick in prep for jump"): she
+  // taps her free toe into the ice behind her. A jump within `window` seconds goes `lift` times higher, and skating
+  // backward it is a toe loop.
+  toe: { window: 2, lift: 1.18 },
   // Icicles: every `spacing` metres of new line sheds perSpot glints that sink (m/s) into the ice and fade over `seconds`.
   // (v3-look36: fewer, smaller and dimmer than before; at 4 glints and brightness 1.5 they read as stitching beside the line)
   icicles: { seconds: 5, spacing: 0.16, perSpot: 3, sink: 0.6, size: 0.11, bright: 0.85 },

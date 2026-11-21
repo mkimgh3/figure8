@@ -1,8 +1,11 @@
 // The trick finger, the right thumb. The rules of the control scheme live here and nowhere else:
 //   quick double tap   -> jump; keep the second tap down and circle to rotate her in the air
-//   flick up           -> spiral; flick down -> hydroblade (each lasts a moment, and for as long as the finger stays down)
-//   flick left         -> three-turn (swaps forward and backward skating)
-//   flick right        -> split leap; a circle within afterLeapMs of it is twizzles
+// (v3-look76, Mark: "remove the left swipe three point turn activation. make that hydro and make right swipe spiral;
+// swipe up becomes leap and swipe down becomes toe kick in prep for jump". Forward and backward swap by spinning past
+// half a turn in choreography and letting go, see CFG.dance.settle.)
+//   flick left         -> hydroblade; flick right -> spiral (each lasts a moment, and for as long as the finger stays down)
+//   flick up           -> split leap; a circle within afterLeapMs of it is twizzles
+//   flick down         -> toe kick: a jump soon after goes higher (CFG.toe)
 //   anything else      -> choreography (moves/dance.js) once the finger has been down holdMs with nothing else going on:
 //                         held still, or dragged further or slower than a flick. It lasts while the finger stays down; the
 //                         finger's strokes set the mood, and circling it turns her and brings out the spin positions.
@@ -18,7 +21,7 @@ import { CFG } from '../config.js';
 import { Stroke, Swipe } from './recognizer.js';
 import { createSpiral, createEagle, createHydro } from '../moves/held.js';
 import { createTwirl } from '../moves/twirl.js';
-import { createTurn, createLeap, createStop } from '../moves/quick.js';
+import { createToeKick, createLeap, createStop } from '../moves/quick.js';
 import { createDance } from '../moves/dance.js';
 
 export function createTricks(game, taps, log) {
@@ -114,10 +117,10 @@ export function createTricks(game, taps, log) {
       outcome = 'both-down';
       return false;
     }
-    if (r.dir === 'up') return start(createSpiral(S, game), 'up', together);
-    if (r.dir === 'down') return start(createHydro(S, game, inward), 'down', false);
-    if (r.dir === 'left') return start(createTurn(S, game), 'left', together);
-    if (r.dir === 'right' && start(createLeap(S, game), 'right', together)) {
+    if (r.dir === 'right') return start(createSpiral(S, game), 'right', together);
+    if (r.dir === 'left') return start(createHydro(S, game, inward), 'left', together);
+    if (r.dir === 'down') return start(createToeKick(S, game), 'down', false);
+    if (r.dir === 'up' && start(createLeap(S, game), 'up', together)) {
       leapUntil = t + CFG.twirl.afterLeapMs;
       return true;
     }

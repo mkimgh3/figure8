@@ -143,12 +143,12 @@ function rig() {
   return r;
 }
 
-// --- one thumb: flicks
+// --- one thumb: flicks (v3-look76: left hydroblade, right spiral, up split leap, down toe kick; no three-turn)
 for (const [name, move] of [
-  ['flickUp', 'spiral'],
-  ['flickDown', 'hydro'],
-  ['flickLeft', 'turn'],
-  ['flickRight', 'leap'],
+  ['flickUp', 'leap'],
+  ['flickDown', 'toe'],
+  ['flickLeft', 'hydro'],
+  ['flickRight', 'spiral'],
 ]) {
   const r = rig();
   r.stroke(real(name));
@@ -157,12 +157,12 @@ for (const [name, move] of [
 }
 for (const rest of [0, 150, 250]) {
   const r = rig();
-  r.down(real('flickDown')[0]);
+  r.down(real('flickLeft')[0]);
   r.wait(rest);
-  r.play(real('flickDown'));
+  r.play(real('flickLeft'));
   r.wait(600);
   ok(
-    `flick down after resting ${rest} ms, kept down -> hydroblade, not choreography`,
+    `flick left after resting ${rest} ms, kept down -> hydroblade, not choreography`,
     r.move === 'hydro' && !r.seen.has('dance'),
     { move: r.move, seen: [...r.seen] },
   );
@@ -200,11 +200,54 @@ for (const rest of [0, 150, 250]) {
     r.move,
   );
 }
+// --- settling (v3-look76, Mark: "if skater is facing forward and i spin only 1/4 turn and let go, the skater returns to
+// direction of travel it was originally starting from. but if i spin 3/4 and let go, then it returns to skating
+// backwards"; and with the thumb held still, to forward or backward, whichever is nearer). Her turn is half the thumb's
+// while the spin has not wound up, and slow circling (under spinIn) is no spin.
+const facingOff = (S) => {
+  const y = S.yawX + S.flipYaw;
+  return Math.abs(Math.atan2(Math.sin(y), Math.cos(y)));
+};
+for (const [thumbTurns, label, flips] of [
+  [0.5, 'a quarter turn', false],
+  [1.5, 'three quarters of a turn', true],
+]) {
+  {
+    const r = rig(),
+      b0 = r.S.back;
+    r.down([300, 560]);
+    r.wait(CFG.dance.holdMs + 100);
+    r.play(circle(300, 560, 40, thumbTurns, Math.round(thumbTurns * 110)));
+    const spun = r.S.move && r.S.move.state.spin;
+    r.up();
+    r.wait(4000);
+    ok(
+      `${label} and let go: she ends ${flips ? 'skating backward' : 'back the way she was going'}, facing along her path`,
+      r.move === null && (r.S.back !== b0) === flips && facingOff(r.S) < 0.15,
+      { back: r.S.back, b0, off: +facingOff(r.S).toFixed(2), spun },
+    );
+  }
+  {
+    const r = rig();
+    r.down([300, 560]);
+    r.wait(CFG.dance.holdMs + 100);
+    r.play(circle(300, 560, 40, thumbTurns, Math.round(thumbTurns * 110)));
+    r.wait(2500);
+    // still dancing, the thumb resting: turned to face along her path, forward or backward
+    const y = r.S.yawX,
+      off = Math.abs(Math.atan2(Math.sin(y), Math.cos(y)));
+    ok(
+      `${label}, then the thumb held still: she comes round to face ${flips ? 'backward' : 'forward'} along her path`,
+      r.move === 'dance' && (flips ? Math.PI - off : off) < 0.25,
+      { off: +off.toFixed(2) },
+    );
+  }
+}
 // --- spiral and hydroblade (v3-look61): the left thumb pushes and steers in them as in plain skating, and they last
 // while the right thumb stays down (until then they coasted, slowing, and ended as her speed ran down)
 for (const [name, move] of [
-  ['flickUp', 'spiral'],
-  ['flickDown', 'hydro'],
+  ['flickRight', 'spiral'],
+  ['flickLeft', 'hydro'],
 ]) {
   const r = rig();
   r.wait(2500);
@@ -304,8 +347,8 @@ for (const [label, leftPath] of [
     );
   }
   for (const [name, move] of [
-    ['flickDownInWindDown', 'hydro'],
-    ['flickRightInWindDown', 'leap'],
+    ['flickDownInWindDown', 'toe'],
+    ['flickRightInWindDown', 'spiral'],
   ]) {
     const r = rig();
     r.spinThenLift();
@@ -393,14 +436,14 @@ for (const [label, leftPath] of [
 // --- twizzles and the split leap
 {
   const r = rig();
-  r.stroke(real('flickRight'));
+  r.stroke(real('flickUp'));
   r.wait(300);
   r.stroke(circle(300, 560, 40, 2, 60));
   ok('a circle straight after a split leap -> twizzles', r.seen.has('twirl') && !r.seen.has('dance'), [...r.seen]);
 }
 {
   const r = rig();
-  r.stroke(real('flickRight'));
+  r.stroke(real('flickUp'));
   r.wait(800);
   r.down([300, 560]);
   r.wait(CFG.dance.holdMs + 60);
@@ -470,8 +513,8 @@ for (const pause of [0, 140, 200]) {
   r.up();
   r.wait(40);
   ok(
-    'a right flick down while the steering thumb drifts a little -> hydroblade, not a stop',
-    r.seen.has('hydro') && !r.seen.has('stop') && r.twoCalls === 0,
+    'a right flick down while the steering thumb drifts a little -> toe kick, not a stop',
+    r.seen.has('toe') && !r.seen.has('stop') && r.twoCalls === 0,
     [...r.seen],
   );
 }
@@ -490,8 +533,8 @@ for (const pause of [0, 140, 200]) {
   r.play(line(300, 600, 380, 600, 8), circle(130, 640, 30, 1.5, 60));
   r.wait(200);
   ok(
-    'a right flick right while the left thumb circles to steer -> split leap, not spread eagle',
-    r.seen.has('leap') && !r.seen.has('eagle') && r.twoCalls === 0,
+    'a right flick right while the left thumb circles to steer -> spiral, not spread eagle',
+    r.seen.has('spiral') && !r.seen.has('eagle') && r.twoCalls === 0,
     [...r.seen],
   );
 }
@@ -503,8 +546,8 @@ for (const pause of [0, 140, 200]) {
   r.up();
   r.wait(40);
   ok(
-    'a right flick down while the left thumb circles to steer -> hydroblade, not a hockey stop',
-    r.seen.has('hydro') && !r.seen.has('stop'),
+    'a right flick down while the left thumb circles to steer -> toe kick, not a hockey stop',
+    r.seen.has('toe') && !r.seen.has('stop'),
     [...r.seen],
   );
 }
@@ -514,7 +557,7 @@ for (const pause of [0, 140, 200]) {
   r.down([300, 640]);
   r.play(line(300, 640, 300, 560, 7), line(160, 640, 160, 560, 7));
   r.wait(300);
-  ok('both thumbs swiped up -> spiral, steering held', r.move === 'spiral' && r.twoCalls === 1, r.move);
+  ok('both thumbs swiped up -> split leap, steering held', r.seen.has('leap') && r.twoCalls === 1, [...r.seen]);
 }
 {
   const r = rig();

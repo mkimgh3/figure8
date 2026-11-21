@@ -166,8 +166,8 @@ const { open } = require('./smoke.cjs');
   };
   await resteer();
   await calm();
-  seen = await play(R(line(300, 560, 380, 556, 6)));
-  ok('flick right is a split leap', seen.includes('leap'), seen);
+  seen = await play(R(line(300, 600, 296, 500, 6)));
+  ok('flick up is a split leap', seen.includes('leap'), seen);
   {
     const tag = await p.evaluate(() => document.getElementById('padtag').textContent);
     ok('and the thumb shows what it was read as', tag === 'Split leap', tag);
@@ -175,25 +175,18 @@ const { open } = require('./smoke.cjs');
   seen = await play(R(circle(300, 560, 36, 2.2, 90)));
   ok('a circle straight after a split leap is twizzles', seen.includes('twirl'), seen);
   await calm();
-  await ev('pointermove', 1, 100, 700);
-  await sleep(1500);
-  const b0 = (await st()).back;
+  // v3-look76: no three-turn on a flick any more (spinning past half a turn and letting go swaps direction)
   seen = await play(R(line(380, 560, 300, 556, 6)));
-  await sleep(600);
-  ok(
-    'flick left across her travel is a three-turn that swaps direction',
-    seen.includes('turn') && (await st()).back !== b0,
-    seen,
-  );
-  await ev('pointermove', 1, 160, 640);
-  await calm();
-  seen = await play(R(line(300, 600, 296, 500, 6)));
   await sleep(100);
-  ok('flick up is a spiral', seen.includes('spiral'), seen);
+  ok('flick left is a hydroblade', seen.includes('hydro') && !seen.includes('turn'), seen);
+  await calm();
+  seen = await play(R(line(300, 560, 380, 556, 6)));
+  await sleep(100);
+  ok('flick right is a spiral', seen.includes('spiral'), seen);
   await calm();
   seen = await play(R(line(300, 500, 304, 600, 6)));
   await sleep(100);
-  ok('flick down is a hydroblade', seen.includes('hydro'), seen);
+  ok('flick down is a toe kick', seen.includes('toe'), seen);
   await calm();
   seen = await play(R(line(260, 560, 340, 560, 6).concat(line(340, 560, 342, 480, 6))));
   ok('a corner no longer triggers a spread eagle', !seen.includes('eagle'), seen);
@@ -212,8 +205,16 @@ const { open } = require('./smoke.cjs');
   await calm();
   await ev('pointermove', 1, 160, 640);
   await sleep(600);
+  // the left thumb steering round in circles, from where it is (v3-look76: it begins by moving the way the flick goes;
+  // begun moving the opposite way, whether the thumbs read as spreading apart turned on the frame the flick was read)
   seen = await play([
-    { id: 1, pts: circle(130, 640, 30, 1.5, 60) },
+    {
+      id: 1,
+      pts: Array.from({ length: 61 }, (_, i) => [
+        190 - 30 * Math.cos((i / 60) * 1.5 * 6.2832),
+        640 - 30 * Math.sin((i / 60) * 1.5 * 6.2832),
+      ]),
+    },
     { id: 2, pts: line(300, 600, 380, 600, 8), down: true, up: true },
   ]);
   const fz = await p.evaluate(() => {
@@ -233,7 +234,7 @@ const { open } = require('./smoke.cjs');
     { id: 1, pts: line(160, 640, 160, 560, 7) },
     { id: 2, pts: line(300, 640, 300, 560, 7), down: true, up: true },
   ]);
-  ok('both thumbs swiping up are a spiral', seen.includes('spiral') && !seen.includes('stop'), {
+  ok('both thumbs swiping up are a split leap', seen.includes('leap') && !seen.includes('stop'), {
     seen,
     last: await p.evaluate(() => {
       const l = JSON.parse(window.__game.log.text()).strokes.slice(-1)[0];
@@ -276,7 +277,7 @@ const { open } = require('./smoke.cjs');
       jit = Array.from({ length: 50 }, (_, i) => [e0[0] + (i % 2 ? 6 : -6), e0[1]]);
     seen = await play([
       { id: 1, pts: lc.concat(jit) },
-      { id: 2, pts: line(300, 640, 300, 560, 7), down: true, up: false },
+      { id: 2, pts: line(300, 640, 380, 640, 7), down: true, up: false },
     ]);
     const a = await p.evaluate(() => window.__game.input.read().x);
     await ev('pointermove', 1, e0[0] - 60, e0[1]);

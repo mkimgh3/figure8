@@ -18,8 +18,10 @@ const element = (kind, test) => (c) =>
 const amount = (id, f, n) => (c) => !!c.S.move && c.S.move.id === id && f(c.S.move.state) >= n;
 const spinRevs = (st) => st.total / TAU;
 
-const BACK_HINT = 'Skate backward: flick your right finger left for a three-turn, keep some speed';
-const FWD_HINT = 'Skate forward and build speed. Going backward? Flick left first';
+// v3-look76: no three-turn on a flick; she turns round by circling the right finger past half a turn and letting go
+const BACK_HINT = 'Skate backward: hold your right finger down, circle it until she faces backward, and lift';
+const FWD_HINT =
+  'Skate forward and build speed. Going backward? Circle your right finger until she faces forward, and lift';
 
 // A jump: get into the right way of skating, then one step for the whole jump: double tap, keep the finger down, rotate, lift.
 const TAP = 'Double tap, keep your finger down and ';
@@ -83,24 +85,33 @@ const MOVES = [
     name: 'Twizzles',
     steps: [
       ['Skate along with your left thumb', moving],
-      ['Flick your right finger to the right for a split leap', element('leap')],
+      ['Flick your right finger up for a split leap', element('leap')],
       ['Straight after the leap, circle your right finger', moveIs('twirl')],
       ['Keep circling: two turns', amount('twirl', (st) => Math.abs(st.goal) / TAU, 2), moveIs('twirl')],
       ['Lift to finish', element('twizzles')],
     ],
   },
   {
-    name: 'Three-turn',
+    name: 'Turn around',
     steps: [
-      ['Skate along with your left thumb', moving],
-      ['Flick your right finger to the left', element('turn')],
+      ['Skate forward with your left thumb', forward],
+      ['Hold your right finger down and circle it slowly until she faces backward, then lift', backward],
+      ['And back: circle until she faces forward, then lift', forward],
     ],
   },
   {
     name: 'Split leap',
     steps: [
       ['Skate along with your left thumb', moving],
-      ['Flick your right finger to the right', element('leap')],
+      ['Flick your right finger up', element('leap')],
+    ],
+  },
+  {
+    name: 'Toe kick',
+    steps: [
+      [BACK_HINT, backward],
+      ['Flick your right finger down: she picks the ice behind her', moveIs('toe')],
+      [TAP + 'circle counter-clockwise a full turn within two seconds, then lift: a higher toe loop', landedAny],
     ],
   },
   {
@@ -114,7 +125,7 @@ const MOVES = [
     name: 'Spiral',
     steps: [
       ['Skate along with your left thumb', moving],
-      ['Flick your right finger up, and keep it down', moveIs('spiral')],
+      ['Flick your right finger to the right, and keep it down', moveIs('spiral')],
       ['Keep it down to hold the spiral', amount('spiral', (st) => st.t, 2), moveIs('spiral')],
       ['Lift to finish', element('spiral')],
     ],
@@ -123,7 +134,7 @@ const MOVES = [
     name: 'Hydroblade',
     steps: [
       ['Skate along with your left thumb and build some speed', (c) => moving(c) && c.speed > 7],
-      ['Flick your right finger down, and keep it down', moveIs('hydro')],
+      ['Flick your right finger to the left, and keep it down', moveIs('hydro')],
       ['Keep it down to stay low', amount('hydro', (st) => st.t, 2), moveIs('hydro')],
       ['Lift to finish', element('hydro')],
     ],

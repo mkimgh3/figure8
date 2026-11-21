@@ -312,6 +312,9 @@ const mirror = (p) =>
     lRk: p.lLk,
   });
 
+// How many half turns round from where she started (a turn of y radians) the nearest way along her path is: forward
+// (even) or backward (odd). bias (a share of a half turn) leans an even choice back toward where she started.
+const halves = (y, bias) => Math.sign(y) * Math.floor(Math.abs(y) / Math.PI + 0.5 - bias);
 export function createDance(S, api) {
   const K = CFG.dance,
     st = {
@@ -403,6 +406,9 @@ export function createDance(S, api) {
     net = 0,
     netGoal = 0,
     turned = 0,
+    // (v3-look76) how far she has been brought round to face along her path, forward or backward (on top of the
+    // finger's turning, so it is never read as a spin)
+    settled = 0,
     lastGoal = 0,
     inSpin = false,
     spinSet = 0,
@@ -726,6 +732,8 @@ export function createDance(S, api) {
           }
         }
       }
+      // how long the right thumb has been still (v3-look76: resting, she settles to forward or backward)
+      st.still = sb < K.settle.restPx ? (st.still || 0) + dt : 0;
       const both = sa > K.moveSpeed && sb > K.moveSpeed;
       if (both) {
         st.sync += (Math.max(cos, cosM ?? cos) - st.sync) * (1 - Math.exp(-H.syncRate * dt));
@@ -865,7 +873,18 @@ export function createDance(S, api) {
         }
       }
       turned += (turnGoal - turned) * (1 - Math.exp(-K.follow * dt));
-      S.yawX = cur.yaw + turned; // the rubber band: she trails the finger a little and eases to a stop after it
+      // The thumb resting with no spin going, or lifted once the spin is over: she comes round to face the way she is
+      // going, forward or backward, whichever her spinning (the finger's turning) has brought her nearer; the poses' own
+      // turns are unwound either way, so a dance with no spin in it never leaves her backward (v3-look76, CFG.dance.settle)
+      {
+        const SE = K.settle;
+        if (st.spin === 0 && (st.held ? (st.still || 0) >= SE.rest : true)) {
+          const y = to.yaw + turnGoal + settled;
+          settled += (halves(turnGoal, SE.bias) * Math.PI - y) * (1 - Math.exp(-SE.rate * dt));
+        }
+      }
+      // the rubber band: she trails the finger a little and eases to a stop after it
+      S.yawX = cur.yaw + turned + settled;
       if (!st.held) {
         st.rel += dt;
         return st.rel < 0.35 || (st.spin > 0 && st.rel < 6);
@@ -876,8 +895,13 @@ export function createDance(S, api) {
     // less; a crash out of it counts for nothing. Since v3-look61 it is not scored on its own: it goes into a choreography
     // combination (choreo: true, CFG.choreo), named by its moves (parts), scored and announced when that closes.
     end(how) {
-      S.flipYaw = wrap(cur.yaw + turned);
-      S.flipK = 2.6; // her body eases back round to face the way she is going
+      // she ends facing the way she is going, forward or backward, whichever she is nearer (v3-look76; until then she
+      // always came back round to however she started): past half a turn round she now skates the other way
+      const y = cur.yaw + turned + settled,
+        k = halves(turnGoal, K.settle.bias);
+      if (Math.abs(k) % 2 === 1) S.back = !S.back;
+      S.flipYaw = wrap(y - k * Math.PI);
+      S.flipK = 2.6; // her body eases the rest of the way round
       const m = st.t > 0 ? st.moodSum / st.t : 0;
       api.emit('element', {
         kind: 'dance',
