@@ -33,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look82';
+const BUILD = 'v3-look83';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -561,6 +561,8 @@ const applyScene = () => {
   // (v3-look78: at her usual top speed the Earth is 8 min 19 s away, as it is for light)
   solar.set(!!(sheet && sheet.space), S.x, S.z);
   S.speedK = sheet && sheet.space ? 2 : 1;
+  // and her jumps are light (v3-look82)
+  S.gravK = sheet && sheet.space ? sheet.gravity || 1 : 1;
   world.setPlace(place);
   boardStill();
   forest.set(place.trees);
@@ -1274,7 +1276,7 @@ function frame(now) {
   if (draw) {
     world.update(game, paused ? 0.016 : dt, trace.bounds, trace.uScale);
     forest.update(S.x, S.z);
-    solar.update(paused ? 0 : dt, S, world.view.e, now, paused);
+    solar.update(paused ? 0 : dt, S, world.view.e, now, paused, world.angles.flat);
     trace.sharpen(world.view.e);
   }
   hud.update(dt, game.speed(), trace.colorAt(S.skated));

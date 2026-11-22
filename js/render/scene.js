@@ -401,7 +401,7 @@ export function createScene(canvas) {
     if (!S.grounded && e < 0.5) {
       const el = renderer.domElement,
         hh = el.clientHeight || window.innerHeight,
-        apex = S.y + (S.vy > 0 ? S.vy ** 2 / (2 * Math.max(0.1, CFG.jump.gravity)) : 0),
+        apex = S.y + (S.vy > 0 ? S.vy ** 2 / (2 * Math.max(0.1, CFG.jump.gravity * (S.gravK || 1))) : 0),
         lim = 1 - (2 * F.top[camera.aspect < 1 ? 0 : 1]) / hh;
       _f.subVectors(camL, camP).normalize();
       _u.copy(camera.up).addScaledVector(_f, -camera.up.dot(_f)).normalize();
@@ -692,6 +692,10 @@ export function createScene(canvas) {
       // the views Auto goes round here (the place's or the sheet's)
       get list() {
         return angleList || C.angles.list;
+      },
+      // how far the view has come round to the low, flat one (0..1), as it eases from one to the next
+      get flat() {
+        return clamp(angTilt / C.angles.views.flat[0], 0, 1);
       },
       // how far the view has risen to keep a jump in it (metres; for tests)
       get airLift() {

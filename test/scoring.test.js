@@ -254,6 +254,11 @@ function thumbs(kind) {
 
 // ---- the thumbs shape the dance (v3-look62)
 {
+  // (v3-look83) the dance draws on Math.random: here a fixed sequence, so the test gives the same answer on every run
+  // (its biggest joint step went from 0.04 to 0.079, against a limit of 0.08, from one run to the next)
+  const realRandom = Math.random;
+  let seed = 20261122;
+  Math.random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   // dance for a while with the right thumb held high (or low) on the glass, and note the poses she takes
   const run = (dy) => {
     const game = createSkater(() => {}),
@@ -309,6 +314,7 @@ function thumbs(kind) {
     +hi.jump.toFixed(3),
     +lo.jump.toFixed(3),
   ]);
+  Math.random = realRandom;
 }
 
 // ---- what counts as a spin (v3-look64): going round one way, not a thumb sweeping to and fro

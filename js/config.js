@@ -628,6 +628,9 @@ export const CFG = {
       // is zoomed out slightly farther than normal"): its own changing angles (CFG.camera.angles): the usual view, nearly
       // straight down and a little further back, low and close, the usual again, straight down, high and back
       angles: ['axo', 'top', 'flat', 'axo', 'top', 'high'],
+      // v3-look82 (Mark: "in space mode higher jump less gravity"): gravity in her jumps, times the usual (so a jump goes
+      // two and a half times as high and stays up two and a half times as long)
+      gravity: 0.4,
     },
   },
   // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop. dust: how many

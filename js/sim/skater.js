@@ -449,7 +449,8 @@ export function createSkater(emit) {
     if (!S.grounded) {
       S.airT += dt;
       S.spin += (S.goal - S.spin) * (1 - Math.exp(-20 * dt)); // she turns exactly as far as the finger has
-      S.vy -= CFG.jump.gravity * dt;
+      // gravK: the place's gravity (v3-look82: light among the planets)
+      S.vy -= CFG.jump.gravity * (S.gravK || 1) * dt;
       // in the Tunnel she jumps straight off the ice and comes back to it; elsewhere she flies through the world: over a
       // hollow she is higher above the ice, over a rise she comes down sooner
       if (canyon) S.y += S.vy * dt;

@@ -1225,6 +1225,15 @@ const { open } = require('./smoke.cjs');
       S.z = sun.z + lo + 4;
       g.solar.update(0, S, 0, 0);
       const orbits = g.solar.orbits;
+      // just outside Mars's orbit: marks to Mars and Jupiter only (v3-look82)
+      const marks = [...document.querySelectorAll('#solmarks > div')]
+        .filter((el) => el.style.display !== 'none')
+        .map((el) => el.querySelector('.txt').textContent.split(' ')[0])
+        .sort();
+      // the flat view: no orbits drawn
+      g.solar.update(0, S, 0, 0, false, 1);
+      const flatOrbits = g.solar.planets.filter((q) => q.orbit).length;
+      g.solar.update(0, S, 0, 0);
       S.x = keep[0];
       S.z = keep[1];
       // zoomed out: only the found ones show
@@ -1232,7 +1241,8 @@ const { open } = require('./smoke.cjs');
       const shown = g.solar.planets.filter((q) => q.visible).map((q) => q.name);
       g.solar.update(0, S, 0, 0);
       const sheet = g.world.paper,
-        speedK = S.speedK;
+        speedK = S.speedK,
+        gravK = S.gravK;
       g.setLook(1);
       const off = !g.solar.on;
       g.setPlace(0);
@@ -1249,11 +1259,14 @@ const { open } = require('./smoke.cjs');
         orbits,
         told,
         speedK,
+        gravK,
         after: S.speedK,
+        marks,
+        flatOrbits,
       };
     });
     ok(
-      'Paper at dusk: the solar system, the sun ahead of her, planets going round and found as she comes near',
+      'Paper at dusk: the solar system, the sun ahead of her, planets going round and found as she comes near; light gravity, marks to the orbits either side, none drawn in the flat view',
       sol.on &&
         sol.ahead &&
         sol.moved > 0.5 &&
@@ -1262,6 +1275,9 @@ const { open } = require('./smoke.cjs');
         sol.orbits.includes('Mars') &&
         sol.told.includes('Mars orbit') &&
         sol.speedK === 2 &&
+        sol.gravK === 0.4 &&
+        sol.marks.join() === 'Jupiter,Mars' &&
+        sol.flatOrbits === 0 &&
         sol.after === 1 &&
         sol.hit &&
         sol.found.join() === 'Mars' &&

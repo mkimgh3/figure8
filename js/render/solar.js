@@ -19,15 +19,25 @@
 //
 // The sheet is not drawn (CFG.paper.Dusk.space): she skates over a dark sky, faint stars far below. Bodies are cut off
 // where the plane is, so they sit half in it. Crossing a body's orbit discovers the orbit (it glows, and is named);
-// coming within FIND metres of a body discovers it. From then on a mark at the edge of the screen points to it.
+// coming within FIND metres of a body discovers it.
+// v3-look82, Mark: "in space mode higher jump less gravity. planet indicator show only planet of the ring before and ring
+// after during flat view dont need to show the dashed orbit rings, but do indicate with arrow showing location of the
+// planet discovered with distance. also double all planet and sun size everything is too small. jupitor ring is not lit
+// properly. make orbit indicator line thicker and shorter dash". Everything is twice the size it was (EARTH_R: Earth is
+// twice her height across); marks point only to the planets of the orbits either side of her (inside Mercury's, the sun
+// and Mercury); in the low, flat view the orbits are not drawn; the rings glow a little of themselves (lit only by the
+// sun, low over the plane, a nearly flat ring like Jupiter's was dark); the orbits are drawn 32 cm wide in 1 m dashes.
+// Her low gravity here is CFG.paper.Dusk.gravity (main.js, S.gravK).
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 
 const AU = 499 * CFG.steer.maxSpeed,
   YEAR = 6 * 3600,
-  EARTH_R = 0.86,
+  EARTH_R = 1.72,
   DEG = Math.PI / 180,
-  FIND = 10;
+  FIND = 10,
+  // marks for anything nearer than this (m) go where it is on the screen, not at the edge
+  NEAR_MARK = 300;
 // a body's radius from its width as a share of Earth's (see above; the sun's share is 109.2)
 const size = (w) => EARTH_R * (w <= 1 ? w : 1 + Math.log(w) / Math.log(109.2));
 const SUN_R = size(109.2);
@@ -41,7 +51,7 @@ const BODIES = [
   ['Earth', 1.0, 0.0167, 100.46, 102.94, 365.26, 1, 23.4, 0.5, 'earth'],
   ['Moon', 384400 / 149.6e6, 0.0549, 218.32, 83.35, 27.32, 0.273, 6.7, 0.02, 'moon', null, 'Earth'],
   ['Mars', 1.524, 0.0934, 355.45, 336.04, 686.98, 0.532, 25.2, 0.48, 'mars'],
-  ['Jupiter', 5.203, 0.0484, 34.4, 14.75, 4332.6, 10.97, 3.1, 0.9, 'jupiter', [1.45, 1.8, 3, 0xd8c8b0, 0.35, 'faint']],
+  ['Jupiter', 5.203, 0.0484, 34.4, 14.75, 4332.6, 10.97, 3.1, 0.9, 'jupiter', [1.45, 1.8, 3, 0xd8c8b0, 0.55, 'faint']],
   ['Saturn', 9.537, 0.0539, 49.94, 92.43, 10759, 9.14, 26.7, 0.85, 'saturn', [1.25, 2.35, 16, 0xe8d6a8, 1, 'saturn']],
   ['Uranus', 19.19, 0.0473, 313.23, 170.96, 30685, 3.98, 97.8, -0.6, 'uranus', [1.6, 2.0, 82, 0xb8d8e0, 0.6, 'narrow']],
   ['Neptune', 30.07, 0.0086, 304.88, 44.97, 60190, 3.86, 28.3, 0.6, 'neptune', [1.7, 2.3, 10, 0x9fb8e0, 0.35, 'faint']],
@@ -352,13 +362,17 @@ export function createSolar(scene, renderer, camera) {
           ringGeometry(r * ri, r * ro),
           new THREE.MeshStandardMaterial({
             color: rc,
+            // dust and ice catching the sunlight: some light of its own, so a ring lying nearly flat (the sun's light
+            // only grazing it) is not dark
+            emissive: rc,
+            emissiveIntensity: 0.55,
             alphaMap: ringBands(bands),
             transparent: true,
             opacity: ro2,
             side: THREE.DoubleSide,
             depthWrite: false,
             roughness: 0.9,
-            clippingPlanes: CLIP,
+            // not cut off at the plane, as the planet is: a ring lying near the plane (Jupiter's) was cut in half
           }),
         );
       // tilted a little toward her view, about the axis across the screen
@@ -388,15 +402,16 @@ export function createSolar(scene, renderer, camera) {
         opacity: 0.4,
         depthWrite: false,
         toneMapped: false,
-        dashSize: 2.5,
-        gapSize: 2.5,
+        dashSize: 1,
+        gapSize: 1,
       }),
     );
     orbit.computeLineDistances();
     orbit.frustumCulled = false;
-    // up close the same orbit as a ribbon 14 cm wide, which shows on a phone and can glow (the line above stays for
-    // the view from far up, where the ribbon would be thinner than a pixel)
-    const band = ribbonOf(pts, 0.14, 2.5);
+    // up close the same orbit as a ribbon 32 cm wide in 1 m dashes (v3-look82; it was 14 cm in 2.5 m dashes), which
+    // shows on a phone and can glow (the line above stays for the view from far up, where the ribbon would be thinner
+    // than a pixel)
+    const band = ribbonOf(pts, 0.32, 1);
     orbit.add(band);
     root.add(orbit);
     // x, z: where it is in the world; side: which side of its orbit she was on last frame; glow: its orbit lit up
@@ -542,6 +557,7 @@ void main() {
     return markEls.get(name);
   };
   const _p = new THREE.Vector3(),
+    _f = new THREE.Vector3(),
     her = { x: 0, z: 0 },
     // the marks placed so far this frame: [x, y, half width]
     placed = [];
@@ -550,25 +566,34 @@ void main() {
   // Mark sent a screenshot held sideways with every mark bunched up beside her: the box was fixed for upright (190 px
   // from the top to 140 px from the bottom), which on a phone held sideways (about 390 px high) is a strip through the
   // middle.
-  const box = { L: 26, T: 190, R: 0, B: 0, top: 164, at: -1e9 };
+  // Its top follows the item above each mark: held sideways the score's card hangs much lower on the left than the speed
+  // does in the middle, and a mark for something straight ahead, kept below the card, sat on her head.
+  const box = { L: 26, T: 190, R: 0, B: 0, items: [], at: -1e9 };
   function fitBox(now) {
     const W = window.innerWidth,
       H = window.innerHeight,
       side = W > H;
     if (now - box.at > 500) {
       box.at = now;
-      let top = 0;
+      box.items = [];
       for (const id of ['score', 'btns', 'speedo']) {
         const el = document.getElementById(id),
           r = el && el.getBoundingClientRect();
-        if (r && r.width > 0 && r.height > 0 && r.top < H / 2) top = Math.max(top, r.bottom);
+        if (r && r.width > 0 && r.height > 0 && r.top < H / 2) box.items.push([r.left, r.right, r.bottom]);
       }
-      box.top = top;
     }
     box.L = side ? 48 : 26;
     box.R = W - box.L;
-    box.T = Math.min(Math.max(box.top + 26, side ? 60 : 120), H / 2 - 40);
+    box.lo = side ? 60 : 120;
+    box.hi = H / 2 - 40;
+    box.T = Math.min(Math.max(box.lo, Math.min(...box.items.map((q) => q[2] + 24))), box.hi);
     box.B = Math.max(H - (side ? 36 : 140), H / 2 + 40);
+  }
+  // the top of the box under a mark from x - hw to x + hw
+  function topAt(x, hw) {
+    let t = box.lo;
+    for (const q of box.items) if (q[0] < x + hw && q[1] > x - hw) t = Math.max(t, q[2] + 24);
+    return Math.min(t, box.hi);
   }
   function placeMark(name, x, z, show) {
     const el = markOf(name);
@@ -593,15 +618,27 @@ void main() {
       Bt = box.B,
       cx = W / 2,
       cy = H / 2,
-      inside = sx > L && sx < Rr && sy > T && sy < Bt && _p.z <= 1;
+      // (v3-look82) only something near enough to see is marked where it is on the screen; anything further, which in
+      // a low view lies along the horizon just over her head, is marked at the edge of the screen the way it lies
+      inside = sx > L && sx < Rr && sy > T && sy < Bt && _p.z <= 1 && d < NEAR_MARK;
     // close enough to see: no mark
     if (d < 40 || (inside && d < 60)) {
       el.style.display = 'none';
       return;
     }
-    const dx = sx - cx,
+    let dx = sx - cx,
       dy = sy - cy;
     if (!inside) {
+      // (v3-look82) at the edge, the way it lies from her as the view faces, as on a compass: straight ahead up the
+      // screen, to her right to the right, behind her down (projected, a far body on the horizon pointed every which way)
+      camera.getWorldDirection(_f);
+      const fl = Math.hypot(_f.x, _f.z) || 1,
+        fx = _f.x / fl,
+        fz = _f.z / fl,
+        bx = x - her.x,
+        bz = z - her.z;
+      dx = bx * -fz + bz * fx;
+      dy = -(bx * fx + bz * fz);
       const k = Math.min(
         dx > 0 ? (Rr - cx) / dx : dx < 0 ? (L - cx) / dx : Infinity,
         dy > 0 ? (Bt - cy) / dy : dy < 0 ? (T - cy) / dy : Infinity,
@@ -616,8 +653,20 @@ void main() {
     // the whole of it on screen, and not on top of a mark already placed this frame
     const hw = (el.offsetWidth || 80) / 2 + 4;
     sx = Math.min(W - hw, Math.max(hw, sx));
-    for (let k = 0; k < 6 && placed.some((q) => Math.abs(q[0] - sx) < q[2] + hw && Math.abs(q[1] - sy) < 28); k++)
-      sy += sy > H / 2 ? -30 : 30;
+    sy = Math.max(sy, topAt(sx, hw));
+    // along the top or the bottom it moves aside (down, it would land on her); up the sides, toward the middle
+    const across = sy <= topAt(sx, hw) + 1 || sy >= Bt - 1;
+    for (let k = 0; k < 6; k++) {
+      const q = placed.find((q) => Math.abs(q[0] - sx) < q[2] + hw && Math.abs(q[1] - sy) < 28);
+      if (!q) break;
+      if (across) {
+        const s = sx >= q[0] ? 1 : -1,
+          gap = q[2] + hw + 2;
+        sx = q[0] + s * gap;
+        if (sx > W - hw || sx < hw) sx = q[0] - s * gap;
+        sx = Math.min(W - hw, Math.max(hw, sx));
+      } else sy += sy > H / 2 ? -30 : 30;
+    }
     placed.push([sx, sy, hw]);
     el.style.left = sx.toFixed(1) + 'px';
     el.style.top = sy.toFixed(1) + 'px';
@@ -670,7 +719,7 @@ void main() {
       root.visible = stars.visible = v;
       marks.style.display = v ? 'block' : 'none';
       if (v) {
-        root.position.set(x || 0, 0, (z || 0) - 9);
+        root.position.set(x || 0, 0, (z || 0) - 11);
         t = 0;
         place();
         for (const B of bodies) B.side = 0;
@@ -678,8 +727,8 @@ void main() {
     },
     // every frame: the bodies go round and turn, the lights twinkle, orbits she crosses and bodies she comes near are
     // discovered, and the marks point the way. e: how far the view is zoomed out (0..1); quiet: the game is paused or
-    // the front page is up (no marks)
-    update(dt, S, e, now, quiet) {
+    // the front page is up (no marks); flat: how far the view has come round to the low, flat view (0..1: no orbits)
+    update(dt, S, e, now, quiet, flat = 0) {
       if (!on) return;
       t += dt;
       place();
@@ -707,19 +756,31 @@ void main() {
         }
         B.side = sd;
         B.glow *= Math.exp(-dt / 1.6);
-        const lit = orbits.has(B.name) ? 1 : 0;
+        const lit = orbits.has(B.name) ? 1 : 0,
+          seen = 1 - flat;
+        B.orbit.visible = seen > 0.02;
         for (const m of [B.orbit.material, B.orbit.children[0].material]) {
           m.color.setHex(0xa6adbb).multiplyScalar(1 + lit * 0.5 + B.glow * 4);
-          m.opacity = Math.min(1, 0.4 + lit * 0.2 + B.glow * 0.5);
+          m.opacity = Math.min(1, 0.4 + lit * 0.2 + B.glow * 0.5) * seen;
         }
         if (!found.has(B.name) && Math.hypot(S.x - B.x, S.z - B.z) < B.r + FIND) {
           found.add(B.name);
           if (api.onFind) api.onFind(B.name, false);
         }
         B.body.visible = found.has(B.name) || e < 0.5;
-        placeMark(B.name, B.x, B.z, !quiet && e < 0.5 && (found.has(B.name) || orbits.has(B.name)));
       }
-      placeMark('Sun', root.position.x, root.position.z, !quiet && e < 0.5);
+      // the marks (v3-look82): only the planets of the orbits either side of her, the last one she is outside of and
+      // the next one out; inside Mercury's orbit the sun is the one before (moons are left out)
+      let before = null,
+        next = null;
+      for (const B of bodies)
+        if (!B.parent) {
+          if (B.side >= 0) {
+            if (!before || B.a > before.a) before = B;
+          } else if (!next || B.a < next.a) next = B;
+        }
+      for (const B of bodies) placeMark(B.name, B.x, B.z, !quiet && e < 0.5 && (B === before || B === next));
+      placeMark('Sun', root.position.x, root.position.z, !quiet && e < 0.5 && !before);
     },
     // If (x, z) is inside the sun or a body where it meets the plane: the nearest point outside and the way out
     hit(x, z) {
@@ -759,7 +820,14 @@ void main() {
     },
     // for tests and screenshots: where each body is now (in the world), the sun, and which side of an orbit a point is
     get planets() {
-      return bodies.map((B) => ({ name: B.name, x: B.x, z: B.z, r: B.r, visible: B.body.visible }));
+      return bodies.map((B) => ({
+        name: B.name,
+        x: B.x,
+        z: B.z,
+        r: B.r,
+        visible: B.body.visible,
+        orbit: B.orbit.visible,
+      }));
     },
     get sun() {
       return { x: root.position.x, z: root.position.z, r: SUN_R };
