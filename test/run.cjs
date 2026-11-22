@@ -1230,9 +1230,12 @@ const { open } = require('./smoke.cjs');
         .filter((el) => el.style.display !== 'none')
         .map((el) => el.querySelector('.txt').textContent.split(' ')[0])
         .sort();
-      // the flat view: no orbits drawn (once the glow of the one just crossed has gone)
-      g.solar.update(30, S, 0, 0, false, 1);
-      const flatOrbits = g.solar.planets.filter((q) => q.orbit).length;
+      // (v3-look86) only the orbits either side of her are drawn (once the glow of the one just crossed has gone)
+      g.solar.update(30, S, 0, 0);
+      const nearOrbits = g.solar.planets
+        .filter((q) => q.orbit)
+        .map((q) => q.name)
+        .sort();
       g.solar.update(0, S, 0, 0);
       // (v3-look85) Earth's pull: let go beside it she settles into going round it; pushing away she escapes
       // (the planets go round meanwhile, as in play: the Earth about 2 m/s)
@@ -1302,12 +1305,12 @@ const { open } = require('./smoke.cjs');
         jumpK,
         after: S.speedK,
         marks,
-        flatOrbits,
+        nearOrbits,
         orbit,
       };
     });
     ok(
-      'Paper at dusk: the solar system, the sun ahead of her, planets going round and found as she comes near; light gravity, marks to the orbits either side, none drawn in the flat view, held in orbit round a planet and free to leave',
+      'Paper at dusk: the solar system, the sun ahead of her, planets going round and found as she comes near; light gravity, marks to the orbits either side, only their orbits drawn, held in orbit round a planet and free to leave',
       sol.on &&
         sol.ahead &&
         sol.moved > 0.5 &&
@@ -1319,7 +1322,7 @@ const { open } = require('./smoke.cjs');
         sol.gravK === 0.43 &&
         sol.jumpK === 0.78 &&
         sol.marks.join() === 'Jupiter,Mars' &&
-        sol.flatOrbits === 0 &&
+        sol.nearOrbits.join() === 'Jupiter,Mars' &&
         sol.orbit.turns > 1 &&
         sol.orbit.d[0] > sol.orbit.R * 0.9 &&
         sol.orbit.d[1] - sol.orbit.d[0] < 3 &&

@@ -697,10 +697,6 @@ export function createScene(canvas) {
       get dist() {
         return angDist;
       },
-      // how far the view has come round to the low, flat one (0..1), as it eases from one to the next
-      get flat() {
-        return clamp(angTilt / C.angles.views.flat[0], 0, 1);
-      },
       // how far the view has risen to keep a jump in it (metres; for tests)
       get airLift() {
         return airLift;

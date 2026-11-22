@@ -25,7 +25,7 @@
 // planet discovered with distance. also double all planet and sun size everything is too small. jupitor ring is not lit
 // properly. make orbit indicator line thicker and shorter dash". Everything is twice the size it was (EARTH_R: Earth is
 // twice her height across); marks point only to the planets of the orbits either side of her (inside Mercury's, the sun
-// and Mercury); in the low, flat view the orbits are not drawn; the rings glow a little of themselves (lit only by the
+// and Mercury); only their two orbits are drawn (v3-look86); the rings glow a little of themselves (lit only by the
 // sun, low over the plane, a nearly flat ring like Jupiter's was dark); the orbits are drawn 32 cm wide in 1 m dashes.
 // Her low gravity here is CFG.paper.Dusk.gravity (main.js, S.gravK).
 // v3-look84, Mark: "spotlight causes planet to be artificially lit on dark side, also i only see half the planet": the
@@ -440,7 +440,8 @@ export function createSolar(scene, renderer, camera) {
     orbit.add(band);
     root.add(orbit);
     // x, z: where it is in the world; side: which side of its orbit she was on last frame; glow: its orbit lit up
-    // vx, vz: how fast it is going (m/s), for the orbit she is held in round it (pull)
+    // vx, vz: how fast it is going (m/s), for the orbit she is held in round it (pull); show: how much its orbit is
+    // drawn (0..1, see update)
     return {
       name,
       a,
@@ -460,6 +461,7 @@ export function createSolar(scene, renderer, camera) {
       vz: 0,
       side: 0,
       glow: 0,
+      show: 0,
     };
   });
   const byName = Object.fromEntries(bodies.map((B) => [B.name, B]));
@@ -720,7 +722,8 @@ void main() {
   const found = new Set(),
     orbits = new Set();
   let on = false,
-    t = 0;
+    t = 0,
+    lastNow = 0;
   // where each body is on its orbit, game time t (s) after the system appeared
   function place() {
     const daysNow = days0 + (t * 365.256) / YEAR;
@@ -772,9 +775,12 @@ void main() {
     },
     // every frame: the bodies go round and turn, the lights twinkle, orbits she crosses and bodies she comes near are
     // discovered, and the marks point the way. e: how far the view is zoomed out (0..1); quiet: the game is paused or
-    // the front page is up (no marks); flat: how far the view has come round to the low, flat view (0..1: no orbits)
-    update(dt, S, e, now, quiet, flat = 0) {
+    // the front page is up (no marks)
+    update(dt, S, e, now, quiet) {
       if (!on) return;
+      // seconds since the last frame, going on while the game is paused (the orbits still fade in and out, zoomed out)
+      const rdt = Math.max(dt, Math.min(0.1, Math.max(0, (now - lastNow) / 1000) || 0));
+      lastNow = now;
       t += dt;
       for (const B of bodies) {
         B.px = B.x;
@@ -810,14 +816,6 @@ void main() {
         }
         B.side = sd;
         B.glow *= Math.exp(-dt / 1.6);
-        const lit = orbits.has(B.name) ? 1 : 0,
-          // (v3-look85) in the flat view an orbit still shows as she crosses it, while it glows
-          seen = Math.max(1 - flat, Math.min(1, B.glow * 1.5));
-        B.orbit.visible = seen > 0.02;
-        for (const m of [B.orbit.material, B.orbit.children[0].material]) {
-          m.color.setHex(0xa6adbb).multiplyScalar(1 + lit * 0.5 + B.glow * 4);
-          m.opacity = Math.min(1, 0.4 + lit * 0.2 + B.glow * 0.5) * seen;
-        }
         if (!found.has(B.name) && Math.hypot(S.x - B.x, S.z - B.z) < B.r + FIND) {
           found.add(B.name);
           if (api.onFind) api.onFind(B.name, false);
@@ -834,6 +832,22 @@ void main() {
             if (!before || B.a > before.a) before = B;
           } else if (!next || B.a < next.a) next = B;
         }
+      // (v3-look86, Mark: "i meant dont show as in dont show every orbital just show near ones") the orbits drawn are
+      // the same two, in every view (v3-look83 to 85 hid them all in the flat view); a moon's while its planet's is
+      // drawn; an orbit just crossed while it glows; zoomed out, all of them. Each fades in and out over about a second.
+      const ke = 1 - Math.exp(-2.5 * rdt);
+      for (const B of bodies) {
+        const P = B.parent ? byName[B.parent] : B,
+          near = e >= 0.5 || P === before || P === next;
+        B.show += ((near ? 1 : 0) - B.show) * ke;
+        const lit = orbits.has(B.name) ? 1 : 0,
+          seen = Math.max(B.show, Math.min(1, B.glow * 1.5));
+        B.orbit.visible = seen > 0.02;
+        for (const m of [B.orbit.material, B.orbit.children[0].material]) {
+          m.color.setHex(0xa6adbb).multiplyScalar(1 + lit * 0.5 + B.glow * 4);
+          m.opacity = Math.min(1, 0.4 + lit * 0.2 + B.glow * 0.5) * seen;
+        }
+      }
       for (const B of bodies) placeMark(B.name, B.x, B.z, !quiet && e < 0.5 && (B === before || B === next));
       placeMark('Sun', root.position.x, root.position.z, !quiet && e < 0.5 && !before);
     },
