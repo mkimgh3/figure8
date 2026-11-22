@@ -366,7 +366,8 @@ export const CFG = {
     // high everywhere; v3-look82, Mark: "remove top view from view rotation and only to paper mode": top only on paper,
     // `paper`, unless the sheet has its own). Menu > View: Auto, or one of them held (save key `va`).
     angles: {
-      views: { axo: [0, 1], flat: [13, 0.86], high: [-16, 1.12], top: [-40, 1.45] },
+      // (v3-look84, Mark: "for top view zoom out even more": top 2.1 times the distance, was 1.45)
+      views: { axo: [0, 1], flat: [13, 0.86], high: [-16, 1.12], top: [-40, 2.1] },
       list: ['axo', 'flat', 'axo', 'high'],
       paper: ['axo', 'flat', 'axo', 'high', 'axo', 'top'],
       hold: 22,
@@ -628,9 +629,11 @@ export const CFG = {
       // is zoomed out slightly farther than normal"): its own changing angles (CFG.camera.angles): the usual view, nearly
       // straight down and a little further back, low and close, the usual again, straight down, high and back
       angles: ['axo', 'top', 'flat', 'axo', 'top', 'high'],
-      // v3-look82 (Mark: "in space mode higher jump less gravity"): gravity in her jumps, times the usual (so a jump goes
-      // two and a half times as high and stays up two and a half times as long)
-      gravity: 0.4,
+      // v3-look82 (Mark: "in space mode higher jump less gravity"): gravity in her jumps, times the usual; v3-look84
+      // (Mark: "jump is also too high"): `gravity` 0.43 (was 0.4) and her spring off the ice `jump` 0.78 times the usual,
+      // so a jump goes 1.4 times as high (was 2.5) and floats 1.8 times as long
+      gravity: 0.43,
+      jump: 0.78,
     },
   },
   // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop. dust: how many

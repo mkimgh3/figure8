@@ -17,9 +17,9 @@
 // Each body is on its real ellipse round the sun (J2000 elements; inclinations left out), where it is today, and a year
 // takes YEAR seconds (slow enough that she can catch every one of them).
 //
-// The sheet is not drawn (CFG.paper.Dusk.space): she skates over a dark sky, faint stars far below. Bodies are cut off
-// where the plane is, so they sit half in it. Crossing a body's orbit discovers the orbit (it glows, and is named);
-// coming within FIND metres of a body discovers it.
+// The sheet is not drawn (CFG.paper.Dusk.space): she skates over a dark sky, faint stars far below. Bodies are centred
+// on the plane (until v3-look84 they were cut off there, so they sat half in it). Crossing a body's orbit discovers the
+// orbit (it glows, and is named); coming within FIND metres of a body discovers it.
 // v3-look82, Mark: "in space mode higher jump less gravity. planet indicator show only planet of the ring before and ring
 // after during flat view dont need to show the dashed orbit rings, but do indicate with arrow showing location of the
 // planet discovered with distance. also double all planet and sun size everything is too small. jupitor ring is not lit
@@ -28,6 +28,8 @@
 // and Mercury); in the low, flat view the orbits are not drawn; the rings glow a little of themselves (lit only by the
 // sun, low over the plane, a nearly flat ring like Jupiter's was dark); the orbits are drawn 32 cm wide in 1 m dashes.
 // Her low gravity here is CFG.paper.Dusk.gravity (main.js, S.gravK).
+// v3-look84, Mark: "spotlight causes planet to be artificially lit on dark side, also i only see half the planet": the
+// planets and rings are lit by the sun alone (sunOnly), and drawn whole.
 import * as THREE from './three.js';
 import { CFG } from '../config.js';
 
@@ -306,11 +308,31 @@ function pointsOf(pos, col, tw) {
   return g;
 }
 
+// Lit by the sun alone (v3-look84): the night's follow spots over her, the dim night sun and the sky's own light (the
+// scene's environment) lit the planets' night sides. Of the scene's lights only the point light (the sun's) is kept, and
+// a trace of the ambient light so a night side is not quite black.
+function sunOnly(m) {
+  m.envMapIntensity = 0;
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace(
+      '#include <lights_fragment_begin>',
+      THREE.ShaderChunk.lights_fragment_begin
+        .replace('#if ( NUM_SPOT_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0')
+        .replace('#if ( NUM_DIR_LIGHTS > 0 ) && defined( RE_Direct )', '#if 0')
+        .replace('#if ( NUM_HEMI_LIGHTS > 0 )', '#if 0')
+        .replace(
+          'vec3 irradiance = getAmbientLightIrradiance( ambientLightColor );',
+          'vec3 irradiance = 0.08 * getAmbientLightIrradiance( ambientLightColor );',
+        ),
+    );
+  };
+  // its own shader program, not one shared with an ordinary material of the same kind
+  m.customProgramCacheKey = () => 'sun-only';
+  return m;
+}
+
 // scene, renderer and camera: the world's (scene.js)
 export function createSolar(scene, renderer, camera) {
-  renderer.localClippingEnabled = true;
-  // only what is above the plane is drawn: the bodies sit half in it
-  const CLIP = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];
   const root = new THREE.Group();
   root.visible = false;
   scene.add(root);
@@ -349,7 +371,7 @@ export function createSolar(scene, renderer, camera) {
       body = new THREE.Group(),
       mesh = new THREE.Mesh(
         new THREE.SphereGeometry(r, 40, 24),
-        new THREE.MeshStandardMaterial({ map: paint(kind), roughness: 0.85, clippingPlanes: CLIP }),
+        sunOnly(new THREE.MeshStandardMaterial({ map: paint(kind), roughness: 0.85 })),
       );
     // its axis tipped over, and turning on it
     const axis = new THREE.Group();
@@ -360,20 +382,23 @@ export function createSolar(scene, renderer, camera) {
       const [ri, ro, rt, rc, ro2, bands] = ring,
         rm = new THREE.Mesh(
           ringGeometry(r * ri, r * ro),
-          new THREE.MeshStandardMaterial({
-            color: rc,
-            // dust and ice catching the sunlight: some light of its own, so a ring lying nearly flat (the sun's light
-            // only grazing it) is not dark
-            emissive: rc,
-            emissiveIntensity: 0.55,
-            alphaMap: ringBands(bands),
-            transparent: true,
-            opacity: ro2,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-            roughness: 0.9,
-            // not cut off at the plane, as the planet is: a ring lying near the plane (Jupiter's) was cut in half
-          }),
+          sunOnly(
+            new THREE.MeshStandardMaterial({
+              color: rc,
+              // dust and ice catching the sunlight: some light of its own, so a ring lying nearly flat (the sun's light
+              // only grazing it) is not dark
+              emissive: rc,
+              emissiveIntensity: 0.55,
+              alphaMap: ringBands(bands),
+              transparent: true,
+              opacity: ro2,
+              side: THREE.DoubleSide,
+              depthWrite: false,
+              roughness: 0.9,
+              // not cut off at the plane (until v3-look84 the planets were): a ring lying near the plane (Jupiter's) was
+              // cut in half
+            }),
+          ),
         );
       // tilted a little toward her view, about the axis across the screen
       rm.rotation.x = rt * DEG;

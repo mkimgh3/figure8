@@ -1242,7 +1242,8 @@ const { open } = require('./smoke.cjs');
       g.solar.update(0, S, 0, 0);
       const sheet = g.world.paper,
         speedK = S.speedK,
-        gravK = S.gravK;
+        gravK = S.gravK,
+        jumpK = S.jumpK;
       g.setLook(1);
       const off = !g.solar.on;
       g.setPlace(0);
@@ -1260,6 +1261,7 @@ const { open } = require('./smoke.cjs');
         told,
         speedK,
         gravK,
+        jumpK,
         after: S.speedK,
         marks,
         flatOrbits,
@@ -1275,7 +1277,8 @@ const { open } = require('./smoke.cjs');
         sol.orbits.includes('Mars') &&
         sol.told.includes('Mars orbit') &&
         sol.speedK === 2 &&
-        sol.gravK === 0.4 &&
+        sol.gravK === 0.43 &&
+        sol.jumpK === 0.78 &&
         sol.marks.join() === 'Jupiter,Mars' &&
         sol.flatOrbits === 0 &&
         sol.after === 1 &&

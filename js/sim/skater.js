@@ -138,10 +138,12 @@ export function createSkater(emit) {
     // a toe kick just before (CFG.toe) springs her higher
     S.toeJump = S.clock < S.toeUntil;
     S.toeUntil = -9;
+    // jumpK: the place's spring off the ice (v3-look84: lower among the planets, where gravity is light)
     S.vy =
       (CFG.jump.vyBase + Math.min(speed(), C.maxSpeed) * CFG.jump.vyPerSpeed + S.bonus * CFG.jump.vyPerBonus) *
       (boost || 1) *
-      (S.toeJump ? CFG.toe.lift : 1);
+      (S.toeJump ? CFG.toe.lift : 1) *
+      (S.jumpK || 1);
     S.grounded = false;
     S.wy = S.gy;
     S.spin = 0;
@@ -340,7 +342,12 @@ export function createSkater(emit) {
           const da = wrap(Math.atan2(ix, iy) - dir);
           const fine = mag < C.fineBand ? 1 + (C.fineBand - mag) * 1.6 : 1;
           const mt =
-              Math.min(C.turnCapBoosted, Math.min(C.turnCap, C.lateral / sp) * (fine + Math.min(1.6, S.inW / 2.5))) *
+              // (v3-look84, Mark: "hard to steer in space mode") grip goes up with the place's top speed, so at twice
+              // the speed among the planets she turns as quickly as anywhere else (it took her twice as long)
+              Math.min(
+                C.turnCapBoosted,
+                Math.min(C.turnCap, (C.lateral * (S.speedK || 1)) / sp) * (fine + Math.min(1.6, S.inW / 2.5)),
+              ) *
               steerK *
               dt,
             tn = clamp(da, -mt, mt);

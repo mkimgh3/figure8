@@ -693,6 +693,10 @@ export function createScene(canvas) {
       get list() {
         return angleList || C.angles.list;
       },
+      // how much further back the view stands than the place's own (times; the top view 2.1), as it eases between them
+      get dist() {
+        return angDist;
+      },
       // how far the view has come round to the low, flat one (0..1), as it eases from one to the next
       get flat() {
         return clamp(angTilt / C.angles.views.flat[0], 0, 1);

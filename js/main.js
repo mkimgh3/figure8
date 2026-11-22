@@ -33,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look83';
+const BUILD = 'v3-look84';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -563,6 +563,7 @@ const applyScene = () => {
   S.speedK = sheet && sheet.space ? 2 : 1;
   // and her jumps are light (v3-look82)
   S.gravK = sheet && sheet.space ? sheet.gravity || 1 : 1;
+  S.jumpK = sheet && sheet.space ? sheet.jump || 1 : 1;
   world.setPlace(place);
   boardStill();
   forest.set(place.trees);
@@ -1243,7 +1244,8 @@ function frame(now) {
     }
     drawSkater(dt, now);
     if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection && !paperOn && !uCanyon.value);
-    ring.update(game, models.rig.scale, world.camera);
+    // (v3-look84, Mark: "make the indicator ring larger so its not so tiny") bigger as the view stands further back
+    ring.update(game, models.rig.scale * Math.max(1, world.angles.dist), world.camera);
     log.tick(dt, game, steer, real);
   }
   // on the front page the skater stands for the showcase: posed and drawn, turned by the finger, framed in the space
