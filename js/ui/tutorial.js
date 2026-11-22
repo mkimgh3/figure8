@@ -82,7 +82,7 @@ const JUMPS = [
 
 const MOVES = [
   {
-    name: 'Switch leap',
+    name: 'Butterfly',
     steps: [
       ['Skate along with your left thumb', moving],
       ['Keep turning your left thumb round one way, so she skates a tight circle', (c) => c.S.arcTight],

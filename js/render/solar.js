@@ -545,6 +545,31 @@ void main() {
     her = { x: 0, z: 0 },
     // the marks placed so far this frame: [x, y, half width]
     placed = [];
+  // The box the marks keep to (CSS px): below the score, the speed and the buttons along the top (measured every half
+  // second: they sit lower upright, and a jump's card hangs under the score) and in from the screen's edges. v3-look82,
+  // Mark sent a screenshot held sideways with every mark bunched up beside her: the box was fixed for upright (190 px
+  // from the top to 140 px from the bottom), which on a phone held sideways (about 390 px high) is a strip through the
+  // middle.
+  const box = { L: 26, T: 190, R: 0, B: 0, top: 164, at: -1e9 };
+  function fitBox(now) {
+    const W = window.innerWidth,
+      H = window.innerHeight,
+      side = W > H;
+    if (now - box.at > 500) {
+      box.at = now;
+      let top = 0;
+      for (const id of ['score', 'btns', 'speedo']) {
+        const el = document.getElementById(id),
+          r = el && el.getBoundingClientRect();
+        if (r && r.width > 0 && r.height > 0 && r.top < H / 2) top = Math.max(top, r.bottom);
+      }
+      box.top = top;
+    }
+    box.L = side ? 48 : 26;
+    box.R = W - box.L;
+    box.T = Math.min(Math.max(box.top + 26, side ? 60 : 120), H / 2 - 40);
+    box.B = Math.max(H - (side ? 36 : 140), H / 2 + 40);
+  }
   function placeMark(name, x, z, show) {
     const el = markOf(name);
     if (!show) {
@@ -562,10 +587,10 @@ void main() {
       sx = W - sx;
       sy = H - sy;
     }
-    const L = 26,
-      T = 190,
-      Rr = W - 26,
-      Bt = H - 140,
+    const L = box.L,
+      T = box.T,
+      Rr = box.R,
+      Bt = box.B,
       cx = W / 2,
       cy = H / 2,
       inside = sx > L && sx < Rr && sy > T && sy < Bt && _p.z <= 1;
@@ -668,6 +693,7 @@ void main() {
       her.x = S.x;
       her.z = S.z;
       placed.length = 0;
+      fitBox(now);
       for (const B of bodies) {
         B.mesh.rotation.y += dt * B.spin;
         // crossing its orbit: the line lights up, and the first time the orbit is discovered

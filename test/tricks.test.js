@@ -438,7 +438,7 @@ for (const [label, leftPath] of [
     now: r.move,
   });
 }
-// --- the split leap (v3-look80: no twizzles after it) and the switch leap on a tight circle (v3-look81)
+// --- the split leap (v3-look80: no twizzles after it) and the butterfly on a tight circle (v3-look81, v3-look82)
 {
   const r = rig();
   r.stroke(real('flickUp'));
@@ -459,7 +459,7 @@ for (const [label, leftPath] of [
   ok('a finger held still after a split leap -> choreography', r.move === 'dance', r.move);
 }
 // the left thumb turning round at w rad/s (a circle of about 6.9 / w m), then a flick up: on a tight circle either way
-// the switch leap; on a wide curve, a straight, or a held spiral move going straight (v3-look80's trigger), the split leap
+// the butterfly; on a wide curve, a straight, or a held spiral move going straight (v3-look80's trigger), the split leap
 const circling = (w) => (t) => ({ x: 0.6 * Math.sin((w * t) / 1000), y: 0.6 * Math.cos((w * t) / 1000) });
 for (const [name, w, spiral, want] of [
   ['a tight circle clockwise', 1.6, false, 'changeleap'],
@@ -470,6 +470,7 @@ for (const [name, w, spiral, want] of [
 ]) {
   const r = rig(),
     back = r.S.back;
+  let most = 0;
   r.steer(circling(w));
   if (spiral) {
     r.stroke(real('flickRight'), null);
@@ -480,13 +481,17 @@ for (const [name, w, spiral, want] of [
   const radius = r.S.arc ? +Math.abs(1 / r.S.arc).toFixed(1) : null;
   r.stroke(real('flickUp'));
   const read = r.logged[r.logged.length - 1].read;
-  r.wait(1500);
+  for (let k = 0; k < 100; k++) {
+    r.wait(16);
+    most = Math.max(most, Math.abs(r.S.yawX));
+  }
   ok(
-    `a flick up on ${name} -> ` + (want === 'changeleap' ? 'switch leap, landing the other way round' : 'split leap'),
+    `a flick up on ${name} -> ` +
+      (want === 'changeleap' ? 'butterfly, once right round, landing as she was' : 'split leap'),
     want === 'changeleap'
-      ? r.seen.has('changeleap') && r.S.back !== back && read === 'changeleap'
+      ? r.seen.has('changeleap') && r.S.back === back && read === 'changeleap' && most > 6
       : r.seen.has('leap') && !r.seen.has('changeleap'),
-    { seen: [...r.seen], read, back: r.S.back, radius },
+    { seen: [...r.seen], read, back: r.S.back, radius, most: +most.toFixed(2) },
   );
 }
 // --- two thumbs

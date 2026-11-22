@@ -119,7 +119,7 @@ export function createTricks(game, taps, log) {
     if (r.dir === 'left') return start(createHydro(S, game, inward), 'left', together);
     if (r.dir === 'down') return start(createToeKick(S, game), 'down', false);
     if (r.dir === 'up')
-      // skating a tight curve one way (S.arcTight, see skater.js): the switch leap; otherwise the split leap
+      // skating a tight curve one way (S.arcTight, see skater.js): the butterfly; otherwise the split leap
       return S.arcTight
         ? start(createChangeLeap(S, game), 'changeleap', together)
         : start(createLeap(S, game), 'up', together);

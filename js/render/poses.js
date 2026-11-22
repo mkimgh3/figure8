@@ -80,6 +80,54 @@ const TUCK_SPEED = {
   aLe: -0.3,
   aRe: -0.3,
 };
+// Pushing for speed (v3-look82, Mark: "when speeding up it should be slow longer strides than current movement with
+// stiff arm movement"): long strokes. One leg's stroke, at its share c of the stride (0 as it starts to push; the other
+// leg is half a stride on): [c, thigh (radians from straight down, + back), out to the side (radians), knee, blade flat
+// on the ice (1) or the toe pointed (0)]. It pushes out to the side and back until it is straight, lifts off and is held
+// stretched out behind her, swings in under her and sets down, then carries her, sinking into its knee while the other
+// one pushes.
+// prettier-ignore
+const STROKE = [
+  [0, -0.75, 0.05, 1.05, 1],
+  [0.28, 0.5, 0.55, 0.08, 1],
+  [0.35, 0.8, 0.42, 0.1, 0],
+  [0.42, 0.72, 0.3, 0.22, 0],
+  [0.5, -0.5, 0.06, 0.85, 1],
+  [0.75, -0.62, 0.05, 0.95, 1],
+];
+// a smooth curve through the stroke's keys (Catmull-Rom, round the stride)
+function stroke(c, out) {
+  c = ((c % 1) + 1) % 1;
+  const n = STROKE.length;
+  let i = n - 1;
+  while (STROKE[i][0] > c) i--;
+  const A = STROKE[(i + n - 1) % n],
+    B = STROKE[i],
+    C = STROKE[(i + 1) % n],
+    D = STROKE[(i + 2) % n],
+    c1 = C[0] > B[0] ? C[0] : 1,
+    t = (c - B[0]) / (c1 - B[0]),
+    t2 = t * t,
+    t3 = t2 * t;
+  for (let j = 1; j < 5; j++)
+    out[j - 1] =
+      0.5 *
+      (2 * B[j] +
+        (C[j] - A[j]) * t +
+        (2 * A[j] - 5 * B[j] + 4 * C[j] - D[j]) * t2 +
+        (3 * B[j] - A[j] - 3 * C[j] + D[j]) * t3);
+  out[3] = clamp(out[3], 0, 1);
+  return out;
+}
+const _sl = [0, 0, 0, 0],
+  _sr = [0, 0, 0, 0];
+// a long, straight arm swung from the shoulder, as a speed skater's: v 1 forward and across her, -1 back and up behind
+// her. [x (+ back), out to the side, elbow]
+const swing = (v) => [
+  v > 0 ? -1.3 * v : -1.0 * v,
+  0.3 - 0.5 * Math.max(0, v) + 0.15 * Math.max(0, -v),
+  -0.12 - 0.18 * Math.max(0, v),
+];
 const CARVE = { from: 0.1, full: 0.4, minSpeed: 1.2, easeIn: 2.6, easeOut: 1.1, change: [1.6, 2.4], hold: [0.6, 2.2] }; // from/full: how fast her path is turning (rad/s) where the arms begin to flow and where they fully do, at minSpeed m/s or more; easeIn, easeOut: how gently they come in and go back (1/s); change, hold: seconds to move to the next gesture and to rest in it
 
 const _m = new THREE.Matrix4(),
@@ -147,7 +195,13 @@ export function createPoser(model) {
       S.boostT > 0 && !m && S.grounded && S.mag > 0.1 ? Math.min(1, S.boostT / 0.6) : 0,
       S.grounded && !m ? S.push * 0.75 : 0,
     );
-    S.phase += (1.5 + sp * 0.2) * (1 + 1.6 * hustle) * dt;
+    // her stride, in radians a second; pushing for speed, CFG.stride.rate: [at a standstill, more for each m/s] (long,
+    // slow strokes since v3-look82; it was 2.6 times the gliding rate)
+    {
+      const glide = 1.5 + sp * 0.2,
+        R = CFG.stride.rate;
+      S.phase += (glide + (R[0] + R[1] * sp - glide) * hustle) * dt;
+    }
     const sw = Math.sin(S.phase),
       pL = Math.max(0, sw),
       pR = Math.max(0, -sw),
@@ -187,22 +241,41 @@ export function createPoser(model) {
     T.aRx += 0.25 * Math.sin(t * 0.31 + 4.2) * (1 - g * 0.6);
     T.aLe -= Math.max(0, de);
     T.aRe -= Math.max(0, 0.2 * Math.sin(t * 0.47 + 2.6));
-    if (hustle > 0)
-      set({
-        aLx: 0.95 * sw * hustle - 0.2,
-        aRx: -0.95 * sw * hustle - 0.2,
-        aLe: -1.25,
-        aRe: -1.25,
-        aLz: -0.35,
-        aRz: 0.35,
-        bodyY: HIP - 0.1 * hustle, // sprinting: low, driving arms, long pushes
-        lLx: -0.5 - ln + pL * 0.9,
-        lRx: -0.5 - ln + pR * 0.9,
-        lLk: 0.9 * (1 - pL * 0.8) + 0.05,
-        lRk: 0.9 * (1 - pR * 0.8) + 0.05,
-        lLz: -pL * 0.5 - 0.03,
-        lRz: pR * 0.5 + 0.03,
-      });
+    if (hustle > 0) {
+      // pushing for speed: long strokes (STROKE), low over the knee she is on, her weight going from one blade to the
+      // other, her arms swinging long and straight: the one on the side of the leg pushing comes forward and across her
+      // (a little behind the push), the other goes back and up behind her
+      const c = S.phase / (2 * Math.PI),
+        L = stroke(c, _sl),
+        Rg = stroke(c + 0.5, _sr),
+        a = Math.sin(S.phase - 0.35),
+        al = swing(-a),
+        ar = swing(a),
+        // how high her hips are over the blades: the longer of the two legs on the ice (thigh 0.42 m, shin 0.36 m)
+        reach = (q) => (q[3] > 0.5 ? (0.42 * Math.cos(q[0]) + 0.36 * Math.cos(q[0] + q[2])) * Math.cos(q[1]) : 0),
+        drop = 0.78 - Math.max(reach(L), reach(Rg)),
+        e = hustle * hustle * (3 - 2 * hustle),
+        H = {
+          lean: ln + 0.2,
+          bodyY: HIP - 0.02 - drop,
+          roll: -0.07 * Math.sin(S.phase - 0.6),
+          lLx: L[0] - ln - 0.2,
+          lLz: -L[1],
+          lLk: L[2],
+          fL: L[3],
+          lRx: Rg[0] - ln - 0.2,
+          lRz: Rg[1],
+          lRk: Rg[2],
+          fR: Rg[3],
+          aLx: al[0],
+          aLz: -al[1],
+          aLe: al[2],
+          aRx: ar[0],
+          aRz: ar[1],
+          aRe: ar[2],
+        };
+      for (const k in H) T[k] += (H[k] - T[k]) * e;
+    }
     // at full speed she gets low and the arms sweep back
     if (g > 0.6 && !hustle)
       set({
@@ -313,8 +386,11 @@ export function createPoser(model) {
         // mammal steps"): each foot in turn, a quarter of a stride apart: his left hind leg, left front, right hind,
         // right front. A foot on the ice is pushed back under him for most of the stride (DUTY), then lifted and
         // swung forward (the front paw tucked up at the elbow, the hind foot drawn up at the knee). dashPh: strides.
-        dashPh = (dashPh + dt * (1 + 0.1 * sp)) % 1;
-        const DUTY = 0.6,
+        // v3-look82 (Mark: "it should be long strides rather than current puppy dog hops"): slower (CFG.dash.rate), each
+        // leg reaching much further forward and pushing further back, the front paws reaching out straight before they
+        // land, and his body carried smoothly (it bobbed with every footfall).
+        dashPh = (dashPh + dt * (K.rate[0] + K.rate[1] * sp)) % 1;
+        const DUTY = 0.55,
           // how far forward the leg is (-1 back .. 1 forward) and how high the foot is lifted (0..1), at stride phase p
           leg = (p) => {
             p = ((p % 1) + 1) % 1;
@@ -326,23 +402,23 @@ export function createPoser(model) {
           [fl, flUp] = leg(dashPh - 0.25),
           [hr, hrUp] = leg(dashPh - 0.5),
           [fr, frUp] = leg(dashPh - 0.75),
-          L = K.lean + 0.04 * Math.cos(4 * Math.PI * dashPh),
+          L = K.lean + 0.025 * Math.cos(2 * Math.PI * dashPh),
           Q = {
             lean: L,
-            // a small rise and fall with each footfall, and the body swaying a little toward the side that is down
-            bodyY: K.y + 0.02 * Math.abs(Math.sin(4 * Math.PI * dashPh)),
-            roll: 0.05 * Math.sin(2 * Math.PI * dashPh),
+            // a slow rocking with the stride, and the body swaying a little toward the side that is down
+            bodyY: K.y + 0.008 * Math.cos(4 * Math.PI * dashPh),
+            roll: 0.04 * Math.sin(2 * Math.PI * dashPh),
             head: L - 0.25,
-            aLx: -L - 0.5 * fl,
-            aRx: -L - 0.5 * fr,
+            aLx: -L - K.reach[0] * fl,
+            aRx: -L - K.reach[0] * fr,
             aLz: -0.1,
             aRz: 0.1,
-            aLe: -0.15 - 0.85 * flUp,
-            aRe: -0.15 - 0.85 * frUp,
-            lLx: -L - 0.3 - 0.45 * hl,
-            lRx: -L - 0.3 - 0.45 * hr,
-            lLk: 1.6 + 0.55 * hlUp,
-            lRk: 1.6 + 0.55 * hrUp,
+            aLe: -0.1 - 0.6 * flUp,
+            aRe: -0.1 - 0.6 * frUp,
+            lLx: -L - 0.3 - K.reach[1] * hl,
+            lRx: -L - 0.3 - K.reach[1] * hr,
+            lLk: 1.55 + 0.45 * hlUp,
+            lRk: 1.55 + 0.45 * hrUp,
             lLz: -0.06,
             lRz: 0.06,
             fL: 1 - hlUp,

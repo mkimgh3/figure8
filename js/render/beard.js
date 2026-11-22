@@ -4,8 +4,8 @@
 // Built in the head mesh's own space (x across, -y forward, z up, metres) as a distance field and meshed with surface
 // nets (bear.js): a layer of hair over the part of his face where the beard grows (the head's _hair x, see
 // tools/assets/ivor_head.py), thicker toward the chin, melted into a full beard that hangs below the chin and spreads
-// from the jaw, a moustache drooping to the corners of the mouth, and two braids from the beard's point bound in silver
-// rings. Combed strands are drawn on it from a small picture wrapped round the head.
+// from the jaw, and two braids from the beard's point bound in silver rings; cut away round the mouth (no moustache,
+// since v3-look82). Combed strands are drawn on it from a small picture wrapped round the head.
 import * as THREE from './three.js';
 import { netsOf, smin } from './bear.js';
 
@@ -71,8 +71,9 @@ function strandTexture() {
 // space, to be set on the head bone (see avatar.js).
 // o: { thick: [at the top of the beard, at the chin] (metres of hair over the face), top, bottom (heights where those
 //      apply), soft (how smoothly the layer is melted, metres), cell (the mesh's grain), melt (how the beard's shapes
-//      melt into the layer), shapes: [{ a, b, r: [ra, rb], flat }] (the hanging part, the moustache), braids: [{ a, b,
-//      r, rings: [shares along it] }], colour, ring (the rings' colour) }
+//      melt into the layer), shapes: [{ a, b, r: [ra, rb], flat }] (the hanging part), braids: [{ a, b, r, rings:
+//      [shares along it] }], shave: { at, r: [rx, ry, rz] } (an oval left bare, round the mouth), colour, ring (the
+//      rings' colour) }
 export function buildBeard(headMesh, o) {
   const P = headMesh.geometry.attributes.position,
     Hh = headMesh.geometry.attributes._hair,
@@ -146,7 +147,8 @@ export function buildBeard(headMesh, o) {
       return d;
     };
   });
-  const vals = new Float32Array(nx * ny * nz);
+  const vals = new Float32Array(nx * ny * nz),
+    sh = o.shave;
   for (let kk = 0; kk < nz; kk++)
     for (let jj = 0; jj < ny; jj++)
       for (let ii = 0; ii < nx; ii++) {
@@ -158,6 +160,14 @@ export function buildBeard(headMesh, o) {
         for (let q = 0; q < fs.length; q++) {
           const f = fs[q](x, y, z);
           d = parts[q].braid ? Math.min(d, f) : smin(d, f, o.melt);
+        }
+        // the shaved oval: outside it (roughly, in metres), with a soft edge
+        if (sh) {
+          const ex = (x - sh.at[0]) / sh.r[0],
+            ey = (y - sh.at[1]) / sh.r[1],
+            ez = (z - sh.at[2]) / sh.r[2],
+            out = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1) * Math.min(sh.r[0], sh.r[2]);
+          d = -smin(-d, out, 0.01);
         }
         // the edges of the box are outside
         if (ii === 0 || jj === 0 || kk === 0 || ii === nx - 1 || jj === ny - 1 || kk === nz - 1) d = Math.max(d, 0.001);

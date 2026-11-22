@@ -216,8 +216,9 @@ export function createScene(canvas) {
     angleList = null;
   function setPaper(c) {
     sheet = c;
-    // a sheet with its own changing angles (v3-look78: among the planets, one nearly straight down)
-    angleList = c && c.angles ? c.angles : null;
+    // a sheet with its own changing angles (v3-look78: among the planets, one nearly straight down), or paper's
+    // (v3-look82: the top view comes round only on paper)
+    angleList = c ? c.angles || C.angles.paper : null;
     angI = 0;
     ice.mesh.visible = !c;
     // (v3-look77) the sheet at dusk is invisible: she skates over the sky, among the planets (solar.js)
@@ -687,6 +688,10 @@ export function createScene(canvas) {
       },
       get index() {
         return angI;
+      },
+      // the views Auto goes round here (the place's or the sheet's)
+      get list() {
+        return angleList || C.angles.list;
       },
       // how far the view has risen to keep a jump in it (metres; for tests)
       get airLift() {

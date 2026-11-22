@@ -33,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look81';
+const BUILD = 'v3-look82';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -251,12 +251,10 @@ const MAX_BEARD = {
     // from each side of the jaw in to the point
     { a: [0.068, -0.045, 1.58], b: [0.02, -0.2, 1.445], r: [0.026, 0.014], flat: 1.2 },
     { a: [-0.068, -0.045, 1.58], b: [-0.02, -0.2, 1.445], r: [0.026, 0.014], flat: 1.2 },
-    // the moustache, from under the nose out to the corners of the mouth and down
-    { a: [0.006, -0.128, 1.603], b: [0.038, -0.118, 1.584], r: [0.009, 0.008] },
-    { a: [-0.006, -0.128, 1.603], b: [-0.038, -0.118, 1.584], r: [0.009, 0.008] },
-    { a: [0.038, -0.118, 1.584], b: [0.044, -0.112, 1.545], r: [0.008, 0.005] },
-    { a: [-0.038, -0.118, 1.584], b: [-0.044, -0.112, 1.545], r: [0.008, 0.005] },
   ],
+  // no moustache (v3-look82, Mark: "ivor mustache is too much get rid of it"): the beard is cut away round his mouth and
+  // over his upper lip, an oval [centre, radii] (the drooping moustache shapes of v3-look72 are gone too)
+  shave: { at: [0, -0.12, 1.626], r: [0.05, 0.07, 0.036] },
   braids: [
     { a: [0.017, -0.222, 1.43], b: [0.026, -0.265, 1.315], r: 0.011, rings: [0.42, 0.78] },
     { a: [-0.017, -0.222, 1.43], b: [-0.026, -0.265, 1.315], r: 0.011, rings: [0.42, 0.78] },

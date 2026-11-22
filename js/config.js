@@ -56,12 +56,13 @@ export const CFG = {
   // twizzles: no gesture since v3-look80 (Mark: "remove twizzle after leap"; a circle after the leap is choreography);
   // the move is kept for its scoring
   twirl: { startTurn: 3.1 },
-  // The switch leap (v3-look80 as the "change leap flip"; v3-look81, Mark: "when skater is moving in spiral by constant
-  // steering counter or clockwise. when at certain radius or smaller and activates swipe up it changes from standard leap
-  // jump to switch leap"): the flick up while she skates a curve one way no wider than `radius` m (her path's bend eased
-  // over `ease` s, at `minSpeed` m/s or more) that has already taken her `turned` radians round. It takes `time` seconds;
-  // she leaves the ice at `up` of the way through and lands at `down`, `height` m up at the top.
-  changeLeap: { time: 1.05, up: 0.2, down: 0.84, height: 0.72, radius: 6, turned: 1.2, ease: 0.4, minSpeed: 1.5 },
+  // The butterfly (v3-look80 as the "change leap flip", v3-look81 the switch leap, v3-look82 the butterfly; v3-look81,
+  // Mark: "when skater is moving in spiral by constant steering counter or clockwise. when at certain radius or smaller
+  // and activates swipe up it changes from standard leap jump to switch leap"): the flick up while she skates a curve one
+  // way no wider than `radius` m (her path's bend eased over `ease` s, at `minSpeed` m/s or more) that has already taken
+  // her `turned` radians round. It takes `time` seconds; she leaves the ice at `up` of the way through and lands at
+  // `down`, `height` m up at the top, having turned once right round.
+  changeLeap: { time: 1.2, up: 0.24, down: 0.86, height: 0.8, radius: 6, turned: 1.2, ease: 0.4, minSpeed: 1.5 },
   // Choreography: the right thumb down holdMs with nothing else going on (held still, or dragged further or slower than a
   // flick), or still down afterLand seconds after a jump lands, or after the move it started is over. It lasts while that
   // thumb stays down. Circling turns her, turnRatio of a turn for each finger circle, following the finger at `follow` (1/s)
@@ -199,9 +200,13 @@ export const CFG = {
     // (1/s); not in a spin. A step is one reversal when they come slower than `one` s apart, two below that, four below
     // `four`. `follow` (1/s): how closely her rhythm keeps up with the thumb's. Her legs go `stance` of the way to a soft
     // two-footed stance (the arms keep the dance's shapes and phrases); on each step she sinks `dip` m (knees `knee`),
-    // sways `sway` rad toward the foot she is on, lifts the other heel (`lift`, rad of knee), swings her arms `swing` rad
-    // and bends her elbows `elbow`; at the thumb's own quick rate her shoulders shimmy (`shimmy`). Pose changes and
-    // accents wait for the next step, so they land on her beat. A new dance within `carry` s takes up the last one's groove.
+    // sways `sway` rad toward the foot she is on, swings her arms `swing` rad and bends her elbows `elbow`; at the
+    // thumb's own quick rate her shoulders shimmy (`shimmy`). Pose changes and accents wait for the next step, so they
+    // land on her beat. A new dance within `carry` s takes up the last one's groove.
+    // v3-look82 (Mark: "lets look into foot works currently very rigid and doesnt match the upper body"): on each step
+    // the other foot leaves the ice and makes a gesture shaped by her arms and body (FOOT in dance.js), `foot` of it at
+    // full size (steps quicker than `quick` s make smaller ones); `lift`: how much of a plain lift of the heel is mixed
+    // in. And in every pose a free leg answers the live bow and tip of her body by `counter` (dance.js).
     groove: {
       minH: 0.12,
       maxH: 0.9,
@@ -216,7 +221,10 @@ export const CFG = {
       dip: 0.035,
       knee: 0.11,
       sway: 0.06,
-      lift: 0.45,
+      lift: 0.35,
+      foot: 1,
+      quick: 0.5,
+      counter: 0.6,
       swing: 0.22,
       elbow: 0.25,
       shimmy: 0.05,
@@ -224,11 +232,16 @@ export const CFG = {
     },
     hiphop: { bpm: 96, syncRate: 2, inStep: 0.75, outOfStep: 0.6, linger: 0.6, dip: 0.05, sway: 0.07, steer: 1 },
   },
+  // pushing for speed (render/poses.js, v3-look82: long, slow strokes): `rate` [radians of stride a second at a
+  // standstill, more for each m/s]; a stride is a push with each leg, so at 7 m/s about one push a second
+  stride: { rate: [2.3, 0.12] },
   // the speed tuck (render/poses.js), from `from` m/s (50 km/h), fully at `full` (61 km/h): reached in the Canyon
   tuck: { from: 14, full: 17 },
   // Bjorn's dash on all fours (v3-look48, an easter egg): skating at `speed` m/s or more with his path turning less than
   // `turn` rad/s for `after` seconds, he drops onto all fours: body pitched forward `lean` radians, hips `y` metres up.
-  dash: { speed: 5, turn: 0.3, after: 2.5, lean: 1.35, y: 0.61 },
+  // v3-look82 (long strides): `rate` [strides a second, more for each m/s] (about 1.1 at 7 m/s; it was 1.7), `reach`
+  // [front, hind]: how far each leg swings either way (radians; it was 0.5 and 0.45).
+  dash: { speed: 5, turn: 0.3, after: 2.5, lean: 1.35, y: 0.61, rate: [0.75, 0.05], reach: [0.85, 0.75] },
   jump: { vyBase: 5.4, vyPerSpeed: 0.2, vyPerBonus: 0.4, gravity: 14, comboWindow: 0.7 },
   // fraction of a turn off a clean half or whole turn
   grades: [
@@ -350,10 +363,12 @@ export const CFG = {
     // top"): axo, the place's own; flat, low and close; high, high and back; top, nearly straight down and a little
     // further back (v3-look78, among the planets). Each [degrees more side-on, times the distance]. `list`: the order
     // they come round in (v3-look80, Mark: "top and high view for all for changing, call changing auto": top joins
-    // high everywhere). Menu > View: Auto, or one of them held (save key `va`).
+    // high everywhere; v3-look82, Mark: "remove top view from view rotation and only to paper mode": top only on paper,
+    // `paper`, unless the sheet has its own). Menu > View: Auto, or one of them held (save key `va`).
     angles: {
       views: { axo: [0, 1], flat: [13, 0.86], high: [-16, 1.12], top: [-40, 1.45] },
-      list: ['axo', 'flat', 'axo', 'high', 'axo', 'top'],
+      list: ['axo', 'flat', 'axo', 'high'],
+      paper: ['axo', 'flat', 'axo', 'high', 'axo', 'top'],
       hold: 22,
       ease: 0.45,
       max: 66,

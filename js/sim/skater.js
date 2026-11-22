@@ -49,7 +49,7 @@ export function createSkater(emit) {
     push: 0,
     curve: 0,
     // her path's bend (v3-look81): signed curvature in 1/m (+ the way S.turn is +), eased; arcTurn: radians turned one
-    // way while it is tight; arcTight: a tight curve held long enough for the switch leap (CFG.changeLeap); arcHd: the way
+    // way while it is tight; arcTight: a tight curve held long enough for the butterfly (CFG.changeLeap); arcHd: the way
     // she was travelling the step before
     arc: 0,
     arcTurn: 0,

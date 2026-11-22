@@ -25,6 +25,22 @@ const KEYS = Object.keys(N);
 // (v3-look79) the groove's stance, for the legs only: both blades on the ice, knees soft, feet a little apart (the thighs
 // are set from how far she leans, so the legs stay under her)
 const STEP = { lLz: -0.07, lRz: 0.07, lLk: 0.25, lRk: 0.25, fL: 1, fR: 1 };
+// (v3-look82) the footwork's gestures: what the foot off the ice does on each step of the groove, by what her upper body
+// is doing (see pose()). [thigh (+ back), out to the side (- across behind the other foot), knee]
+const FOOT = {
+  // her arms reaching forward or her body bowed: stretched out behind
+  back: [0.75, 0.08, 0.1],
+  // arched back, or arms swept behind: reaching forward, toe pointed
+  front: [-0.7, 0.05, 0.12],
+  // arms open wide: out to the side
+  side: [0.02, 0.6, 0.1],
+  // arms overhead: the knee drawn up (passe)
+  passe: [-0.95, 0.25, 1.7],
+  // arms folded in: crossing behind the foot she is on
+  cross: [0.3, -0.22, 0.7],
+  // and always a little of the heel simply lifting
+  lift: [0.12, 0.04, 0.45],
+};
 const median = (a) => {
   const b = a.slice().sort((x, y) => x - y);
   return b.length % 2 ? b[(b.length - 1) / 2] : (b[b.length / 2 - 1] + b[b.length / 2]) / 2;
@@ -1047,8 +1063,9 @@ export function createDance(S, api) {
       }
       // (v3-look79) the groove: her legs go to a soft two-footed stance (the arms keep the dance's shapes and phrases);
       // her weight goes from one foot to the other in time with the thumb's to and fro (on each step she is over one
-      // blade, sinking, the other heel lifted), her body swaying with it and her arms swinging, and at the thumb's own
-      // quick rate her shoulders shimmy
+      // blade, sinking, the other foot off the ice in a gesture, see below), her body swaying with it and her arms
+      // swinging, and at the thumb's own quick rate her shoulders shimmy
+      let gc = 0;
       {
         const g = gv.amt;
         if (g > 0.01) {
@@ -1061,16 +1078,12 @@ export function createDance(S, api) {
           out.lRx += (thigh - out.lRx) * sb;
           for (const k in STEP) out[k] += (STEP[k] - out[k]) * sb;
           out.bodyY += (kit.HIP - 0.04 - out.bodyY) * sb;
-          const both = Math.min(out.fL, out.fR),
-            liftL = Math.max(0, -c) ** 1.5 * both,
-            liftR = Math.max(0, c) ** 1.5 * both;
+          gc = c * Math.min(out.fL, out.fR);
           out.bodyY -= g * G.dip * (1 + slow) * dip;
-          out.lLk += g * (G.knee * dip + G.lift * liftL);
-          out.lRk += g * (G.knee * dip + G.lift * liftR);
-          out.lLx += g * (-0.5 * G.knee * dip + 0.12 * liftL);
-          out.lRx += g * (-0.5 * G.knee * dip + 0.12 * liftR);
-          out.fL -= g * 0.6 * liftL;
-          out.fR -= g * 0.6 * liftR;
+          out.lLk += g * G.knee * dip;
+          out.lRk += g * G.knee * dip;
+          out.lLx -= g * 0.5 * G.knee * dip;
+          out.lRx -= g * 0.5 * G.knee * dip;
           out.roll += g * G.sway * (1 + 0.6 * slow) * c;
           out.aLx += g * G.swing * c;
           out.aRx -= g * G.swing * c;
@@ -1090,6 +1103,8 @@ export function createDance(S, api) {
       // come down, she bows and sinks into her knees. To one side: she leans and tips that way. Thumbs closing
       // together: her elbows fold in. And as each thumb moves, its own arm goes with it (the right thumb her right arm,
       // the left her left). She breathes, so she is never quite still.
+      const lean0 = out.lean,
+        roll0 = out.roll;
       {
         const f = st.fx,
           a = (amp += (X.live * (1 - hw) * (inSpin ? (st.spin > 1 ? 0.55 : 0.8) : 1) - amp) * 0.1),
@@ -1114,6 +1129,59 @@ export function createDance(S, api) {
         out.bodyY += a * (0.04 * Math.max(0, f.level) - X.sink * low + 0.025 * f.rise) + 0.006 * Math.sin(st.t * 1.3);
         out.lLk += a * 1.6 * X.sink * low;
         out.lRk += a * 1.6 * X.sink * low;
+      }
+      // (v3-look82, Mark: "lets look into foot works currently very rigid and doesnt match the upper body") her feet
+      // answer her upper body. Leaning her body by dl, the leg she stands on stays under her and a free leg rises the more
+      // behind her (or comes forward, as she arches), as a counterweight.
+      const lean = (dl, more) => {
+        out.lean += dl;
+        out.lLx += dl * ((1 - out.fL) * more - out.fL);
+        out.lRx += dl * ((1 - out.fR) * more - out.fR);
+      };
+      {
+        // the live bow and tip of her body (above): a free leg rises behind as she bows, comes forward as she arches,
+        // and swings out away from the way she tips
+        const dl = out.lean - lean0,
+          dr = out.roll - roll0;
+        out.lean = lean0;
+        lean(dl, G.counter);
+        out.lLz += G.counter * dr * (1 - out.fL);
+        out.lRz += G.counter * dr * (1 - out.fR);
+      }
+      // In the groove (Footwork), on each step the foot she has just stepped off leaves the ice in a gesture shaped by her
+      // arms and body as they are then (FOOT, mixed in proportion), and her body leans against it. A quick step makes a
+      // smaller one.
+      if (gc) {
+        const up = (out.aRz - out.aLz) / 2,
+          fwd = -(out.aLx + out.aRx) / 2,
+          fold = clamp((-(out.aLe + out.aRe) / 2 - 0.8) / 0.8, 0, 1),
+          w = {
+            back: clamp((out.lean - 0.25) / 0.45, 0, 1) + 0.7 * clamp(fwd / 1.2, 0, 1),
+            front: clamp(-out.lean / 0.35, 0, 1) + 0.7 * clamp(-fwd / 0.8, 0, 1),
+            side: clamp(1 - Math.abs(up - 1.45) / 0.55, 0, 1) * (1 - fold),
+            passe: clamp((up - 1.9) / 0.7, 0, 1),
+            cross: fold + 0.6 * clamp((0.9 - up) / 0.5, 0, 1),
+            lift: G.lift,
+          };
+        let sum = 0;
+        const to = [0, 0, 0];
+        for (const k in w) {
+          sum += w[k];
+          for (let j = 0; j < 3; j++) to[j] += w[k] * FOOT[k][j];
+        }
+        const size = G.foot * gv.amt * (0.55 + 0.45 * clamp((gv.n * gv.h - 0.3) / (G.quick - 0.3), 0, 1)),
+          eL = size * Math.max(0, -gc) ** 1.2,
+          eR = size * Math.max(0, gc) ** 1.2;
+        for (let j = 0; j < 3; j++) to[j] /= sum;
+        out.lLx += eL * to[0];
+        out.lLz -= eL * to[1];
+        out.lLk += eL * to[2];
+        out.fL = Math.max(0, out.fL - 1.2 * eL);
+        out.lRx += eR * to[0];
+        out.lRz += eR * to[1];
+        out.lRk += eR * to[2];
+        out.fR = Math.max(0, out.fR - 1.2 * eR);
+        lean(((0.3 * w.back - 0.2 * w.front) / sum) * Math.max(eL, eR), 0);
       }
       out.side = 0;
       kit.set(out);

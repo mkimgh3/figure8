@@ -228,12 +228,12 @@ export function createLeap(S, api) {
   };
 }
 
-// The switch leap (v3-look80 as the "change leap flip"; v3-look81, Mark: "i didnt mean literal spiral but when skater
-// is moving in spiral by constant steering counter or clockwise"): the flick up while she skates a tight curve one way
-// is this instead of the split leap. She brings her free leg down behind her and picks its toe into the ice, springs up
-// into a split, and switches her legs through in the air (the front leg sweeps back, the back one forward) as she turns
-// half way round, landing on the leg that came forward, the other stretched out behind her, arms open. The half turn
-// swaps forward and backward skating, so skating forward she lands skating backward. She turns the way she was curving.
+// The butterfly (v3-look80 as the "change leap flip", v3-look81 the switch leap; v3-look82, Mark: "i want the move like
+// where the body actually leaps with torso bent doing 360 and then landing"): the flick up while she skates a tight curve
+// one way is this instead of the split leap. She sinks deep, her chest swinging down over her knees and her arms back,
+// and springs up with her body level, face to the ice, her legs scissoring (one kicked up behind, the other low, then
+// switching through) and her arms spread like wings, turning once right round in the air the way she was curving, and
+// lands on one foot, the other stretched out behind her, arms open, skating on the way she was.
 export function createChangeLeap(S, api) {
   const C = CFG.changeLeap,
     dir = (S.arc || S.turn) > 0 ? 1 : -1;
@@ -247,29 +247,29 @@ export function createChangeLeap(S, api) {
     steer: 0.5,
     start() {
       api.ensureSpeed(4);
-      api.emit('say', { big: 'Switch leap', small: '', hold: 0.7 });
+      api.emit('say', { big: 'Butterfly', small: '', hold: 0.7 });
     },
     update(dt) {
       t += dt;
       const a = air(u());
       if (a > 0 && a < 1) S.visY = C.height * Math.sin(a * Math.PI);
-      y = dir * Math.PI * sstep(0.12, 0.88, a);
+      y = dir * 2 * Math.PI * sstep(0.06, 0.94, a);
       S.yawX = y;
       return u() < 1;
     },
-    // how: see endMove in skater.js. Past half way round she has turned (forward and backward swap) and her body eases
-    // the rest of the way; cut short, it counts only once she was past the top, for the share of it she made
+    // how: see endMove in skater.js. She ends facing the nearest way along her path: right round, as she was; cut short
+    // past half way, the other way (forward and backward swap), her body easing the rest of the way. Cut short, it counts
+    // only once she was past the top, for the share of it she made
     end(how) {
-      const done = how ? u() : 1;
-      if (Math.abs(y) > Math.PI / 2) {
-        S.back = !S.back;
-        S.flipYaw = wrap(y - dir * Math.PI);
-      } else S.flipYaw = y;
+      const done = how ? u() : 1,
+        k = Math.round(y / Math.PI);
+      if (Math.abs(k) % 2 === 1) S.back = !S.back;
+      S.flipYaw = wrap(y - k * Math.PI);
       S.flipK = 6;
       api.emit('element', {
         kind: 'changeleap',
-        name: 'Switch leap',
-        detail: S.back ? 'landed backward' : 'landed forward',
+        name: 'Butterfly',
+        detail: Math.abs(y) > 1.5 * Math.PI ? 'a full turn' : 'part of a turn',
         base: CFG.points.changeLeap * done,
         counted: how !== 'crash' && done >= 0.5,
       });
@@ -285,48 +285,52 @@ export function createChangeLeap(S, api) {
     pose(T, kit) {
       const x = u(),
         a = air(x);
-      if (x < C.up)
-        // the pick: up out of the spiral, the free leg reaching down behind, its toe to the ice; arms gathering
+      if (x < C.up) {
+        // the wind-up: down deep in her knees, her chest swinging down over them and her arms swept back, ready to
+        // throw herself up and round
+        const w = sstep(0, C.up, x);
         kit.set({
-          lean: 0.35,
-          bodyY: kit.HIP - 0.1,
-          fL: 0,
+          lean: 0.35 + 0.75 * w,
+          bodyY: kit.HIP - 0.08 - 0.14 * w,
+          fL: 1,
           fR: 1,
-          lRx: -0.75,
-          lRk: 0.7,
-          lRz: 0,
-          lLx: 0.55,
-          lLk: 0.35,
-          lLz: 0,
-          aLz: -0.7,
-          aRz: 0.7,
-          aLx: -0.3,
-          aRx: -0.3,
-          aLe: -0.6,
-          aRe: -0.6,
+          lRx: -0.35 - 1.3 * w,
+          lRk: 0.5 + 0.9 * w,
+          lRz: 0.05,
+          lLx: -0.35 - 0.95 * w,
+          lLk: 0.5 + 0.6 * w,
+          lLz: -0.05,
+          aLz: -0.9 + 0.5 * w,
+          aRz: 0.9 - 0.5 * w,
+          aLx: 0.2 + 0.9 * w,
+          aRx: 0.2 + 0.9 * w,
+          aLe: -0.2,
+          aRe: -0.2,
         });
-      else if (a < 1) {
-        // in the air: a split, the legs switching through (knees softening as they pass), arms up in a V
-        const s = sstep(0.3, 0.66, a),
+      } else if (a < 1) {
+        // in the air: her body level, face to the ice; her legs scissor, one kicked up behind and the other low, then
+        // switching through (knees softening as they pass); arms spread like wings
+        const s = sstep(0.25, 0.7, a),
           mix = (p, q) => p + (q - p) * s,
-          k = 0.08 + 0.55 * Math.sin(Math.PI * s);
+          k = 0.1 + 0.5 * Math.sin(Math.PI * s);
         kit.set({
-          lean: 0.08,
+          // level soon after takeoff, coming up again for the landing
+          lean: 1.1 + 0.42 * sstep(0, 0.2, a) - 0.95 * sstep(0.72, 1, a),
           bodyY: kit.HIP,
           fL: 0,
           fR: 0,
-          lRx: mix(-1.2, 1.05),
-          lLx: mix(1.05, -1.2),
-          lRk: k,
-          lLk: k,
-          lLz: 0,
-          lRz: 0,
-          aLz: -2.4,
-          aRz: 2.4,
-          aLx: 0,
-          aRx: 0,
-          aLe: -0.15,
-          aRe: -0.15,
+          lRx: mix(0.55, -0.75),
+          lLx: mix(-0.75, 0.55),
+          lRk: k + 0.25 * (1 - s),
+          lLk: k + 0.25 * s,
+          lLz: -0.12,
+          lRz: 0.12,
+          aLz: -1.55,
+          aRz: 1.55,
+          aLx: 0.3,
+          aRx: 0.3,
+          aLe: -0.12,
+          aRe: -0.12,
         });
       } else {
         // the landing: on the leg that came forward, its knee giving, the other stretched out behind, arms open

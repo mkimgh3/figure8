@@ -937,8 +937,8 @@ const { open } = require('./smoke.cjs');
     steps: [...document.getElementById('tlist').children].map((li) => [li.className, li.textContent]),
   }));
   ok(
-    'Spins & steps lists spins first, all three steps of the Switch leap at once',
-    tu.name === 'Switch leap' && tu.steps.length === 3 && /left thumb/i.test(tu.steps[0][1]),
+    'Spins & steps lists spins first, all three steps of the Butterfly at once',
+    tu.name === 'Butterfly' && tu.steps.length === 3 && /left thumb/i.test(tu.steps[0][1]),
     tu,
   );
   await ev('pointerdown', 1, 100, 560);
@@ -1317,7 +1317,12 @@ const { open } = require('./smoke.cjs');
       const w = window.__game.world,
         i0 = w.angles.index;
       w.angles.next();
-      return { on: w.angles.on, i0, label: document.getElementById('viewname').textContent };
+      return {
+        on: w.angles.on,
+        i0,
+        n: w.angles.list.length,
+        label: document.getElementById('viewname').textContent,
+      };
     });
     await sleep(600);
     const ang2 = await p.evaluate(() => window.__game.world.angles.index);
@@ -1334,7 +1339,7 @@ const { open } = require('./smoke.cjs');
       'View: the angle moves on to the next, and the menu holds each named view in turn',
       ang.on &&
         ang.label === 'Auto' &&
-        ang2 === (ang.i0 + 1) % 6 &&
+        ang2 === (ang.i0 + 1) % ang.n &&
         labels.join() === 'Axo:axo,Flat:flat,High:high,Top:top,Auto:axo',
       { ang, ang2, labels },
     );
