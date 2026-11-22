@@ -1230,10 +1230,48 @@ const { open } = require('./smoke.cjs');
         .filter((el) => el.style.display !== 'none')
         .map((el) => el.querySelector('.txt').textContent.split(' ')[0])
         .sort();
-      // the flat view: no orbits drawn
-      g.solar.update(0, S, 0, 0, false, 1);
+      // the flat view: no orbits drawn (once the glow of the one just crossed has gone)
+      g.solar.update(30, S, 0, 0, false, 1);
       const flatOrbits = g.solar.planets.filter((q) => q.orbit).length;
       g.solar.update(0, S, 0, 0);
+      // (v3-look85) Earth's pull: let go beside it she settles into going round it; pushing away she escapes
+      // (the planets go round meanwhile, as in play: the Earth about 2 m/s)
+      let E = g.solar.orbitOf('Earth');
+      const q = { x: E.x, z: E.z + E.R + 4, vx: 1.5, vz: 0 };
+      let turned = 0,
+        prevA = Math.atan2(q.z - E.z, q.x - E.x),
+        dMin = 1e9,
+        dMax = 0;
+      for (let i = 0; i < 60 * 40; i++) {
+        g.solar.update(1 / 60, S, 0, 0, true);
+        g.solar.pull(q, 1 / 60, true);
+        q.x += q.vx / 60;
+        q.z += q.vz / 60;
+        E = g.solar.orbitOf('Earth');
+        const ang = Math.atan2(q.z - E.z, q.x - E.x),
+          dd = Math.hypot(q.x - E.x, q.z - E.z);
+        turned += Math.abs(((ang - prevA + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+        prevA = ang;
+        if (i > 60 * 20) {
+          dMin = Math.min(dMin, dd);
+          dMax = Math.max(dMax, dd);
+        }
+      }
+      // pushing straight out at her push-off (2.6 m/s2) from rest
+      const esc = { x: E.x, z: E.z + E.R + 1, vx: 0, vz: 0 };
+      for (let i = 0; i < 60 * 30; i++) {
+        g.solar.update(1 / 60, S, 0, 0, true);
+        g.solar.pull(esc, 1 / 60, false);
+        esc.vz += 2.6 / 60;
+        esc.x += esc.vx / 60;
+        esc.z += esc.vz / 60;
+      }
+      const orbit = {
+        R: +E.R.toFixed(1),
+        turns: +(turned / (2 * Math.PI)).toFixed(2),
+        d: [+dMin.toFixed(1), +dMax.toFixed(1)],
+        out: +(Math.hypot(esc.x - g.solar.orbitOf('Earth').x, esc.z - g.solar.orbitOf('Earth').z) - E.edge).toFixed(0),
+      };
       S.x = keep[0];
       S.z = keep[1];
       // zoomed out: only the found ones show
@@ -1265,10 +1303,11 @@ const { open } = require('./smoke.cjs');
         after: S.speedK,
         marks,
         flatOrbits,
+        orbit,
       };
     });
     ok(
-      'Paper at dusk: the solar system, the sun ahead of her, planets going round and found as she comes near; light gravity, marks to the orbits either side, none drawn in the flat view',
+      'Paper at dusk: the solar system, the sun ahead of her, planets going round and found as she comes near; light gravity, marks to the orbits either side, none drawn in the flat view, held in orbit round a planet and free to leave',
       sol.on &&
         sol.ahead &&
         sol.moved > 0.5 &&
@@ -1281,6 +1320,10 @@ const { open } = require('./smoke.cjs');
         sol.jumpK === 0.78 &&
         sol.marks.join() === 'Jupiter,Mars' &&
         sol.flatOrbits === 0 &&
+        sol.orbit.turns > 1 &&
+        sol.orbit.d[0] > sol.orbit.R * 0.9 &&
+        sol.orbit.d[1] - sol.orbit.d[0] < 3 &&
+        sol.orbit.out > 0 &&
         sol.after === 1 &&
         sol.hit &&
         sol.found.join() === 'Mars' &&

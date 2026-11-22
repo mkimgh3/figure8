@@ -440,7 +440,27 @@ export function createSolar(scene, renderer, camera) {
     orbit.add(band);
     root.add(orbit);
     // x, z: where it is in the world; side: which side of its orbit she was on last frame; glow: its orbit lit up
-    return { name, a, e, L0, varpi, period, r, spin, parent, body, mesh, orbit, x: 0, z: 0, side: 0, glow: 0 };
+    // vx, vz: how fast it is going (m/s), for the orbit she is held in round it (pull)
+    return {
+      name,
+      a,
+      e,
+      L0,
+      varpi,
+      period,
+      r,
+      spin,
+      parent,
+      body,
+      mesh,
+      orbit,
+      x: 0,
+      z: 0,
+      vx: 0,
+      vz: 0,
+      side: 0,
+      glow: 0,
+    };
   });
   const byName = Object.fromEntries(bodies.map((B) => [B.name, B]));
 
@@ -756,7 +776,16 @@ void main() {
     update(dt, S, e, now, quiet, flat = 0) {
       if (!on) return;
       t += dt;
+      for (const B of bodies) {
+        B.px = B.x;
+        B.pz = B.z;
+      }
       place();
+      if (dt > 0)
+        for (const B of bodies) {
+          B.vx = (B.x - B.px) / dt;
+          B.vz = (B.z - B.pz) / dt;
+        }
       const tw = now / 1000;
       beltFar.material.userData.time.value = tw;
       nearMat.uniforms.uTime.value = tw;
@@ -782,7 +811,8 @@ void main() {
         B.side = sd;
         B.glow *= Math.exp(-dt / 1.6);
         const lit = orbits.has(B.name) ? 1 : 0,
-          seen = 1 - flat;
+          // (v3-look85) in the flat view an orbit still shows as she crosses it, while it glows
+          seen = Math.max(1 - flat, Math.min(1, B.glow * 1.5));
         B.orbit.visible = seen > 0.02;
         for (const m of [B.orbit.material, B.orbit.children[0].material]) {
           m.color.setHex(0xa6adbb).multiplyScalar(1 + lit * 0.5 + B.glow * 4);
@@ -806,6 +836,59 @@ void main() {
         }
       for (const B of bodies) placeMark(B.name, B.x, B.z, !quiet && e < 0.5 && (B === before || B === next));
       placeMark('Sun', root.position.x, root.position.z, !quiet && e < 0.5 && !before);
+    },
+    // The planets' pull (v3-look85, Mark: "give planets gravitational pull but dont pull them all the way the the planet
+    // but place skater in a stable orbit can escape by moving away"), every frame from main.js. Near a planet (not a
+    // moon) she is drawn toward an orbit round it, gap[0] times its radius plus gap[1] m out: the pull builds from
+    // nothing there to `pull` m/s2 `hold` m further out, then fades to nothing `reach` m out; inside the orbit she is
+    // pushed back out. Coasting (her left thumb off the glass) her speed in and out is damped (`damp`, 1/s) and her speed
+    // round eased to `speed` m/s (`settle`, 1/s), both more strongly the nearer the orbit, so she settles into going
+    // round it the way she was going. Pushing away she escapes: the pull is less than her push-off (CFG.steer.accel).
+    // Her speeds in and round are taken against the planet's own (the Earth goes about 2 m/s round the sun), or she
+    // would be left behind as it moved on.
+    pull(S, dt, coasting) {
+      if (!on || !(dt > 0)) return;
+      const O = CFG.paper.Dusk.orbit;
+      for (const B of bodies) {
+        if (B.parent) continue;
+        const dx = B.x - S.x,
+          dz = B.z - S.z,
+          d = Math.hypot(dx, dz),
+          R = B.r * O.gap[0] + O.gap[1],
+          edge = R + O.reach;
+        if (d >= edge || d < 1e-3) continue;
+        const ux = dx / d,
+          uz = dz / d,
+          a =
+            d < R
+              ? -2 * O.pull * Math.min(1, (R - d) / O.hold)
+              : d < R + O.hold
+                ? (O.pull * (d - R)) / O.hold
+                : (O.pull * (edge - d)) / (edge - R - O.hold);
+        S.vx += ux * a * dt;
+        S.vz += uz * a * dt;
+        if (coasting) {
+          const w = Math.min(1, (edge - d) / (edge - R)),
+            tx = -uz,
+            tz = ux,
+            rx = S.vx - B.vx,
+            rz = S.vz - B.vz,
+            vr = rx * ux + rz * uz,
+            vt = rx * tx + rz * tz,
+            want = (vt >= 0 ? 1 : -1) * O.speed,
+            kr = 1 - Math.exp(-O.damp * w * dt),
+            kt = 1 - Math.exp(-O.settle * w * dt);
+          S.vx += -ux * vr * kr + tx * (want - vt) * kt;
+          S.vz += -uz * vr * kr + tz * (want - vt) * kt;
+        }
+      }
+    },
+    // for tests: the orbit a planet holds her in (m from its middle) and how far out its pull reaches
+    orbitOf(name) {
+      const B = byName[name],
+        O = CFG.paper.Dusk.orbit,
+        R = B.r * O.gap[0] + O.gap[1];
+      return { x: B.x, z: B.z, R, edge: R + O.reach };
     },
     // If (x, z) is inside the sun or a body where it meets the plane: the nearest point outside and the way out
     hit(x, z) {

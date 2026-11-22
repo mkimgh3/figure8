@@ -33,7 +33,7 @@ import * as THREE from './render/three.js';
 
 // v3-look40: the front page frames the skater below the status bar and above the choices, from lower down and further
 // back; a drag turns her round (a turntable), a flick spins her, and she goes through gestures as she turns
-const BUILD = 'v3-look84';
+const BUILD = 'v3-look85';
 let world;
 try {
   world = createScene(document.getElementById('c'));
@@ -1174,6 +1174,8 @@ function frame(now) {
     hud.padSpin(S.move && S.move.id === 'dance' ? Math.min(1, S.move.state.rate / (CFG.dance.spinFast * 1.4)) : 0);
     hud.combo(Math.max(score.chainLeft(), score.choreoLeft()));
     tutorial.tick(dt, { S, speed: game.speed(), armed: tricks.armed, now });
+    // among the planets, each one near her pulls her round it (v3-look85); coasting, she settles into an orbit
+    solar.pull(S, dt, S.mag < 0.1);
     // a shore turns her along it: she keeps the speed that runs along the coast and loses what was heading inland
     {
       const t = forest.hit(S.x, S.z) || solar.hit(S.x, S.z);
@@ -1245,7 +1247,13 @@ function frame(now) {
     drawSkater(dt, now);
     if (modeIx === 3) duet.update(dt, now, models.index, world.quality.reflection && !paperOn && !uCanyon.value);
     // (v3-look84, Mark: "make the indicator ring larger so its not so tiny") bigger as the view stands further back
-    ring.update(game, models.rig.scale * Math.max(1, world.angles.dist), world.camera);
+    // (v3-look85, Mark: "do make ring larger when this much zoomed out") held sideways, more than in step with it: in the
+    // top view (2.1 times as far) about 1.5 times its usual size on screen (upright it was already as wide as the screen)
+    ring.update(
+      game,
+      models.rig.scale * Math.max(1, world.angles.dist) ** (world.camera.aspect > 1 ? 1.55 : 1),
+      world.camera,
+    );
     log.tick(dt, game, steer, real);
   }
   // on the front page the skater stands for the showcase: posed and drawn, turned by the finger, framed in the space

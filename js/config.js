@@ -634,6 +634,8 @@ export const CFG = {
       // so a jump goes 1.4 times as high (was 2.5) and floats 1.8 times as long
       gravity: 0.43,
       jump: 0.78,
+      // v3-look85: each planet's pull, which holds her in an orbit round it (render/solar.js, pull())
+      orbit: { gap: [1.3, 2.5], hold: 3, reach: 30, pull: 2, damp: 1.2, settle: 0.8, speed: 2.5 },
     },
   },
   // Graphics levels. 'Auto' starts at the top that suits the device and steps down if frames drop. dust: how many
